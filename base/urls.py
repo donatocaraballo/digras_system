@@ -1,24 +1,31 @@
 from django.urls import path, include
-from rest_framework import routers
-from . import views
+from rest_framework.routers import DefaultRouter
 
-router = routers.DefaultRouter()
-router.register(r'categorias', views.CategoriaViewSet)
-router.register(r'marcas', views.MarcaViewSet)
-router.register(r'productos', views.ProductoViewSet)
-router.register(r'clientes', views.ClienteViewSet)
-router.register(r'proveedores', views.ProveedorViewSet)
-router.register(r'compras', views.CompraViewSet)
-router.register(r'detallecompras', views.DetalleCompraViewSet)
-router.register(r'ordenes', views.OrdenViewSet)
-router.register(r'detalleordenes', views.DetalleOrdenViewSet)
-router.register(r'unidades', views.UnidadViewSet)
-router.register(r'envios', views.EnvioViewSet)
-router.register(r'lotes', views.LoteViewSet)
-router.register(r'existencias', views.ExistenciaViewSet)
-router.register(r'usuarios', views.UsuarioViewSet)
-router.register(r'registroacciones', views.RegistroAccionViewSet)
+from .views import (
+    UsuarioViewSet, RegistroAccionViewSet, CategoriaViewSet, MarcaViewSet,
+    ProductoViewSet, ExistenciaViewSet, LoteViewSet, ClienteViewSet,
+    UnidadViewSet, EnvioViewSet, OrdenViewSet, DetalleOrdenViewSet,
+    ProveedorViewSet, CompraViewSet, DetalleCompraViewSet
+)
+
+router = DefaultRouter()
+
+router.register('usuarios', UsuarioViewSet)
+router.register('registros', RegistroAccionViewSet)
+router.register('categorias', CategoriaViewSet)
+router.register('marcas', MarcaViewSet)
+router.register('productos', ProductoViewSet)
+router.register('existencias', ExistenciaViewSet)
+router.register('lotes', LoteViewSet)
+router.register('clientes', ClienteViewSet)
+router.register('unidades', UnidadViewSet)
+router.register('envios', EnvioViewSet)
+router.register('ordenes', OrdenViewSet)
+router.register('detalle-ordenes', DetalleOrdenViewSet)
+router.register('proveedores', ProveedorViewSet)
+router.register('compras', CompraViewSet)
+router.register('detalle-compras', DetalleCompraViewSet)
 
 urlpatterns = [
-    path('', include(router.urls)),
+    path('api/', include(router.urls)),
 ]

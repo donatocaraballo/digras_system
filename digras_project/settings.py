@@ -78,7 +78,7 @@ WSGI_APPLICATION = 'digras_project.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'digras_db',
+        'NAME': 'digrasdb',
         'USER': 'postgres',
         'PASSWORD': 'admin',
         'HOST': 'localhost',
@@ -88,6 +88,9 @@ DATABASES = {
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
+
+AUTH_USER_MODEL = "base.Usuario"
+
 
 AUTH_PASSWORD_VALIDATORS = [
     {
