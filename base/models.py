@@ -1,17 +1,11 @@
 
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.conf import settings
 
-# ---------------------------
-#   USUARIO DEL SISTEMA
-# ---------------------------
 class Usuario(AbstractUser):
     id_usuario = models.AutoField(primary_key=True)
-    user = models.CharField(max_length=50, unique=True)
-    clave = models.CharField(max_length=128)
-    nombre = models.CharField(max_length=150)
-    apellido = models.CharField(max_length=150)
-    # Campo tipo de usuario (rol)
+
     TIPO_USUARIO = [
         ('GERENTE', 'Gerente'),
         ('ADMINISTRADOR', 'Administrador'),
@@ -20,28 +14,31 @@ class Usuario(AbstractUser):
         ('TRANSPORTISTA', 'Transportista'),
     ]
     tipo = models.CharField(max_length=20, choices=TIPO_USUARIO, default='VENDEDOR')
-    # Campos opcionales
+
     telefono = models.CharField(max_length=20, blank=True, null=True)
     direccion = models.CharField(max_length=255, blank=True, null=True)
 
+    # NO AÑADIR nombre / apellido porque ya existen en AbstractUser
+
     def __str__(self):
         return f"{self.username} ({self.tipo})"
-
 
 # ---------------------------
 #   REGISTRO DE ACCIONES
 # ---------------------------
 class RegistroAccion(models.Model):
     id_registro = models.AutoField(primary_key=True)
-    id_user = models.ForeignKey(Usuario, on_delete=models.CASCADE)
-    fecha_y_hora = models.DateTimeField(auto_now_add=True)
-    modulo = models.CharField(max_length=60)
+    id_usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,  # porque en utils podrías pasar None si es anónimo
+        blank=True
+    )
+    modulo = models.CharField(max_length=100)
     accion = models.CharField(max_length=100)
-    descripcion = models.TextField()
+    descripcion = models.TextField(blank=True)
+    fecha_y_hora = models.DateTimeField(auto_now_add=True)
     id_referencia = models.IntegerField(null=True, blank=True)
-
-    def __str__(self):
-        return f"{self.modulo} - {self.accion}"
 
 
 # ---------------------------
@@ -75,7 +72,7 @@ class Producto(models.Model):
     id_producto = models.AutoField(primary_key=True)
     nombre = models.CharField(max_length=100)
     descripcion = models.TextField()
-    fecha_creacion = models.DateField()
+    fecha_creacion = models.DateField(auto_now_add=True)
     id_marca = models.ForeignKey(Marca, on_delete=models.PROTECT)
     id_categoria = models.ForeignKey(Categoria, on_delete=models.PROTECT)
     sku = models.CharField(max_length=50, unique=True)
@@ -170,14 +167,14 @@ class Orden(models.Model):
     id_orden = models.AutoField(primary_key=True)
     metodo_pago = models.CharField(max_length=50)
     id_cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT)
-    fecha_orden = models.DateField()
-    estado_de_envio = models.CharField(max_length=40)
+    fecha_orden = models.DateField(auto_now_add=True)
+    estado_de_envio = models.CharField(max_length=40, default="PENDIENTE POR APROBACIÓN")
+    estado_de_pago = models.CharField(max_length=30, default="PENDIENTE POR PAGO")
     precio_final = models.DecimalField(max_digits=12, decimal_places=2)
     peso_total = models.DecimalField(max_digits=12, decimal_places=2)
     cancelacion = models.BooleanField(default=False)
     id_envio = models.ForeignKey(Envio, null=True, blank=True, on_delete=models.SET_NULL)
     id_usuario = models.ForeignKey(Usuario, on_delete=models.PROTECT)
-    estado_de_pago = models.CharField(max_length=30)
 
     def __str__(self):
         return f"Orden {self.id_orden}"

@@ -1,5 +1,13 @@
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.db import transaction
+from django.db.models import F
+from .utils import registrar_accion 
+from base.viewsets import BaseViewSet
+from rest_framework.exceptions import PermissionDenied
+from rest_framework import viewsets, permissions
 
 from .models import (
     Usuario, RegistroAccion, Categoria, Marca, Producto,
@@ -16,27 +24,14 @@ from .serializers import (
 )
 
 # ------------------------------------------------------------
-# BASE CLASS FOR COMMON FEATURES
-# ------------------------------------------------------------
-
-class BaseViewSet(viewsets.ModelViewSet):
-    """
-    Base para todos los ViewSets.
-    Incluye filtros, búsquedas y permisos por defecto.
-    """
-    permission_classes = [IsAuthenticated]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-
-
-# ------------------------------------------------------------
 # VIEWSETS
 # ------------------------------------------------------------
 
 class UsuarioViewSet(BaseViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
-    search_fields = ['user', 'nombre', 'apellido', 'tipo']
-    ordering_fields = ['id_usuario', 'user']
+    search_fields = ['username', 'first_name', 'last_name', 'tipo']
+    ordering_fields = ['id_usuario', 'username']
 
 
 class RegistroAccionViewSet(BaseViewSet):
@@ -77,26 +72,36 @@ class ExistenciaViewSet(BaseViewSet):
     queryset = Existencia.objects.all()
     serializer_class = ExistenciaSerializer
     search_fields = ['producto__nombre']
+    search_fields = ['id_producto__nombre']
     ordering_fields = ['cantidad']
 
-
-class ClienteViewSet(BaseViewSet):
+class ClienteViewSet(viewsets.ModelViewSet):
     queryset = Cliente.objects.all()
     serializer_class = ClienteSerializer
-    search_fields = ['nombre', 'correo', 'telefono']
+    permission_classes = [permissions.IsAuthenticated]
 
+    def perform_create(self, serializer):
+        usuario = self.request.user
 
-class OrdenViewSet(BaseViewSet):
-    queryset = Orden.objects.all()
-    serializer_class = OrdenSerializer
-    search_fields = ['cliente__nombre']
-    ordering_fields = ['fecha_orden', 'estado_de_envio']
+        # (Opcional) Solo permitir que VENDEDORES creen clientes:
+        if usuario.tipo not in ["VENDEDOR", "GERENTE", "ADMINISTRADOR"]:
+            raise PermissionDenied("Solo vendedores o gerentes pueden crear clientes.")
 
+        cliente = serializer.save(id_usuario=usuario)
+
+        # Registrar acción (si estás usando el log)
+        registrar_accion(
+            usuario,
+            "Clientes",
+            "Crear cliente",
+            f"Creación del cliente {cliente.nombre}",
+            id_referencia=cliente.id_cliente,
+        )
 
 class DetalleOrdenViewSet(BaseViewSet):
     queryset = DetalleOrden.objects.all()
     serializer_class = DetalleOrdenSerializer
-    search_fields = ['orden__id_orden', 'producto__nombre']
+    search_fields = ['id_orden__id_orden', 'id_producto__nombre']
 
 
 class ProveedorViewSet(BaseViewSet):
@@ -130,3 +135,4 @@ class UnidadViewSet(BaseViewSet):
     serializer_class = UnidadSerializer
     search_fields = ['codigo_unidad', 'placa']
     ordering_fields = ['estado']
+

@@ -1,28 +1,65 @@
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin
 from .models import (
     Usuario, RegistroAccion, Categoria, Marca, Producto,
     Lote, Existencia, Cliente, Orden, DetalleOrden,
     Proveedor, Compra, DetalleCompra, Envio, Unidad
 )
 
-# --------------------------
-# USUARIO
-# --------------------------
 @admin.register(Usuario)
-class UsuarioAdmin(admin.ModelAdmin):
-    list_display = ('id_usuario', 'user', 'nombre', 'apellido', 'tipo', 'is_active')
-    search_fields = ('user', 'nombre', 'apellido')
-    list_filter = ('tipo', 'is_active')
-    ordering = ('id_usuario',)
+class UsuarioAdmin(UserAdmin):
+    model = Usuario
 
+    # Columnas en la tabla de usuarios
+    list_display = ("username", "email", "first_name", "last_name", "tipo", "is_staff", "is_active")
+    list_filter = ("tipo", "is_staff", "is_superuser", "is_active")
+
+    # Formulario de edición
+    fieldsets = (
+        (None, {"fields": ("username", "password")}),
+        ("Información personal", {
+            "fields": ("first_name", "last_name", "email", "telefono", "direccion")
+        }),
+        ("Rol y permisos", {
+            "fields": ("tipo", "is_active", "is_staff", "is_superuser", "groups", "user_permissions")
+        }),
+        ("Fechas importantes", {
+            "fields": ("last_login", "date_joined")
+        }),
+    )
+
+    # Formulario de creación (Add User)
+    add_fieldsets = (
+        (None, {
+            "classes": ("wide",),
+            "fields": (
+                "username",
+                "password1",
+                "password2",
+                "first_name",
+                "last_name",
+                "email",
+                "tipo",
+                "telefono",
+                "direccion",
+                "is_staff",
+                "is_superuser",
+                "is_active",
+                "groups",
+            ),
+        }),
+    )
+
+    search_fields = ("username", "email", "first_name", "last_name")
+    ordering = ("username",)
 
 # --------------------------
 # REGISTRO ACCIÓN
 # --------------------------
 @admin.register(RegistroAccion)
 class RegistroAccionAdmin(admin.ModelAdmin):
-    list_display = ('id_registro', 'id_user', 'modulo', 'accion', 'fecha_y_hora')
-    search_fields = ('id_user__user', 'modulo', 'accion')
+    list_display = ('id_registro', 'id_usuario', 'modulo', 'accion', 'fecha_y_hora')
+    search_fields = ('id_usuario__username', 'modulo', 'accion')
     ordering = ('-fecha_y_hora',)
 
 
@@ -97,7 +134,7 @@ class ClienteAdmin(admin.ModelAdmin):
     list_display = ('id_cliente', 'nombre', 'correo', 'telefono', 'get_vendedor')
 
     def get_vendedor(self, obj):
-        return obj.id_usuario.user
+        return obj.id_usuario.username
     get_vendedor.short_description = "Vendedor"
 
 
@@ -197,5 +234,5 @@ class UnidadAdmin(admin.ModelAdmin):
     list_display = ('id_unidad', 'codigo_unidad', 'placa', 'capacidad_carga', 'get_transportista', 'estado')
 
     def get_transportista(self, obj):
-        return obj.id_usuario.user
+        return obj.id_usuario.username
     get_transportista.short_description = "Transportista"
