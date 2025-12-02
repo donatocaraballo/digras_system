@@ -39,17 +39,28 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'base',
+    'inventario',
+    'compras',
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+CORS_ALLOW_CREDENTIALS = True
 
 ROOT_URLCONF = 'digras_project.urls'
 
@@ -126,3 +137,13 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+REST_FRAMEWORK = {
+    # CRÍTICO 1: No debe haber autenticación forzada
+    'DEFAULT_AUTHENTICATION_CLASSES': [], 
+    
+    # CRÍTICO 2: El permiso por defecto debe ser explícitamente AllowAny
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny', # <-- Usar la ruta de string
+    ]
+}
