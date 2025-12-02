@@ -39,8 +39,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'base',
-    'inventario',
-    'compras',
+    'inventario.apps.InventarioConfig',
+    'compras.apps.ComprasConfig',
     'corsheaders',
 ]
 
