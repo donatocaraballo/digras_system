@@ -55,6 +55,16 @@ class Compra(models.Model):
     estado_de_envio = models.CharField(max_length=40, choices=ESTADO_ENVIO_CHOICES, default='PENDIENTE_APROBACION', null=True, blank=True) # [cite: 1867]
     estado_de_pago = models.CharField(max_length=30, default='PENDIENTE', null=True, blank=True) # [cite: 1871]
 
+    def saldo_pendiente(self):
+        # Evitar error si la tabla no existe o precio es None
+        try:
+            total_pagado = sum(p.monto for p in self.pagos.all())
+        except Exception:
+            total_pagado = 0
+            
+        precio = self.precio_final or 0
+        return precio - total_pagado
+
     def __str__(self):
         return f"Compra N°{self.id_compra} a {self.id_proveedor.nombre}"
 
@@ -82,3 +92,36 @@ class DetalleCompra(models.Model):
 
     def __str__(self):
         return f"Detalle de Compra {self.id_compra.id_compra}: {self.cantidad} x {self.id_producto.nombre}"
+    
+class PagoCompra(models.Model):
+    id_pago = models.AutoField(primary_key=True)
+    id_compra = models.ForeignKey(Compra, related_name='pagos', on_delete=models.CASCADE)
+    
+    METODO_PAGO_CHOICES = [
+        ('TRANSFERENCIA_BS', 'Transferencia (Bs)'),
+        ('PAGO_MOVIL', 'Pago Móvil (Bs)'),
+        ('EFECTIVO_BS', 'Efectivo (Bs)'),
+        ('TRANSFERENCIA_USD', 'Transferencia ($)'),
+        ('EFECTIVO_USD', 'Efectivo ($)'),
+        ('ZELLE', 'Zelle ($)'),
+    ]
+    metodo_pago = models.CharField(max_length=50, choices=METODO_PAGO_CHOICES)
+    
+    # 🚨 CAMPOS NUEVOS PARA MULTIMONEDA 🚨
+    # 'monto': Siempre será el valor convertido a DÓLARES (para restar la deuda)
+    monto = models.DecimalField(max_digits=12, decimal_places=2) 
+    
+    # 'monto_local': Lo que el usuario pagó realmente en su moneda (ej: 1500 Bs)
+    monto_local = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    
+    # 'tasa_cambio': La tasa usada en el momento (ej: 36.50)
+    tasa_cambio = models.DecimalField(max_digits=10, decimal_places=2, default=1.00)
+    
+    # 'moneda': Para saber qué símbolo mostrar
+    moneda = models.CharField(max_length=3, default='USD', choices=[('USD', 'USD'), ('VES', 'VES')])
+    
+    referencia = models.CharField(max_length=100, blank=True, null=True)
+    fecha_pago = models.DateField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Pago {self.id_pago}: {self.monto} USD ({self.monto_local} {self.moneda})"

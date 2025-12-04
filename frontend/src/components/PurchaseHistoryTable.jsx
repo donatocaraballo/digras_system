@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import AdvancedSearchBar from './AdvancedSearchBar';
+import RegisterPaymentModal from './RegisterPaymentModal';
+import toast from 'react-hot-toast';
 
 const COMPRAS_URL = '/api/compras/compras/';
 
@@ -10,6 +12,7 @@ function PurchaseHistoryTable({ refreshTrigger, onUpdate, onEditClick }) {
     const [compras, setCompras] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [paymentOrder, setPaymentOrder] = useState(null);
 
     // --- ESTADOS DE FILTRO ---
     const [searchTerm, setSearchTerm] = useState('');
@@ -36,12 +39,18 @@ function PurchaseHistoryTable({ refreshTrigger, onUpdate, onEditClick }) {
     const getStatusColor = (estado) => {
         switch (estado) {
             case 'RECIBIDA_COMPLETA':
+            case 'PAGADO':
                 return 'green';
             case 'APROBADA':
                 return 'blue';
             case 'PENDIENTE':
             case 'PENDIENTE_APROBACION':
                 return 'orange';
+            case 'PAGADA_PARCIAL':
+            case 'RECIBIDA_PARCIAL': // Mantenemos este para el estado de envío
+                return '#009688'; // Teal (Verde azulado)
+            case 'CANCELADA':
+                return '#d32f2f'; // Rojo
             default:
                 return 'grey';
         }
@@ -77,37 +86,93 @@ function PurchaseHistoryTable({ refreshTrigger, onUpdate, onEditClick }) {
         return matchText && matchDate && matchStatus && matchPay;
     });
     
-    // Función D (DELETE): Eliminar una compra
-    const handleDelete = async (compraId) => {
-        if (window.confirm(`¿Estás seguro de eliminar la Compra N°${compraId}? Esta acción NO se puede deshacer y puede afectar el stock si no hay lógica de egreso de lotes.`)) {
-            try {
-                // DELETE: /api/compras/compras/ID/
-                await axios.delete(`${COMPRAS_URL}${compraId}/`);
+    // 1. Función que lanza la pregunta (El "Mini Modal")
+    const handleDelete = (compraId) => {
+        toast((t) => (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: '5px' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '1rem', color: '#333' }}>
+                    ¿Eliminar Compra N°{compraId}?
+                </div>
+                <div style={{ fontSize: '0.85rem', color: '#666', textAlign: 'center' }}>
+                    Esta acción es irreversible y podría afectar el inventario.
+                </div>
                 
-                // Si llega aquí, la eliminación fue exitosa
-                alert(`✅ Compra N°${compraId} eliminada exitosamente.`);
-                
-                onUpdate(); // Refresca la lista
-            } catch (error) {
-                // 🚨 CORRECCIÓN DE UX: Capturar el error y mostrar el mensaje específico
-                let errorMessage = "Error al eliminar compra. Revisa la consola.";
-                
-                if (error.response) {
-                    const status = error.response.status;
-                    const detail = error.response.data.detail || JSON.stringify(error.response.data);
+                <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                    {/* Botón Cancelar */}
+                    <button 
+                        onClick={() => toast.dismiss(t.id)}
+                        style={{
+                            padding: '8px 16px', 
+                            border: '1px solid #ccc', 
+                            borderRadius: '5px', 
+                            background: 'white', 
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                        }}
+                    >
+                        Cancelar
+                    </button>
 
-                    if (status === 403) {
-                        // Captura el mensaje de restricción de Django (Recibida, no editable)
-                        errorMessage = detail;
-                        alert(`❌ RESTRICCIÓN DE NEGOCIO (403 Forbidden):\n\n${errorMessage}`);
-                    } else {
-                        errorMessage = `Error ${status}: ${detail}`;
-                        alert(`❌ Error del servidor:\n${errorMessage}`);
-                    }
+                    {/* Botón Confirmar */}
+                    <button 
+                        onClick={() => {
+                            toast.dismiss(t.id); // Cierra el toast de pregunta
+                            executeDelete(compraId); // Ejecuta el borrado
+                        }}
+                        style={{
+                            padding: '8px 16px', 
+                            border: 'none', 
+                            borderRadius: '5px', 
+                            background: '#d32f2f', 
+                            color: 'white', 
+                            cursor: 'pointer',
+                            fontWeight: 'bold',
+                            fontSize: '0.9rem'
+                        }}
+                    >
+                        Sí, Eliminar
+                    </button>
+                </div>
+            </div>
+        ), {
+            duration: Infinity, // No se cierra solo
+            position: 'top-center',
+            style: {
+                border: '1px solid #e0e0e0',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                minWidth: '300px'
+            },
+        });
+    };
+
+    // 2. Función que ejecuta la acción real (La lógica que tenías antes)
+    const executeDelete = async (compraId) => {
+        const loadingToast = toast.loading("Eliminando...");
+        
+        try {
+            await axios.delete(`${COMPRAS_URL}${compraId}/`);
+            
+            toast.dismiss(loadingToast);
+            toast.success(`✅ Compra N°${compraId} eliminada.`);
+            onUpdate(); // Refresca la lista
+            
+        } catch (error) {
+            toast.dismiss(loadingToast);
+            
+            if (error.response) {
+                const status = error.response.status;
+                const detail = error.response.data.detail || "Error desconocido";
+
+                if (status === 403) {
+                    // Mensaje largo: aumentamos duración
+                    toast.error(`${detail}`, { duration: 6000 });
+                } else {
+                    toast.error(`Error ${status}: ${detail}`);
                 }
-                
-                console.error("Error DELETE:", error.response || error);
+            } else {
+                toast.error("Error de conexión al servidor.");
             }
+            console.error("Error DELETE:", error);
         }
     };
     
@@ -177,11 +242,22 @@ function PurchaseHistoryTable({ refreshTrigger, onUpdate, onEditClick }) {
                             <td style={tableCellStyle}>
                                 <button onClick={() => handleEdit(compra)} style={editButtonStyle} disabled={isReceived}>Editar</button>
                                 <button onClick={() => handleDelete(compra.id_compra)} style={deleteButtonStyle} disabled={isReceived}>Eliminar</button>
+                                <button onClick={() => setPaymentOrder(compra)} style={{...editButtonStyle, backgroundColor: '#ff9800'}} title="Registrar Pago">$</button>
                             </td>
                         </tr>
                     ))}
                 </tbody>
             </table>
+            {paymentOrder && (
+                <RegisterPaymentModal 
+                    compra={paymentOrder} 
+                    onClose={() => setPaymentOrder(null)} // Esto desmonta el modal
+                    onSuccess={() => { 
+                        setPaymentOrder(null); // Cierra modal
+                        onUpdate(); // Recarga la tabla principal
+                    }}
+                />
+            )}
         </div>
     );
 }

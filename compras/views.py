@@ -2,9 +2,12 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
+from rest_framework.exceptions import PermissionDenied
 from django.db import transaction
+from django.db.models import Sum
+from decimal import Decimal, InvalidOperation
 # Importa los modelos necesarios:
-from .models import Compra, DetalleCompra, Proveedor
+from .models import Compra, DetalleCompra, Proveedor, PagoCompra
 from inventario.models import Lote, Existencia 
 from .serializers import CompraSerializer, DetalleCompraSerializer, ProveedorSerializer
 # from base.models import Usuario # Asumiendo que ya está importado si lo usas en el admin.
@@ -106,12 +109,172 @@ class CompraViewSet(viewsets.ModelViewSet):
             return Response({'status': f'Compra {pk} aprobada y lista para recibir.'})
         else:
             return Response({'error': f'La compra {pk} ya no está pendiente de aprobación.'}, status=status.HTTP_400_BAD_REQUEST)    
+        
+    # 🚨 ACCIÓN: Registrar Pago 🚨
+    @action(detail=True, methods=['post'])
+    @transaction.atomic # Asegura que si un pago falla, no se guarde ninguno
+    def registrar_pago(self, request, pk=None):
+        compra = self.get_object()
+        
+        # Aceptamos una lista de pagos o un solo objeto (por compatibilidad)
+        data_pagos = request.data.get('pagos', [])
+        if not data_pagos:
+             # Soporte legacy si el frontend mandara un solo objeto plano
+             data_pagos = [request.data]
 
+        total_monto_usd = Decimal('0.00')
+
+        # 1. Validación preliminar del total
+        for p_data in data_pagos:
+             monto_local = Decimal(str(p_data.get('monto_local', 0)))
+             tasa = Decimal(str(p_data.get('tasa_cambio', 1)))
+             if tasa <= 0: return Response({'error': 'La tasa debe ser mayor a 0'}, status=400)
+             
+             # Calculamos el valor en USD
+             moneda = p_data.get('moneda', 'USD')
+             if moneda == 'VES':
+                 monto_usd = monto_local / tasa
+             else:
+                 monto_usd = monto_local
+            
+             total_monto_usd += monto_usd
+
+        # 2. Verificar Saldo
+        saldo = compra.saldo_pendiente()
+        # Tolerancia de 0.05 centavos para errores de redondeo de tasa
+        if total_monto_usd > (saldo + Decimal('0.05')):
+             return Response({
+                 'error': f'El total a pagar (${total_monto_usd:.2f}) supera la deuda (${saldo:.2f}).'
+             }, status=400)
+
+        # 3. Crear los Pagos
+        try:
+            for p_data in data_pagos:
+                moneda = p_data.get('moneda', 'USD')
+                monto_local = Decimal(str(p_data.get('monto_local', 0)))
+                tasa = Decimal(str(p_data.get('tasa_cambio', 1)))
+                
+                # Determinamos el monto final en USD para la contabilidad
+                if moneda == 'VES':
+                    monto_contable = monto_local / tasa
+                else:
+                    monto_contable = monto_local
+                    tasa = 1.00 # Si es USD, la tasa es 1
+
+                PagoCompra.objects.create(
+                    id_compra=compra,
+                    metodo_pago=p_data.get('metodo_pago'),
+                    referencia=p_data.get('referencia', ''),
+                    
+                    monto=monto_contable,        # Valor real en USD (para restar deuda)
+                    monto_local=monto_local,     # Valor en billetes (para recibo)
+                    tasa_cambio=tasa,            # Tasa usada
+                    moneda=moneda
+                )
+            
+            return Response({'status': 'Pagos registrados exitosamente.'}, status=200)
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+    @action(detail=True, methods=['post'])
+    def aprobar(self, request, pk=None):
+        """
+        Solo GERENTE puede aprobar compras.
+        Cambia estado_de_envio a 'APROBADA'.
+        No toca inventario (eso se hace luego en recepción).
+        """
+        usuario = request.user
+
+        if getattr(usuario, "tipo", None) != "GERENTE":
+            raise PermissionDenied("Solo el gerente puede aprobar compras.")
+
+        try:
+            compra = self.get_object()
+        except Compra.DoesNotExist:
+            return Response({"error": "Compra no encontrada."}, status=404)
+
+        if compra.estado_de_envio != "PENDIENTE_APROBACION":
+            return Response(
+                {
+                    "error": "Solo se pueden aprobar compras en estado 'PENDIENTE POR APROBACIÓN'."
+                },
+                status=400,
+            )
+
+        compra.estado_de_envio = "APROBADA"
+        compra.save()
+
+        # Registro de acción
+        registrar_accion(
+            usuario,
+            "Compras",
+            "Aprobar compra",
+            f"Compra {compra.id_compra} aprobada por el gerente.",
+            id_referencia=compra.id_compra,
+        )
+
+        return Response(
+            {"mensaje": "Compra aprobada exitosamente."}, status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=['post'])
+    def rechazar(self, request, pk=None):
+        """
+        Solo GERENTE puede rechazar compras.
+        Cambia estado_de_envio a 'RECHAZADA'.
+        NO mueve inventario (porque la mercancía nunca entró).
+        """
+        usuario = request.user
+
+        if getattr(usuario, "tipo", None) != "GERENTE":
+            raise PermissionDenied("Solo el gerente puede rechazar compras.")
+
+        try:
+            compra = self.get_object()
+        except Compra.DoesNotExist:
+            return Response({"error": "Compra no encontrada."}, status=404)
+
+        if compra.estado_de_envio != "PENDIENTE_APROBACION":
+            return Response(
+                {
+                    "error": "Solo se pueden rechazar compras en estado 'PENDIENTE POR APROBACIÓN'."
+                },
+                status=400,
+            )
+
+        compra.estado_de_envio = "RECHAZADA"
+        compra.save()
+
+        registrar_accion(
+            usuario,
+            "Compras",
+            "Rechazar compra",
+            f"Compra {compra.id_compra} rechazada por el gerente.",
+            id_referencia=compra.id_compra,
+        )
+
+        return Response(
+            {"mensaje": "Compra rechazada exitosamente."}, status=status.HTTP_200_OK
+        )
+    
 class DetalleCompraViewSet(viewsets.ModelViewSet):
-    # CRUD para DetalleCompra (Generalmente gestionado al crear/editar la Compra)
     queryset = DetalleCompra.objects.all()
     serializer_class = DetalleCompraSerializer
-    permission_classes = [AllowAny]
+    search_fields = ['id_compra_id_compra', 'id_producto_nombre']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        id_compra = self.request.query_params.get("id_compra")
+
+        if id_compra:
+            try:
+                id_int = int(id_compra)
+            except ValueError:
+                return qs.none()
+            return qs.filter(id_compra_id=id_int)
+
+        return qs
 
     # Vistas de Tablas Maestras
 class ProveedorViewSet(viewsets.ModelViewSet):
@@ -119,3 +282,4 @@ class ProveedorViewSet(viewsets.ModelViewSet):
     queryset = Proveedor.objects.all()
     serializer_class = ProveedorSerializer
     permission_classes = [AllowAny]
+

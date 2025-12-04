@@ -28,16 +28,23 @@ function ProviderTable({ refreshTrigger, onEditClick }) {
     }, [fetchProveedores, refreshTrigger]);
 
     const handleDelete = async (id, nombre) => {
-        if (window.confirm(`¿Estás seguro de eliminar al proveedor "${nombre}"?`)) {
-            try {
-                await axios.delete(`${PROVEEDORES_URL}${id}/`);
-                alert("Proveedor eliminado.");
-                fetchProveedores(); // Recargar tabla
-            } catch (error) {
-                alert("No se puede eliminar: Probablemente tiene compras asociadas (Integridad Referencial).");
-            }
+    if (window.confirm(`¿Estás seguro de eliminar al proveedor "${nombre}"?`)) {
+        const loadingToast = toast.loading("Eliminando...");
+        
+        try {
+            await axios.delete(`${PROVEEDORES_URL}${id}/`);
+            
+            toast.dismiss(loadingToast);
+            toast.success("Proveedor eliminado correctamente.");
+            fetchProveedores(); // Recargar tabla
+            
+        } catch (error) {
+            toast.dismiss(loadingToast);
+            // Mensaje más amigable para integridad referencial
+            toast.error("No se puede eliminar: Este proveedor tiene compras registradas.", { duration: 4000 });
         }
-    };
+    }
+};
 
     const filteredProviders = proveedores.filter(p => {
         const term = searchTerm.toLowerCase();

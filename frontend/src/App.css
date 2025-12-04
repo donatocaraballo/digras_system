@@ -1,10 +1,15 @@
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  width: 100%;
+  max-width: 100% !important; /* 🚨 ESTO ES LO QUE FALTABA */
+  margin: 0;
+  padding: 0;
+  text-align: left; /* Vite lo centra por defecto, lo quitamos */
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
+/* Aseguramos que el logo de React no moleste si quedó por ahí */
 .logo {
   height: 6em;
   padding: 1.5em;

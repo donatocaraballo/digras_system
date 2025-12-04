@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useParams, Link } from 'react-router-dom';
 import AdvancedSearchBar from '../components/AdvancedSearchBar'; // Importar Buscador
+import QrLabelModal from '../components/QrLabelModal';
 
 const LOTES_URL = '/api/inventario/lotes/';
 
@@ -13,6 +14,7 @@ function LotDetailView() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [productName, setProductName] = useState(`Producto ID ${productId}`);
+    const [selectedLoteForQr, setSelectedLoteForQr] = useState(null);
     
     // Estados de filtro
     const [searchTerm, setSearchTerm] = useState('');
@@ -97,6 +99,7 @@ function LotDetailView() {
                         <th style={thStyle}>Ingreso</th>
                         <th style={thStyle}>Vencimiento</th>
                         <th style={thStyle}>Estado</th>
+                        <th style={thStyle}>Acción</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -111,10 +114,30 @@ function LotDetailView() {
                             <td style={{ ...tdStyle, fontWeight: 'bold', color: lote.estado === 'ACTIVO' ? 'green' : 'red' }}>
                                 {lote.estado}
                             </td>
+                            <td style={tdStyle}>
+                                <button 
+                                    onClick={() => setSelectedLoteForQr(lote)}
+                                    style={{
+                                        padding: '5px 10px', border: '1px solid #333', 
+                                        background: 'white', borderRadius: '4px', cursor: 'pointer'
+                                    }}
+                                    title="Generar Etiqueta QR"
+                                >
+                                    🏷️ QR
+                                </button>
+                            </td>
                         </tr>
                     ))}
                 </tbody>
             </table>
+            {/* MODAL DE ETIQUETA */}
+            {selectedLoteForQr && (
+                <QrLabelModal 
+                    lote={selectedLoteForQr} 
+                    productName={productName}
+                    onClose={() => setSelectedLoteForQr(null)} 
+                />
+            )}
             <Link to="/inventario" style={{ display: 'block', marginTop: '20px' }}>← Volver</Link>
         </div>
     );

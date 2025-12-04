@@ -5,6 +5,7 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import CreateProductForm from '../components/CreateProductForm'; // El componente ahora es un Modal
 import AdvancedSearchBar from '../components/AdvancedSearchBar';
+import TableSkeleton from '../components/TableSkeleton';
 
 const PRODUCTOS_URL = '/api/inventario/productos/';
 const EXISTENCIAS_URL = '/api/inventario/existencias/';
@@ -81,7 +82,26 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
         return matchText && matchMin && matchMax && matchStatus;
     });
 
-    if (loading) return <h3>Cargando Dashboard de Inventario...</h3>;
+    if (loading) {
+        return (
+            <div style={{ padding: '20px' }}>
+                {/* Mantenemos el Header visible para que no salte la pantalla */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <div>
+                        <h2>📊 Inventario General</h2>
+                        <p style={{ color: '#666' }}>Cargando datos en tiempo real...</p>
+                    </div>
+                </div>
+                
+                {/* Barra de búsqueda falsa (opcional, para estética) */}
+                <div style={{height: '50px', background: '#fff', borderRadius: '8px', marginBottom: '20px', border: '1px solid #eee'}}></div>
+
+                {/* El Esqueleto de la Tabla */}
+                <TableSkeleton rows={8} columns={6} />
+            </div>
+        );
+    }
+
     if (error) return <p style={{ color: 'red', fontWeight: 'bold' }}>🛑 Error: {error}</p>;
 
     return (
@@ -115,7 +135,8 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
                     showPriceRange: true,
                     statusOptions: [
                         { value: 'DISPONIBLE', label: 'Disponible' },
-                        { value: 'AGOTADO', label: 'Agotado' }
+                        { value: 'AGOTADO', label: 'Agotado' },
+                        { value: 'BAJA_EXISTENCIA', label: 'Baja existencia' }
                     ]
                 }}
             />

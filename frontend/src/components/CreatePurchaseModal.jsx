@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import CreateProveedorModal from './CreateProveedorModal'; 
 import CreateProductModal from './CreateProductModal';
+import toast from 'react-hot-toast';
 
 // Rutas de la API
 const COMPRAS_URL = '/api/compras/compras/';
@@ -114,7 +115,7 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
 
     const handleAddDetail = () => {
         if (productsList.length === 0) {
-            alert("No hay productos en el catálogo para añadir.");
+            toast.error("No hay productos en el catálogo para añadir.");
             return;
         }
 
@@ -141,7 +142,7 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
         e.preventDefault();
         
         if (detalles.length === 0 || !selectedProviderId) {
-             alert("Debe seleccionar un proveedor y añadir al menos un producto.");
+             toast.error("Debe seleccionar un proveedor y añadir al menos un producto.");
              return;
         }
         

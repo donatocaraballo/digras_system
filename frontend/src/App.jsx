@@ -1,77 +1,106 @@
 // frontend/src/App.jsx
-import React, { useState, useCallback } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Navbar from './components/NavBar';
-import ReceptionDashboard from './pages/ReceptionDashboard';
-import ProviderDashboard from './pages/ProviderDashboard';
 
-// Importamos las Páginas/Dashboards que crearemos
+import React, { useState, useCallback } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './AuthContext';
+import Login from './pages/Login';
+
+import { Toaster } from 'react-hot-toast';
+
+// --- TUS MÓDULOS ---
+import Navbar from './components/NavBar';
 import InventoryDashboard from './pages/InventoryDashboard';
 import PurchaseDashboard from './pages/PurchaseDashboard';
 import LotDetailView from './pages/LotDetailView';
+import ReceptionDashboard from './pages/ReceptionDashboard';
+import ProviderDashboard from './pages/ProviderDashboard';
+import Clientes from './pages/Clientes';
+import GerenteAprobaciones from './pages/GerenteAprobaciones';
 
-// IDs fijos para pruebas
-const TEST_IDS = {
-    productId: 1, 
-    userId: 1, 
-    providerId: 1
+// --- MÓDULOS DE VENTAS (Tu Compañero) ---
+import Home from './pages/Home';
+import CrearOrden from './pages/CrearOrden';     
+import ListadoOrdenes from './pages/ListadoOrdenes'; 
+
+const TEST_IDS = { productId: 1, userId: 1, providerId: 1 };
+
+// --- LAYOUT FULL SCREEN ---
+const RutasProtegidas = ({ children }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) return <div style={{height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>Cargando...</div>;
+  if (!user) return <Navigate to="/login" />;
+
+  return (
+    <div style={{ minHeight: '100vh', backgroundColor: '#f4f6f8', display: 'flex', flexDirection: 'column' }}>
+      <Navbar /> 
+      
+      {/* 🚨 FIX: ELIMINADO maxWidth PARA QUE OCUPE TODA LA PANTALLA */}
+      <div style={{ 
+          flex: 1,
+          width: '100%', 
+          padding: '20px 40px', // Márgenes laterales para que no se pegue al borde
+          boxSizing: 'border-box' 
+      }}>
+        {children}
+      </div>
+    </div>
+  );
 };
 
 function App() {
-    const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const handleUpdate = useCallback(() => setRefreshKey(p => p + 1), []);
 
-    const handleUpdate = useCallback(() => {
-        setRefreshKey(prevKey => prevKey + 1);
-    }, []);
+  return (
+    <AuthProvider>
+      <BrowserRouter>
 
-    return (
-        <Router>
-            <Navbar />
-            <main style={{ padding: '0 20px' }}>
-                <Routes>
-                    <Route path="/" element={<Navigate to="/inventario" />} />
+        <Toaster 
+            position="top-center" 
+            reverseOrder={false} 
+            toastOptions={{
+                style: {
+                    borderRadius: '10px',
+                    background: '#f1f1f1',
+                    color: '#fff',
+                    fontSize: '14px',
+                },
+                success: {
+                    style: { background: '#edf7ed', color: '#1e4620', border: '1px solid #c3e6cb' },
+                    iconTheme: { primary: '#4caf50', secondary: '#fff' },
+                },
+                error: {
+                    style: { background: '#fdeded', color: '#5f2120', border: '1px solid #f5c6cb' },
+                    iconTheme: { primary: '#f44336', secondary: '#fff' },
+                },
+            }}
+        />
+        
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          
+          {/* HOME DASHBOARD */}
+          <Route path="/" element={<RutasProtegidas><Home /></RutasProtegidas>} />
 
-                    {/* PUNTO 1 & 3 (Admin Product Creation) */}
-                    <Route 
-                        path="/inventario" 
-                        element={<InventoryDashboard 
-                            refreshTrigger={refreshKey} 
-                            onUpdate={handleUpdate}
-                            testIds={TEST_IDS}
-                        />} 
-                    />
+          {/* MÓDULOS DE VENTAS (Restaurados a rutas principales) */}
+          <Route path="/ordenes" element={<RutasProtegidas><ListadoOrdenes /></RutasProtegidas>} />
+          <Route path="/crear-orden" element={<RutasProtegidas><CrearOrden /></RutasProtegidas>} />
 
-                    {/* PUNTO 2 (Trazabilidad) */}
-                    <Route 
-                        path="/inventario/lotes/:productId" 
-                        element={<LotDetailView />} 
-                    />
+          {/* TUS MÓDULOS DE GESTIÓN */}
+          <Route path="/inventario" element={<RutasProtegidas><InventoryDashboard refreshTrigger={refreshKey} onUpdate={handleUpdate} testIds={TEST_IDS} /></RutasProtegidas>} />
+          <Route path="/inventario/lotes/:productId" element={<RutasProtegidas><LotDetailView /></RutasProtegidas>} />
+          <Route path="/compras" element={<RutasProtegidas><PurchaseDashboard refreshTrigger={refreshKey} onUpdate={handleUpdate} testIds={TEST_IDS} /></RutasProtegidas>} />
+          <Route path="/recepcion" element={<RutasProtegidas><ReceptionDashboard /></RutasProtegidas>} />
+          <Route path="/proveedores" element={<RutasProtegidas><ProviderDashboard /></RutasProtegidas>} />
+          <Route path="/clientes" element={<RutasProtegidas><Clientes /></RutasProtegidas>} />
+          <Route path="/aprobaciones" element={<RutasProtegidas><GerenteAprobaciones /></RutasProtegidas>} />
 
-                    {/* PUNTO 3 (Compras y Workflow) */}
-                    <Route 
-                        path="/compras" 
-                        element={<PurchaseDashboard 
-                            refreshTrigger={refreshKey} 
-                            onUpdate={handleUpdate} 
-                            testIds={TEST_IDS}
-                        />} 
-                    />
-
-                    <Route 
-                        path="/recepcion" 
-                        element={<ReceptionDashboard />} 
-                    />
-
-                    <Route 
-                        path="/proveedores" 
-                        element={<ProviderDashboard />} 
-                    />
-
-                    <Route path="*" element={<h2>404 Página no encontrada</h2>} />
-                </Routes>
-            </main>
-        </Router>
-    );
+          <Route path="*" element={<h2>Página no encontrada</h2>} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  );
 }
 
 export default App;

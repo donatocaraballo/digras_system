@@ -54,11 +54,12 @@ function ReceivePurchaseModal({ compra, onClose, onSuccess }) {
             };
 
             await axios.post(`${COMPRAS_URL}${compra.id_compra}/recibir_mercancia/`, payload);
-            alert("✅ Mercancía recibida y Lotes generados correctamente.");
+            toast.success("📦 Mercancía recibida e inventario actualizado.");
             onSuccess();
             onClose();
         } catch (error) {
-            alert("Error en la recepción: " + (error.response?.data?.error || error.message));
+            const msg = error.response?.data?.error || error.message;
+            toast.error(`Error en la recepción: ${msg}`);
         } finally {
             setIsSubmitting(false);
         }

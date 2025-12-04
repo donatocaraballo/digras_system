@@ -1,19 +1,26 @@
-# compras/serializers.py (VERSIÓN FINAL - CÁLCULO FORZADO DE SUBTOTAL)
+# compras/serializers.py
 
 from django.db import transaction
-from django.db.models import Sum, F
+from django.db.models import Sum
 from rest_framework import serializers
-from .models import Compra, DetalleCompra, Proveedor 
+from .models import Compra, DetalleCompra, Proveedor, PagoCompra
 from base.models import Usuario
 from inventario.models import Producto
 
-# 1. Serializador de Proveedor
+# --- Serializadores Auxiliares ---
+
 class ProveedorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Proveedor
         fields = '__all__'
 
-# --- 1. Detalle Compra Serializer ---
+class PagoCompraSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PagoCompra
+        fields = '__all__'
+
+# --- Detalle Compra ---
+
 class DetalleCompraSerializer(serializers.ModelSerializer):
     id_producto_nombre = serializers.ReadOnlyField(source='id_producto.nombre') 
 
@@ -27,52 +34,57 @@ class DetalleCompraSerializer(serializers.ModelSerializer):
         
     def get_fields(self):
         fields = super().get_fields()
+        # Hacemos id_compra opcional aquí para que la validación anidada no falle
         if 'id_compra' in fields:
             fields['id_compra'].required = False
         return fields
 
-# --- 2. Compra Serializer (Lógica Maestra) ---
+# --- Compra Serializer (Maestro) ---
+
 class CompraSerializer(serializers.ModelSerializer):
     id_proveedor_nombre = serializers.ReadOnlyField(source='id_proveedor.nombre')
-    detalles = DetalleCompraSerializer(source='detallecompra_set', many=True, required=True, read_only=False) 
+    detalles = DetalleCompraSerializer(source='detallecompra_set', many=True, required=True, read_only=False)
+    
+    pagos = PagoCompraSerializer(many=True, read_only=True)
+    saldo_pendiente = serializers.SerializerMethodField()
 
     class Meta:
         model = Compra
         fields = (
             'id_compra', 'metodo_pago', 'id_proveedor', 'fecha_pedido', 
             'estado_de_envio', 'estado_de_pago', 'precio_final', 'cancelacion', 'id_usuario', 
-            'id_proveedor_nombre', 'detalles'
+            'id_proveedor_nombre', 'detalles', 'pagos', 'saldo_pendiente'
         )
         read_only_fields = (
-            'id_compra', 
-            'precio_final', 
-            #'estado_de_envio', 
-            'estado_de_pago',
+            'id_compra', 'precio_final', 'estado_de_envio', 'estado_de_pago', 'saldo_pendiente', 'pagos'
         )
     
+    def get_saldo_pendiente(self, obj):
+        return obj.saldo_pendiente()
+
     @transaction.atomic
     def create(self, validated_data):
         detalles_data = validated_data.pop('detallecompra_set')
         
+        # Limpieza cabecera
         validated_data.pop('precio_final', None)
         validated_data.pop('peso_total', None) 
 
         compra = Compra.objects.create(**validated_data)
         
         for detalle_data in detalles_data:
-            # Limpieza de campos de peso
+            # Limpieza detalles
             detalle_data.pop('peso_unitario', None) 
             detalle_data.pop('peso_subtotal', None)
             
-            # 🚨 CÁLCULO FORZADO: Backend Authority 🚨
-            # Calculamos el subtotal aquí mismo para asegurar que se guarde
+            # Cálculo seguro
             cant = detalle_data.get('cantidad', 0)
             precio = detalle_data.get('precio_unitario', 0)
             detalle_data['subtotal'] = cant * precio
 
             DetalleCompra.objects.create(id_compra=compra, **detalle_data)
             
-        # Recálculo final de la cabecera
+        # Recálculo final
         total_price = DetalleCompra.objects.filter(id_compra=compra).aggregate(total=Sum('subtotal'))['total'] or 0
         compra.precio_final = total_price
         compra.save(update_fields=['precio_final'])
@@ -91,44 +103,37 @@ class CompraSerializer(serializers.ModelSerializer):
         instance.save()
         
         if detalles_data is not None:
-            existing_details = {detalle.id_detallec: detalle for detalle in instance.detallecompra_set.all()}
-            incoming_detail_ids = set()
+            existing_details = {d.id_detallec: d for d in instance.detallecompra_set.all()}
+            incoming_ids = set()
             
-            for detalle_data in detalles_data:
-                id_detallec = detalle_data.get('id_detallec', None)
+            for d_data in detalles_data:
+                did = d_data.get('id_detallec')
                 
-                detalle_data.pop('peso_unitario', None)
-                detalle_data.pop('peso_subtotal', None)
-                detalle_data.pop('id_compra', None) 
+                # 🚨 LIMPIEZA CRÍTICA PARA EVITAR EL ERROR "MULTIPLE VALUES" 🚨
+                d_data.pop('peso_unitario', None)
+                d_data.pop('peso_subtotal', None)
+                d_data.pop('id_compra', None) # <--- ESTA LÍNEA ARREGLA TU ERROR
                 
-                # 🚨 CÁLCULO FORZADO EN ACTUALIZACIÓN 🚨
-                cant = detalle_data.get('cantidad', 0)
-                precio = detalle_data.get('precio_unitario', 0)
-                # Si son valores parciales (no enviados), buscamos en la instancia existente, 
-                # pero para simplificar asumimos que el form envía todo.
-                detalle_data['subtotal'] = cant * precio
+                # Cálculo seguro
+                cant = d_data.get('cantidad', 0)
+                precio = d_data.get('precio_unitario', 0)
+                d_data['subtotal'] = cant * precio
                 
-                if id_detallec in existing_details:
-                    # UPDATE
-                    incoming_detail_ids.add(id_detallec)
-                    detalle_instance = existing_details[id_detallec]
-                    for attr, value in detalle_data.items():
-                        setattr(detalle_instance, attr, value)
-                    detalle_instance.save()
-                
-                elif id_detallec is None:
-                    # CREATE (Nueva línea en edición)
-                    DetalleCompra.objects.create(id_compra=instance, **detalle_data)
-                    
-            # DELETE
-            details_to_delete = existing_details.keys() - incoming_detail_ids
-            DetalleCompra.objects.filter(id_detallec__in=details_to_delete).delete()
+                if did in existing_details:
+                    incoming_ids.add(did)
+                    d_inst = existing_details[did]
+                    for k, v in d_data.items(): setattr(d_inst, k, v)
+                    d_inst.save()
+                elif did is None:
+                    # Al haber hecho .pop('id_compra'), ya no hay conflicto aquí
+                    DetalleCompra.objects.create(id_compra=instance, **d_data)
+            
+            to_delete = existing_details.keys() - incoming_ids
+            DetalleCompra.objects.filter(id_detallec__in=to_delete).delete()
 
-        # 🚨 RECÁLCULO FORZADO DE LA CABECERA 🚨
-        # Suma todos los subtotales que acabamos de guardar/calcular
-        new_total = DetalleCompra.objects.filter(id_compra=instance).aggregate(total=Sum('subtotal'))['total'] or 0
-        
-        instance.precio_final = new_total
+        # Recálculo final
+        total = DetalleCompra.objects.filter(id_compra=instance).aggregate(total=Sum('subtotal'))['total'] or 0
+        instance.precio_final = total
         instance.save(update_fields=['precio_final'])
 
         return instance
