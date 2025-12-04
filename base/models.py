@@ -18,7 +18,11 @@ class Usuario(AbstractUser):
     telefono = models.CharField(max_length=20, blank=True, null=True)
     direccion = models.CharField(max_length=255, blank=True, null=True)
 
-    # NO AÑADIR nombre / apellido porque ya existen en AbstractUser
+    # 👇 AGREGAR ESTO
+    @property
+    def id(self):
+        # Para compatibilidad con código que usa user.id
+        return self.id_usuario
 
     def __str__(self):
         return f"{self.username} ({self.tipo})"
@@ -119,14 +123,19 @@ class Lote(models.Model):
 class Cliente(models.Model):
     id_cliente = models.AutoField(primary_key=True)
     nombre = models.CharField(max_length=100)
-    direccion = models.TextField()
-    correo = models.CharField(max_length=120)
-    telefono = models.CharField(max_length=20)
+
+    direccion = models.TextField(blank=True)
+    correo = models.CharField(max_length=120, blank=True)
+    telefono = models.CharField(max_length=20, blank=True)
+
+    # 👇 Nuevo campo: activo por defecto
+    activo = models.BooleanField(default=True)
+
+    # Vendedor asociado al cliente
     id_usuario = models.ForeignKey(Usuario, on_delete=models.PROTECT)
 
     def __str__(self):
         return self.nombre
-
 
 # ---------------------------
 #   UNIDAD (VEHÍCULOS)

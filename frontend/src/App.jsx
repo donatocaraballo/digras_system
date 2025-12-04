@@ -1,7 +1,6 @@
 // frontend/src/App.jsx
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate, Link } from "react-router-dom";
-
 import { AuthProvider, useAuth } from "./AuthContext";
 
 // Páginas
@@ -9,6 +8,8 @@ import Login from "./pages/Login";
 import Home from "./pages/Home";
 import CrearOrden from "./pages/CrearOrden";
 import ListadoOrdenes from "./pages/ListadoOrdenes";
+import Clientes from "./pages/Clientes";
+import GerenteAprobaciones from "./pages/GerenteAprobaciones";
 
 function RutasProtegidas({ children }) {
   const { token } = useAuth();
@@ -46,6 +47,18 @@ export default function App() {
           >
             Órdenes
           </Link>
+          <Link
+            to="/clientes"
+            style={{ textDecoration: "none", color: "#111827" }}
+          >
+            Clientes
+          </Link>
+          <Link
+            to="/aprobaciones-gerente"
+            style={{ textDecoration: "none", color: "#111827" }}
+          >
+            Aprobaciones
+          </Link>
         </nav>
 
         <Routes>
@@ -78,6 +91,25 @@ export default function App() {
             element={
               <RutasProtegidas>
                 <ListadoOrdenes />
+              </RutasProtegidas>
+            }
+          />
+
+          {/* Gestión de Clientes */}
+          <Route
+            path="/clientes"
+            element={
+              <RutasProtegidas>
+                <Clientes />
+              </RutasProtegidas>
+            }
+          />
+
+          <Route
+            path="/aprobaciones-gerente"
+            element={
+              <RutasProtegidas>
+                <GerenteAprobaciones />
               </RutasProtegidas>
             }
           />
