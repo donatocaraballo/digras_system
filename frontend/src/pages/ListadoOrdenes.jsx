@@ -257,7 +257,7 @@ export default function ListadoOrdenes() {
 
   const cargarVendedores = async () => {
     try {
-      const res = await api.get("/usuarios/");
+      const res = await api.get("/base/usuarios/");
       const data = Array.isArray(res.data)
         ? res.data
         : res.data.results || [];
@@ -270,7 +270,7 @@ export default function ListadoOrdenes() {
 
   const cargarProductos = async () => {
     try {
-      const res = await api.get("/productos/");
+      const res = await api.get("/inventario/productos/");
       setProductos(res.data);
     } catch (err) {
       console.error("Error cargando productos:", err);
