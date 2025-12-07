@@ -12,6 +12,7 @@ from .models import Compra, DetalleCompra, Proveedor, PagoCompra
 from inventario.models import Lote, Existencia 
 from .serializers import CompraSerializer, DetalleCompraSerializer, ProveedorSerializer
 # from base.models import Usuario # Asumiendo que ya está importado si lo usas en el admin.
+from base.utils import registrar_accion
 
 # Clase CompraViewSet
 class CompraViewSet(viewsets.ModelViewSet):
