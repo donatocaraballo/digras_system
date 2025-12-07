@@ -2,11 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import toast from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
 
 const COMPRAS_URL = '/api/compras/compras/';
-// API local (Proxy)
+// API local (Proxy) para tasa
 const API_TASA_LOCAL = '/base/tasa-dolar/';
+
+// --- ICONOS SVG ---
+const IconClose = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
+const IconTrash = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
 
 const METODOS_PAGO = [
     { value: 'TRANSFERENCIA_BS', label: 'Transferencia (Bs)', currency: 'VES' },
@@ -18,12 +22,12 @@ const METODOS_PAGO = [
 ];
 
 function RegisterPaymentModal({ compra, onClose, onSuccess }) {
-    // Estados de Datos
+    // Datos
     const [historial, setHistorial] = useState([]);
     const [saldoOriginal, setSaldoOriginal] = useState(0);
     const [loading, setLoading] = useState(true);
     
-    // Estado de la Tasa
+    // Tasa
     const [tasaBCV, setTasaBCV] = useState(null);
     const [loadingTasa, setLoadingTasa] = useState(true);
 
@@ -33,17 +37,17 @@ function RegisterPaymentModal({ compra, onClose, onSuccess }) {
     const [tasaInput, setTasaInput] = useState('');
     const [referencia, setReferencia] = useState('');
     
-    // Carrito
+    // Carrito de Pagos
     const [pagosACargar, setPagosACargar] = useState([]);
 
-    // --- Cálculos Dinámicos ---
+    // --- Cálculos ---
     const currentMethodInfo = METODOS_PAGO.find(m => m.value === metodo);
     const isBolivares = currentMethodInfo?.currency === 'VES';
 
     const totalEnListaUSD = pagosACargar.reduce((acc, p) => acc + p.monto_usd, 0);
     const saldoRestanteUSD = Math.max(0, saldoOriginal - totalEnListaUSD);
 
-    // Cálculo Inverso: ¿Cuánto debo en Bs?
+    // Cálculo inverso para sugerir montos en Bs
     const saldoRestanteLocal = isBolivares && tasaInput && parseFloat(tasaInput) > 0
         ? (saldoRestanteUSD * parseFloat(tasaInput)) 
         : 0;
@@ -57,7 +61,7 @@ function RegisterPaymentModal({ compra, onClose, onSuccess }) {
         return monto / tasaFinal;
     };
 
-    // --- 1. Cargar Datos ---
+    // --- Carga Inicial ---
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -65,7 +69,6 @@ function RegisterPaymentModal({ compra, onClose, onSuccess }) {
                 setHistorial(resCompra.data.pagos || []);
                 setSaldoOriginal(parseFloat(resCompra.data.saldo_pendiente || 0));
             } catch (err) {
-                console.error("Error al cargar compra:", err);
                 toast.error("Error al cargar datos de la compra.");
             } finally {
                 setLoading(false);
@@ -76,14 +79,12 @@ function RegisterPaymentModal({ compra, onClose, onSuccess }) {
             try {
                 setLoadingTasa(true);
                 const response = await axios.get(`http://127.0.0.1:8000/api${API_TASA_LOCAL}`);
-                
                 const tasa = response.data.promedio || response.data.price; 
                 if (tasa) {
                     setTasaBCV(tasa);
                     setTasaInput(tasa);
                 }
             } catch (e) {
-                console.error("Error tasa:", e);
                 toast('Usando tasa manual', { icon: '⚠️' });
                 setTasaBCV(null);
             } finally {
@@ -114,8 +115,9 @@ function RegisterPaymentModal({ compra, onClose, onSuccess }) {
 
         const valorUSD = getValorEnUSD(valorLocal, tasa);
 
+        // Tolerancia de 0.05 para redondeo
         if (valorUSD > (saldoRestanteUSD + 0.05)) { 
-            return toast.error(`El monto excede el saldo restante ($${saldoRestanteUSD.toFixed(2)}).`);
+            return toast.error(`Excede el saldo restante ($${saldoRestanteUSD.toFixed(2)}).`);
         }
 
         setPagosACargar([...pagosACargar, {
@@ -130,15 +132,14 @@ function RegisterPaymentModal({ compra, onClose, onSuccess }) {
 
         setMontoInput('');
         setReferencia('');
-        toast.success("Pago agregado a la lista", { duration: 2000 });
+        toast.success("Agregado a la lista", { duration: 2000, icon: '⬇️' });
     };
 
     const handleRemovePago = (index) => {
         const newPagos = [...pagosACargar];
         newPagos.splice(index, 1);
         setPagosACargar(newPagos);
-        toast.dismiss(); // Limpia notificaciones previas
-        toast("Pago eliminado de la lista", { icon: '🗑️' });
+        toast.success("Pago eliminado", { icon: '🗑️' });
     };
 
     const handleFinalSubmit = async () => {
@@ -153,199 +154,233 @@ function RegisterPaymentModal({ compra, onClose, onSuccess }) {
                     referencia: p.referencia
                 }))
             };
+            
             await axios.post(`${COMPRAS_URL}${compra.id_compra}/registrar_pago/`, payload);
-            toast.dismiss(loadingToast); // Quitar loading
+            
+            toast.dismiss(loadingToast); 
             toast.success("¡Pagos registrados correctamente!", { duration: 4000 });
-            onSuccess();
-            onClose();
+            
+            // 🚨 SOLUCIÓN AQUÍ: Retrasamos el cierre y la actualización del padre
+            // para dar tiempo a que el Toast sea visible.
+            setTimeout(() => {
+                onSuccess(); // Actualiza la tabla padre
+                onClose();   // Cierra el modal
+            }, 2000);
+
         } catch (err) {
             toast.dismiss(loadingToast);
             const msg = err.response?.data?.error || "Error al procesar.";
-            toast.error(`Error: ${msg}`, { duration: 5000 }); // 🚨 ERROR
+            toast.error(`Error: ${msg}`, { duration: 5000 }); 
         }
     };
 
-    if (loading) return <div style={overlayStyle}><div style={contentStyle}><p>Cargando...</p></div></div>;
+    if (loading) return null;
 
     return (
-        <div style={overlayStyle}>
-            <div style={contentStyle}>
-                <button onClick={onClose} style={closeBtnStyle}>X</button>
-                <h3 style={{margin: '0 0 20px 0', color: '#2c3e50'}}>💰 Registrar Pago</h3>
+        <div style={styles.overlay}>
+            <Toaster position="top-center" />
+            
+            <div style={styles.modal}>
+                {/* Header */}
+                <div style={styles.header}>
+                    <div>
+                        <h3 style={styles.title}>Registrar Pago</h3>
+                        <p style={styles.subtitle}>Compra #{compra.id_compra} • {compra.id_proveedor_nombre}</p>
+                    </div>
+                    <button onClick={onClose} style={styles.closeBtn}><IconClose /></button>
+                </div>
                 
-                {/* Resumen */}
-                <div style={infoBoxStyle}>
-                    <div style={{flex: 1, textAlign: 'center'}}>
-                        <small>Deuda Total</small><br/><strong>${saldoOriginal.toFixed(2)}</strong>
+                <div style={styles.contentScroll}>
+                    {/* Tarjetas de Resumen */}
+                    <div style={styles.cardsContainer}>
+                        <div style={styles.cardInfo}>
+                            <span style={styles.cardLabel}>Deuda Total</span>
+                            <span style={styles.cardValue}>${saldoOriginal.toFixed(2)}</span>
+                        </div>
+                        <div style={styles.cardInfo}>
+                            <span style={styles.cardLabel}>En Cola</span>
+                            <span style={{...styles.cardValue, color: '#f59e0b'}}>${totalEnListaUSD.toFixed(2)}</span>
+                        </div>
+                        <div style={styles.cardInfo}>
+                            <span style={styles.cardLabel}>Restante</span>
+                            <span style={{...styles.cardValue, color: saldoRestanteUSD < 0.01 ? '#10b981' : '#ef4444'}}>
+                                ${saldoRestanteUSD.toFixed(2)}
+                            </span>
+                        </div>
                     </div>
-                    <div style={{flex: 1, textAlign: 'center', borderLeft: '1px solid #ccc'}}>
-                        <small>En Cola</small><br/><strong style={{color: 'orange'}}>${totalEnListaUSD.toFixed(2)}</strong>
-                    </div>
-                    <div style={{flex: 1, textAlign: 'center', borderLeft: '1px solid #ccc'}}>
-                        <small>Restante USD</small><br/>
-                        <strong style={{color: saldoRestanteUSD < 0.01 ? 'green' : 'red'}}>
-                            ${saldoRestanteUSD.toFixed(2)}
-                        </strong>
-                    </div>
-                </div>
 
-                {/* Tasa */}
-                <div style={{marginBottom: '10px', padding: '8px', background: '#e3f2fd', borderRadius: '4px', color: '#0d47a1', fontSize: '0.9em', display: 'flex', justifyContent: 'space-between'}}>
-                    <span>🏦 <strong>Tasa Oficial:</strong></span>
-                    <strong>{loadingTasa ? "..." : (tasaBCV ? `Bs. ${tasaBCV}` : "Manual")}</strong>
-                </div>
+                    {/* Barra de Tasa */}
+                    <div style={styles.tasaBar}>
+                        <span>🏦 <strong>Tasa BCV:</strong> {loadingTasa ? "..." : (tasaBCV ? `Bs. ${tasaBCV}` : "Manual")}</span>
+                    </div>
 
-                {/* Formulario */}
-                {saldoRestanteUSD > 0.001 ? (
-                    <div style={formContainerStyle}>
-                        <div style={{display: 'flex', gap: '10px', marginBottom: '10px'}}>
-                            <div style={{flex: 2}}>
-                                <label style={labelStyle}>Método:</label>
-                                <select value={metodo} onChange={e=>setMetodo(e.target.value)} style={inputStyle}>
-                                    {METODOS_PAGO.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                                </select>
-                            </div>
-                            {isBolivares && (
-                                <div style={{flex: 1}}>
-                                    <label style={labelStyle}>Tasa:</label>
-                                    <input type="number" step="0.01" value={tasaInput} onChange={e=>setTasaInput(e.target.value)} style={{...inputStyle, fontWeight: 'bold', color: '#2c3e50'}} />
+                    {/* Formulario de Pago */}
+                    {saldoRestanteUSD > 0.001 ? (
+                        <div style={styles.formSection}>
+                            <div style={styles.row}>
+                                <div style={{flex: 2}}>
+                                    <label style={styles.label}>Método</label>
+                                    <select value={metodo} onChange={e=>setMetodo(e.target.value)} style={styles.select}>
+                                        {METODOS_PAGO.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                                    </select>
                                 </div>
-                            )}
-                        </div>
-
-                        <div style={{display: 'flex', gap: '10px', marginBottom: '5px'}}>
-                            <div style={{flex: 1}}>
-                                <label style={labelStyle}>Monto ({isBolivares ? 'Bs' : '$'}):</label>
-                                <input type="number" step="0.01" value={montoInput} onChange={e=>setMontoInput(e.target.value)} style={inputStyle} placeholder="0.00" />
-                            </div>
-                            <div style={{flex: 1}}>
-                                 <label style={labelStyle}>Ref #:</label>
-                                 <input type="text" value={referencia} onChange={e=>setReferencia(e.target.value)} style={inputStyle} placeholder="Opcional" />
-                            </div>
-                        </div>
-
-                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
-                            <span style={{fontSize: '0.85em', color: '#666'}}>
-                                {isBolivares && (!tasaInput || parseFloat(tasaInput) <= 0) ? (
-                                    <span style={{color: 'orange'}}>⚠️ Ingresa tasa</span>
-                                ) : (
-                                    <>Restante: <strong>{isBolivares ? `Bs ${saldoRestanteLocal.toFixed(2)}` : `$${saldoRestanteUSD.toFixed(2)}`}</strong></>
+                                {isBolivares && (
+                                    <div style={{flex: 1}}>
+                                        <label style={styles.label}>Tasa</label>
+                                        <input type="number" step="0.01" value={tasaInput} onChange={e=>setTasaInput(e.target.value)} style={styles.input} />
+                                    </div>
                                 )}
-                            </span>
-                            {(!isBolivares || (tasaInput && parseFloat(tasaInput) > 0)) && (
-                                <button type="button" onClick={handleFillRestante} style={payAllBtnStyle}>
-                                    Pagar Todo
-                                </button>
-                            )}
-                        </div>
+                            </div>
 
-                        <div style={conversionBarStyle}>
-                            <span style={{fontSize: '0.9em', color: '#555'}}>
-                                Equivale a: <strong>${getValorEnUSD(montoInput, tasaInput).toFixed(2)}</strong>
-                            </span>
-                            <button onClick={handleAddPago} style={addBtnStyle} disabled={saldoRestanteUSD <= 0.00}>+ Agregar</button>
-                        </div>
-                    </div>
-                ) : (
-                    <div style={{padding: '10px', backgroundColor: '#dff0d8', color: '#3c763d', borderRadius: '5px', textAlign: 'center', marginBottom: '15px'}}>
-                        <strong>¡Orden completada!</strong>
-                    </div>
-                )}
+                            <div style={styles.row}>
+                                <div style={{flex: 1}}>
+                                    <label style={styles.label}>Monto ({isBolivares ? 'Bs' : '$'})</label>
+                                    <input type="number" step="0.01" value={montoInput} onChange={e=>setMontoInput(e.target.value)} style={styles.input} placeholder="0.00" />
+                                </div>
+                                <div style={{flex: 1}}>
+                                     <label style={styles.label}>Referencia #</label>
+                                     <input type="text" value={referencia} onChange={e=>setReferencia(e.target.value)} style={styles.input} placeholder="Opcional" />
+                                </div>
+                            </div>
 
-                {/* Lista de Historial */}
-                <h4 style={sectionHeaderStyle}>Historial de Pagos</h4>
-                <div style={tableContainerStyle}>
-                    <table style={tableStyle}>
-                        <thead>
-                            <tr style={headerRowStyle}>
-                                <th style={thStyle}>Fecha</th>
-                                <th style={thStyle}>Método</th>
-                                <th style={{...thStyle, textAlign: 'right'}}>Monto Local</th>
-                                <th style={{...thStyle, textAlign: 'center'}}>Tasa</th>
-                                <th style={{...thStyle, textAlign: 'right'}}>USD</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {historial.length > 0 ? (
-                                historial.map((p) => (
-                                    <tr key={p.id_pago} style={rowStyle}>
-                                        <td style={tdStyle}>{p.fecha_pago}</td>
-                                        <td style={tdStyle}>
-                                            {p.metodo_pago.replace(/_/g, ' ').replace('TRANSFERENCIA', 'Transf.')}
-                                            <div style={{fontSize: '0.8em', color: '#888'}}>{p.referencia || ''}</div>
-                                        </td>
-                                        <td style={{...tdStyle, textAlign: 'right'}}>
-                                            {p.moneda === 'VES' ? `Bs ${parseFloat(p.monto_local).toFixed(2)}` : '-'}
-                                        </td>
-                                        <td style={{...tdStyle, textAlign: 'center'}}>
-                                            {p.moneda === 'VES' ? p.tasa_cambio : '-'}
-                                        </td>
-                                        <td style={{...tdStyle, textAlign: 'right', fontWeight: 'bold', color: '#2e7d32'}}>
-                                            ${p.monto}
-                                        </td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr><td colSpan="5" style={{padding: '20px', textAlign: 'center', color: '#999'}}>No hay pagos previos.</td></tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-                
-                {/* Lista de Carrito (Pagos por confirmar) */}
-                {pagosACargar.length > 0 && (
-                    <div style={{marginTop: '15px', borderTop: '1px dashed #ccc', paddingTop: '10px'}}>
-                        <h5 style={{margin: '0 0 5px 0', fontSize: '0.9em'}}>Por procesar:</h5>
-                        <table style={{width: '100%', fontSize: '0.85em'}}>
+                            <div style={styles.helperRow}>
+                                <span style={{fontSize: '0.8rem', color: '#64748b'}}>
+                                    {isBolivares && (!tasaInput || parseFloat(tasaInput) <= 0) ? (
+                                        <span style={{color: '#f59e0b'}}>⚠️ Ingrese tasa para calcular</span>
+                                    ) : (
+                                        <>Equivale a: <strong>${getValorEnUSD(montoInput, tasaInput).toFixed(2)}</strong></>
+                                    )}
+                                </span>
+                                
+                                <div style={{display:'flex', gap: 10}}>
+                                    {(!isBolivares || (tasaInput && parseFloat(tasaInput) > 0)) && (
+                                        <button type="button" onClick={handleFillRestante} style={styles.btnLink}>
+                                            Pagar Todo
+                                        </button>
+                                    )}
+                                    <button onClick={handleAddPago} style={styles.btnAdd} disabled={saldoRestanteUSD <= 0.00}>
+                                        Agregar Pago
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div style={styles.successBox}>
+                            ✅ <strong>¡Orden Completada!</strong> No queda deuda pendiente.
+                        </div>
+                    )}
+
+                    {/* Tabla de Carrito (Pagos nuevos) */}
+                    {pagosACargar.length > 0 && (
+                        <div style={styles.cartSection}>
+                            <h4 style={styles.sectionTitle}>Pagos por procesar</h4>
+                            <table style={styles.table}>
+                                <tbody>
+                                    {pagosACargar.map((p, i) => (
+                                        <tr key={i} style={{background: '#f0f9ff'}}>
+                                            <td style={styles.td}>{p.label_metodo}</td>
+                                            <td style={styles.td}>{p.monto_local} {p.moneda}</td>
+                                            <td style={styles.td}>{p.tasa_cambio > 1 ? `@${p.tasa_cambio}` : ''}</td>
+                                            <td style={{...styles.td, fontWeight:'bold'}}>${p.monto_usd.toFixed(2)}</td>
+                                            <td style={{textAlign: 'right', paddingRight: 10}}>
+                                                <button onClick={()=>handleRemovePago(i)} style={styles.removeBtn}><IconTrash /></button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            <div style={{marginTop: 15, textAlign: 'right'}}>
+                                <button onClick={handleFinalSubmit} style={styles.btnSubmit}>CONFIRMAR PAGOS</button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Historial Antiguo */}
+                    <h4 style={styles.sectionTitle}>Historial Registrado</h4>
+                    <div style={styles.tableContainer}>
+                        <table style={styles.table}>
+                            <thead>
+                                <tr style={styles.theadRow}>
+                                    <th style={styles.th}>Fecha</th>
+                                    <th style={styles.th}>Método</th>
+                                    <th style={{...styles.th, textAlign: 'right'}}>Local</th>
+                                    <th style={{...styles.th, textAlign: 'right'}}>USD</th>
+                                </tr>
+                            </thead>
                             <tbody>
-                                {pagosACargar.map((p, i) => (
-                                    <tr key={i} style={{background: '#e3f2fd'}}>
-                                        <td style={{padding: '5px'}}>{p.label_metodo}</td>
-                                        <td style={{padding: '5px'}}>{p.monto_local} {p.moneda}</td>
-                                        <td style={{padding: '5px'}}>{p.tasa_cambio > 1 ? `@${p.tasa_cambio}` : ''}</td>
-                                        <td style={{padding: '5px', fontWeight: 'bold'}}>${p.monto_usd.toFixed(2)}</td>
-                                        <td style={{textAlign: 'right'}}><button onClick={()=>handleRemovePago(i)} style={removeBtnStyle}>✕</button></td>
-                                    </tr>
-                                ))}
+                                {historial.length > 0 ? (
+                                    historial.map((p) => (
+                                        <tr key={p.id_pago} style={styles.tr}>
+                                            <td style={styles.td}>{p.fecha_pago}</td>
+                                            <td style={styles.td}>
+                                                {p.metodo_pago.replace(/_/g, ' ')}
+                                                {p.referencia && <div style={{fontSize: '0.75rem', color: '#94a3b8'}}>{p.referencia}</div>}
+                                            </td>
+                                            <td style={{...styles.td, textAlign: 'right'}}>
+                                                {p.moneda === 'VES' ? `Bs ${parseFloat(p.monto_local).toFixed(2)}` : '-'}
+                                            </td>
+                                            <td style={{...styles.td, textAlign: 'right', fontWeight: 'bold', color: '#059669'}}>
+                                                ${p.monto}
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr><td colSpan="4" style={{padding: 20, textAlign: 'center', color: '#94a3b8'}}>Sin pagos previos</td></tr>
+                                )}
                             </tbody>
                         </table>
-                        <div style={{marginTop: '10px', textAlign: 'right'}}>
-                            <button onClick={handleFinalSubmit} style={submitBtnStyle}>✅ CONFIRMAR PAGOS</button>
-                        </div>
                     </div>
-                )}
+                </div>
             </div>
         </div>
     );
 }
 
-// --- ESTILOS DEFINIDOS ---
-const overlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.75)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 4000 };
-const contentStyle = { backgroundColor: 'white', padding: '25px', borderRadius: '12px', width: '600px', maxHeight: '90vh', overflowY: 'auto', position: 'relative', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' };
-const closeBtnStyle = { position: 'absolute', top: 15, right: 15, border: 'none', background: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2em', color: '#888' };
+// --- ESTILOS MODERNOS (PREMIUM UI) ---
+const styles = {
+    overlay: { position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 4000 },
+    modal: { background: '#fff', width: '650px', maxHeight: '90vh', borderRadius: '16px', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' },
+    
+    header: { padding: '20px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display:'flex', justifyContent:'space-between', alignItems:'flex-start' },
+    title: { margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' },
+    subtitle: { margin: '4px 0 0', fontSize: '0.875rem', color: '#64748b' },
+    closeBtn: { background:'none', border:'none', cursor:'pointer', color:'#94a3b8' },
+    
+    contentScroll: { padding: '24px', overflowY: 'auto', flex: 1 },
+    
+    // Cards Resumen
+    cardsContainer: { display: 'flex', gap: 12, marginBottom: 20 },
+    cardInfo: { flex: 1, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, textAlign: 'center', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)' },
+    cardLabel: { display: 'block', fontSize: '0.75rem', color: '#64748b', marginBottom: 4, textTransform: 'uppercase', fontWeight: '600' },
+    cardValue: { fontSize: '1.1rem', fontWeight: '800', color: '#0f172a' },
 
-const infoBoxStyle = { display: 'flex', background: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #e9ecef' };
-const infoItemStyle = { flex: 1, textAlign: 'center', borderRight: '1px solid #e9ecef' };
+    tasaBar: { background: '#eff6ff', color: '#1e40af', padding: '10px 16px', borderRadius: 8, fontSize: '0.9rem', marginBottom: 20, border: '1px solid #dbeafe' },
 
-const sectionHeaderStyle = { margin: '15px 0 10px 0', fontSize: '0.95em', color: '#555', borderBottom: '1px solid #eee', paddingBottom: '5px' };
-const tableContainerStyle = { maxHeight: '150px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '4px', marginBottom: '20px' };
-const tableStyle = { width: '100%', fontSize: '0.85em', borderCollapse: 'collapse' };
-const headerRowStyle = { background: '#f1f3f5', color: '#495057', position: 'sticky', top: 0 };
-const rowStyle = { borderBottom: '1px solid #f8f9fa' };
-const thStyle = { padding: '8px 10px', textAlign: 'left', fontWeight: '600' };
-const tdStyle = { padding: '8px 10px', verticalAlign: 'middle' };
+    // Form
+    formSection: { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 16, marginBottom: 20, boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)' },
+    row: { display: 'flex', gap: 16, marginBottom: 12 },
+    label: { display: 'block', fontSize: '0.75rem', fontWeight: '600', color: '#475569', marginBottom: 6 },
+    input: { width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.9rem', boxSizing:'border-box', outline: 'none' },
+    select: { width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.9rem', background: '#fff', boxSizing:'border-box' },
+    
+    helperRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+    btnLink: { background: 'none', border: 'none', color: '#3b82f6', fontWeight: '600', cursor: 'pointer', fontSize: '0.85rem' },
+    btnAdd: { background: '#0f172a', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontWeight: '600', cursor: 'pointer', fontSize: '0.85rem' },
 
-// 🚨 AQUÍ ESTÁ LA VARIABLE QUE FALTABA 🚨
-const formContainerStyle = { border: '1px solid #e0e0e0', padding: '15px', borderRadius: '8px', backgroundColor: '#fff' };
-const tasaBarStyle = { marginBottom: '10px', padding: '8px', background: '#e3f2fd', borderRadius: '4px', color: '#0d47a1', fontSize: '0.9em' };
-const conversionBarStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #eee', paddingTop: '10px' };
+    successBox: { background: '#ecfdf5', color: '#065f46', padding: 16, borderRadius: 10, textAlign: 'center', marginBottom: 20, border: '1px solid #a7f3d0' },
 
-const labelStyle = { display: 'block', fontSize: '0.85em', fontWeight: 'bold', marginBottom: '4px', color: '#555' };
-const inputStyle = { width: '100%', padding: '8px', boxSizing: 'border-box', border: '1px solid #ccc', borderRadius: '4px', fontSize: '1em' };
-
-const addBtnStyle = { padding: '6px 15px', backgroundColor: '#0288d1', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.9em', fontWeight: 'bold' };
-const payAllBtnStyle = { marginLeft: '5px', padding: '0 10px', backgroundColor: '#ff9800', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8em', fontWeight: 'bold' };
-const submitBtnStyle = { width: '100%', padding: '12px', backgroundColor: '#2e7d32', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1em', marginTop: '5px' };
-const removeBtnStyle = { color: '#c62828', border: 'none', background: 'transparent', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1em' };
+    // Tablas
+    sectionTitle: { fontSize: '0.85rem', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.05em', marginBottom: 10, marginTop: 0 },
+    cartSection: { marginBottom: 24, borderTop: '1px dashed #cbd5e1', paddingTop: 16 },
+    tableContainer: { border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' },
+    table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' },
+    theadRow: { background: '#f8fafc', borderBottom: '1px solid #e2e8f0' },
+    th: { padding: '10px 16px', textAlign: 'left', fontWeight: '600', color: '#475569' },
+    tr: { borderBottom: '1px solid #f1f5f9' },
+    td: { padding: '10px 16px', color: '#334155' },
+    
+    removeBtn: { background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4 },
+    btnSubmit: { background: '#16a34a', color: '#fff', width: '100%', border: 'none', padding: '12px', borderRadius: 8, fontWeight: '700', cursor: 'pointer', fontSize: '1rem', boxShadow: '0 4px 6px -1px rgba(22, 163, 74, 0.2)' }
+};
 
 export default RegisterPaymentModal;

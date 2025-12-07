@@ -1,7 +1,5 @@
-from .models import RegistroAccion
 from django.db import transaction
 from django.db.models import F
-from inventario.models import Lote, Existencia
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -12,6 +10,7 @@ def registrar_accion(usuario, modulo, accion, descripcion="", id_referencia=None
     Registra automáticamente una acción realizada por un usuario.
     Este método será reutilizado en los viewsets.
     """
+    from .models import RegistroAccion
 
     # Manejo correcto del usuario (por si llega como anónimo)
     if usuario.is_anonymous:
@@ -36,6 +35,7 @@ def consumir_inventario_fifo(producto_id, cantidad_requerida):
     - Resta cantidad de Lotes (comenzando por los más antiguos)
     - Devuelve True si fue exitoso, False si no hay lotes suficientes
     """
+    from inventario.models import Lote, Existencia
 
     # Bloquear existencia
     existencia = (

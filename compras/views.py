@@ -6,6 +6,7 @@ from rest_framework.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Sum
 from decimal import Decimal, InvalidOperation
+from base.utils import registrar_accion
 # Importa los modelos necesarios:
 from .models import Compra, DetalleCompra, Proveedor, PagoCompra
 from inventario.models import Lote, Existencia 
@@ -19,18 +20,54 @@ class CompraViewSet(viewsets.ModelViewSet):
     serializer_class = CompraSerializer
     permission_classes = [AllowAny]
 
+    # 2. BLOQUEO DE ELIMINACIÓN (DESTROY)
     def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        
-        if instance.estado_de_envio == 'RECIBIDA_COMPLETA':
-            return Response(
-                {"detail": "No se puede eliminar una compra que ya ha sido recibida completamente."},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        try:
+            instance = self.get_object()
             
-        return super().destroy(request, *args, **kwargs)
+            # 1. Validación Recepción
+            if instance.estado_de_envio in ['RECIBIDA_COMPLETA', 'RECIBIDA_PARCIAL']:
+                return Response(
+                    {"error": f"No se puede eliminar la compra #{instance.id_compra} porque ya fue recibida. Afectaría el stock."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
+            # 2. Validación Pagos 🚨 (NUEVA)
+            # Verificamos si tiene pagos asociados
+            if instance.pagos.exists():
+                return Response(
+                    {"error": f"No se puede eliminar la compra #{instance.id_compra} porque tiene pagos registrados."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # --- Proceso de borrado seguro ---
+            id_backup = instance.id_compra
+            prov_backup = "Proveedor Desconocido"
+            try:
+                if instance.id_proveedor: prov_backup = instance.id_proveedor.nombre
+            except: pass
+
+            self.perform_destroy(instance)
+
+            try:
+                registrar_accion(
+                    request.user, "Compras", "Eliminar Compra",
+                    f"Se eliminó la compra #{id_backup} del proveedor {prov_backup}.",
+                    id_referencia=id_backup
+                )
+            except Exception: pass
+
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        except Exception as e:
+            return Response(
+                {"error": f"No se pudo eliminar: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    # 🚨 ACCIÓN: Recibir Mercancía 🚨
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def recibir_mercancia(self, request, pk=None):
         """
         Recibe la mercancía, procesa devoluciones/notas y genera lotes.
@@ -92,23 +129,19 @@ class CompraViewSet(viewsets.ModelViewSet):
                 
                 compra.save()
 
+                # 🚨 LOG DE RECEPCIÓN
+                registrar_accion(
+                    request.user,
+                    "Almacén",  # Módulo distinto para diferenciar
+                    "Recepción Mercancía",
+                    f"Se recibió mercancía de la compra #{compra.id_compra}. Nuevo estado: {compra.estado_de_envio}.",
+                    id_referencia=compra.id_compra
+                )
+
             return Response({'status': f'Recepción procesada. Estado: {compra.estado_de_envio}'})
 
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    @action(detail=True, methods=['post'])
-    def simular_aprobacion(self, request, pk=None):
-        """
-        [SOLO PARA PRUEBAS] Cambia el estado de la compra a APROBADA
-        para saltar la validación del Gerente.
-        """
-        compra = self.get_object()
-        if compra.estado_de_envio == 'PENDIENTE_APROBACION':
-            compra.estado_de_envio = 'APROBADA'
-            compra.save()
-            return Response({'status': f'Compra {pk} aprobada y lista para recibir.'})
-        else:
-            return Response({'error': f'La compra {pk} ya no está pendiente de aprobación.'}, status=status.HTTP_400_BAD_REQUEST)    
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
         
     # 🚨 ACCIÓN: Registrar Pago 🚨
     @action(detail=True, methods=['post'])
@@ -172,12 +205,25 @@ class CompraViewSet(viewsets.ModelViewSet):
                     moneda=moneda
                 )
             
+            data_pagos = request.data.get('pagos', [])
+            if not data_pagos: data_pagos = [request.data]
+            total_log = sum(Decimal(str(p.get('monto_local', 0))) for p in data_pagos)
+            moneda_log = data_pagos[0].get('moneda', 'USD') if data_pagos else 'USD'
+
+            registrar_accion(
+                request.user,
+                "Compras",
+                "Registrar Pago",
+                f"Se registró un pago de {moneda_log} {total_log} a la compra #{compra.id_compra}.",
+                id_referencia=compra.id_compra
+            )
+
             return Response({'status': 'Pagos registrados exitosamente.'}, status=200)
-            
         except Exception as e:
             return Response({'error': str(e)}, status=500)
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def aprobar(self, request, pk=None):
         """
         Solo GERENTE puede aprobar compras.
@@ -219,6 +265,7 @@ class CompraViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def rechazar(self, request, pk=None):
         """
         Solo GERENTE puede rechazar compras.

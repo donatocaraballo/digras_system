@@ -17,9 +17,12 @@ import ProviderDashboard from './pages/ProviderDashboard';
 import Clientes from './pages/Clientes';
 import GerenteAprobaciones from './pages/GerenteAprobaciones';
 
-// --- MÓDULOS DE VENTAS (Tu Compañero) ---
+// 🚨 COMPONENTE DE ESTILOS FUTURISTAS (El que creamos antes)
+import GlobalStyles from './components/GlobalStyles';
+
+// --- MÓDULOS DE VENTAS ---
 import Home from './pages/Home';
-import CrearOrden from './pages/CrearOrden';     
+import CrearOrden from './pages/CrearOrden'; 
 import ListadoOrdenes from './pages/ListadoOrdenes'; 
 
 const TEST_IDS = { productId: 1, userId: 1, providerId: 1 };
@@ -28,18 +31,20 @@ const TEST_IDS = { productId: 1, userId: 1, providerId: 1 };
 const RutasProtegidas = ({ children }) => {
   const { user, loading } = useAuth();
 
-  if (loading) return <div style={{height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>Cargando...</div>;
+  if (loading) return <div style={{height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>Cargando Sistema...</div>;
   if (!user) return <Navigate to="/login" />;
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f4f6f8', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Navbar /> 
       
-      {/* 🚨 FIX: ELIMINADO maxWidth PARA QUE OCUPE TODA LA PANTALLA */}
+      {/* CONTENEDOR PRINCIPAL */}
       <div style={{ 
           flex: 1,
           width: '100%', 
-          padding: '20px 40px', // Márgenes laterales para que no se pegue al borde
+          padding: '0 40px 40px 40px', // Padding inferior para respirar
+          maxWidth: '1600px', // Límite para monitores ultrawide
+          margin: '0 auto',   // Centrado
           boxSizing: 'border-box' 
       }}>
         {children}
@@ -55,24 +60,28 @@ function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        
+        {/* 🚨 INYECCIÓN DE MAGIA VISUAL */}
+        <GlobalStyles /> 
 
         <Toaster 
             position="top-center" 
             reverseOrder={false} 
             toastOptions={{
                 style: {
-                    borderRadius: '10px',
-                    background: '#f1f1f1',
+                    borderRadius: '12px',
+                    background: '#333',
                     color: '#fff',
                     fontSize: '14px',
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
                 },
                 success: {
-                    style: { background: '#edf7ed', color: '#1e4620', border: '1px solid #c3e6cb' },
-                    iconTheme: { primary: '#4caf50', secondary: '#fff' },
+                    style: { background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0' },
+                    iconTheme: { primary: '#10b981', secondary: '#fff' },
                 },
                 error: {
-                    style: { background: '#fdeded', color: '#5f2120', border: '1px solid #f5c6cb' },
-                    iconTheme: { primary: '#f44336', secondary: '#fff' },
+                    style: { background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca' },
+                    iconTheme: { primary: '#ef4444', secondary: '#fff' },
                 },
             }}
         />
@@ -83,12 +92,12 @@ function App() {
           {/* HOME DASHBOARD */}
           <Route path="/" element={<RutasProtegidas><Home /></RutasProtegidas>} />
 
-          {/* MÓDULOS DE VENTAS (Restaurados a rutas principales) */}
+          {/* MÓDULOS DE VENTAS */}
           <Route path="/ordenes" element={<RutasProtegidas><ListadoOrdenes /></RutasProtegidas>} />
           <Route path="/crear-orden" element={<RutasProtegidas><CrearOrden /></RutasProtegidas>} />
 
           {/* TUS MÓDULOS DE GESTIÓN */}
-          <Route path="/inventario" element={<RutasProtegidas><InventoryDashboard refreshTrigger={refreshKey} onUpdate={handleUpdate} testIds={TEST_IDS} /></RutasProtegidas>} />
+          <Route path="/inventario" element={<RutasProtegidas><InventoryDashboard refreshTrigger={refreshKey} onUpdate={handleUpdate} /></RutasProtegidas>} />
           <Route path="/inventario/lotes/:productId" element={<RutasProtegidas><LotDetailView /></RutasProtegidas>} />
           <Route path="/compras" element={<RutasProtegidas><PurchaseDashboard refreshTrigger={refreshKey} onUpdate={handleUpdate} testIds={TEST_IDS} /></RutasProtegidas>} />
           <Route path="/recepcion" element={<RutasProtegidas><ReceptionDashboard /></RutasProtegidas>} />
@@ -96,7 +105,7 @@ function App() {
           <Route path="/clientes" element={<RutasProtegidas><Clientes /></RutasProtegidas>} />
           <Route path="/aprobaciones" element={<RutasProtegidas><GerenteAprobaciones /></RutasProtegidas>} />
 
-          <Route path="*" element={<h2>Página no encontrada</h2>} />
+          <Route path="*" element={<h2 style={{textAlign:'center', marginTop: 100, color:'#64748b'}}>404 | Página no encontrada</h2>} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

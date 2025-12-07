@@ -1,6 +1,7 @@
 // frontend/src/components/ReceivePurchaseModal.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const COMPRAS_URL = '/api/compras/compras/';
 
@@ -39,7 +40,30 @@ function ReceivePurchaseModal({ compra, onClose, onSuccess }) {
     };
 
     const handleSubmit = async () => {
-        if (!window.confirm("¿Confirmar la recepción de mercancía e ingresar al inventario?")) return;
+        // Reemplazar confirm() por un toast con botones
+        const confirmed = await new Promise(resolve => {
+            toast((t) => (
+            <div style={{ padding: 10, color: '#161515ff', background: '#fff' }}>
+                <div>¿Confirmar la recepción de mercancía e ingresar al inventario?</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' }}>
+                <button
+                    onClick={() => { toast.dismiss(t.id); resolve(false); }}
+                    style={{ padding: '6px 10px', background: '#6c757d', color: '#fff', border: 'none', borderRadius: 4 }}
+                >
+                    Cancelar
+                </button>
+                <button
+                    onClick={() => { toast.dismiss(t.id); resolve(true); }}
+                    style={{ padding: '6px 10px', background: '#28a745', color: '#fff', border: 'none', borderRadius: 4 }}
+                >
+                    Confirmar
+                </button>
+                </div>
+            </div>
+            ), { duration: Infinity });
+        });
+
+        if (!confirmed) return;
         
         setIsSubmitting(true);
         try {

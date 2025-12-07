@@ -4,34 +4,52 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 
+// 🚨 Asegúrate de que la ruta sea correcta. 
+// Si tu archivo está en src/assets/logo.png, esto funciona:
+import logoImg from '../assets/logo.png'; 
+
 function Navbar() {
     const { logout, user } = useAuth();
     const location = useLocation();
     const navigate = useNavigate();
 
     const modules = [
-        { path: '/', name: 'Inicio', icon: '🏠', color: '#6c5ce7' },
+        { path: '/', name: 'Inicio', icon: '🏠', color: '#818cf8', glow: '0 0 10px #818cf8' }, // Indigo Neon
         
-        // Módulos de Venta (Tu compañero) - Ahora integrados como principales
-        { path: '/crear-orden', name: 'Nueva Venta', icon: '🧾', color: '#0984e3' },
-        { path: '/ordenes', name: 'Historial Ventas', icon: '📋', color: '#74b9ff' },
+        // Ventas
+        { path: '/crear-orden', name: 'Vender', icon: '⚡', color: '#38bdf8', glow: '0 0 10px #38bdf8' }, // Sky Blue
+        { path: '/ordenes', name: 'Historial', icon: '📋', color: '#60a5fa', glow: '0 0 10px #60a5fa' }, // Blue
+        { path: '/clientes', name: 'Clientes', icon: '👥', color: '#2dd4bf', glow: '0 0 10px #2dd4bf' }, // Teal
 
-        // Tus Módulos de Gestión
-        { path: '/inventario', name: 'Inventario', icon: '🍖', color: '#e17055' },
-        { path: '/compras', name: 'Compras', icon: '🛒', color: '#00b894' },
-        { path: '/recepcion', name: 'Recepción', icon: '📦', color: '#fdcb6e' },
-        { path: '/proveedores', name: 'Proveedores', icon: '🚚', color: '#636e72' },
-        { path: '/clientes', name: 'Clientes', icon: '🚚', color: '#636e72' },
-        { path: '/aprobaciones', name: 'Aprobaciones', icon: '🚚', color: '#636e72' },
+        // Gestión
+        { path: '/inventario', name: 'Stock', icon: '📦', color: '#fb923c', glow: '0 0 10px #fb923c' }, // Orange
+        { path: '/compras', name: 'Compras', icon: '🛒', color: '#34d399', glow: '0 0 10px #34d399' }, // Emerald
+        { path: '/recepcion', name: 'Almacén', icon: '📥', color: '#facc15', glow: '0 0 10px #facc15' }, // Yellow
+        
+        // Admin
+        { path: '/aprobaciones', name: 'Aprobar', icon: '✅', color: '#a3e635', glow: '0 0 10px #a3e635' }, // Lime
+        { path: '/proveedores', name: 'Proveedores', icon: '🚚', color: '#94a3b8', glow: '0 0 10px #94a3b8' }, // Slate
     ];
 
     return (
-        <div style={styles.navContainer}>
+        <div style={styles.navWrapper}>
             <nav style={styles.island}>
+                
+                {/* 1. SECCIÓN DE MARCA (LOGO) */}
                 <div style={styles.brandSection} onClick={() => navigate('/')}>
-                    <span style={styles.logoText}>DIGRAS</span>
+                    <div style={styles.logoContainer}>
+                        {/* Si el logo falla, muestra texto de respaldo */}
+                        <img 
+                            src={logoImg} 
+                            alt="DIGRAS" 
+                            style={styles.logoImage} 
+                            onError={(e) => {e.target.style.display='none'; e.target.nextSibling.style.display='block'}}
+                        />
+                        <span style={styles.fallbackLogoText}>DIGRAS</span>
+                    </div>
                 </div>
 
+                {/* 2. MENÚ DE MÓDULOS (Scrollable si es necesario) */}
                 <div style={styles.menuItems}>
                     {modules.map((mod) => {
                         const isActive = location.pathname === mod.path;
@@ -39,58 +57,204 @@ function Navbar() {
                         return (
                             <Link key={mod.name} to={mod.path} style={{ textDecoration: 'none' }}>
                                 <div 
+                                    className="nav-pill"
                                     style={{
                                         ...styles.navItem,
-                                        backgroundColor: isActive ? mod.color : 'transparent',
-                                        width: isActive ? 'auto' : '45px',
-                                        color: isActive ? 'white' : '#b2bec3'
+                                        backgroundColor: isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
+                                        color: isActive ? mod.color : '#94a3b8',
+                                        border: isActive ? `1px solid ${mod.color}` : '1px solid transparent',
+                                        boxShadow: isActive ? mod.glow : 'none',
                                     }}
-                                    className="nav-item-hover"
                                 >
-                                    <span style={styles.icon}>{mod.icon}</span>
-                                    <span style={{
-                                        ...styles.label,
+                                    <span style={{fontSize: '1.2rem', lineHeight: 1, filter: isActive ? 'drop-shadow(0 0 2px rgba(255,255,255,0.5))' : 'none'}}>{mod.icon}</span>
+                                    
+                                    <div className="nav-label-container" style={{
                                         maxWidth: isActive ? '100px' : '0px',
                                         opacity: isActive ? 1 : 0,
-                                    }} className="nav-label">
-                                        {mod.name}
-                                    </span>
+                                    }}>
+                                        <span style={{...styles.label, color: isActive ? '#fff' : '#cbd5e1'}}>{mod.name}</span>
+                                    </div>
                                 </div>
                             </Link>
                         );
                     })}
                 </div>
 
+                {/* 3. PERFIL DE USUARIO */}
                 <div style={styles.profileSection}>
-                    <div style={styles.avatarCircle}>
-                        {user?.username?.charAt(0).toUpperCase() || "U"}
+                    <div style={styles.userInfo}>
+                        <div style={styles.avatarCircle}>
+                            {user?.username?.charAt(0).toUpperCase() || "U"}
+                        </div>
+                        <span style={styles.userName}>{user?.username || 'Usuario'}</span>
                     </div>
-                    <button onClick={logout} style={styles.logoutBtn} title="Salir">⏻</button>
+                    <button onClick={logout} style={styles.logoutBtn} title="Cerrar Sesión">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    </button>
                 </div>
             </nav>
 
+            {/* ESTILOS DINÁMICOS CSS (Para animaciones fluidas) */}
             <style>{`
-                .nav-item-hover { transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); }
-                .nav-item-hover:hover { background-color: rgba(255, 255, 255, 0.1) !important; width: 140px !important; color: white !important; }
-                .nav-item-hover:hover .nav-label { max-width: 100px !important; opacity: 1 !important; margin-left: 8px; }
+                .nav-pill {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    height: 42px;
+                    padding: 0 12px;
+                    border-radius: 12px;
+                    cursor: pointer;
+                    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* Efecto rebote suave */
+                    overflow: hidden;
+                    position: relative;
+                }
+
+                .nav-label-container {
+                    overflow: hidden;
+                    white-space: nowrap;
+                    transition: all 0.4s ease;
+                    margin-left: 0;
+                }
+
+                /* Hover Effect: Expande y muestra texto */
+                .nav-pill:hover {
+                    background-color: rgba(255, 255, 255, 0.08) !important;
+                    padding-right: 16px;
+                }
+                
+                .nav-pill:hover .nav-label-container {
+                    max-width: 100px !important;
+                    opacity: 1 !important;
+                    margin-left: 8px;
+                }
+
+                /* Mobile Scrollbar Hide */
+                ::-webkit-scrollbar { height: 0px; background: transparent; }
             `}</style>
         </div>
     );
 }
 
-// Estilos del Navbar (Mismos que el anterior, pero asegurando el ancho)
+// --- JSS STYLES (Futuristas) ---
 const styles = {
-    navContainer: { position: 'sticky', top: '20px', zIndex: 1000, display: 'flex', justifyContent: 'center', marginBottom: '30px', padding: '0 20px', width: '100%', boxSizing: 'border-box' },
-    island: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#2d3436', padding: '8px 15px', borderRadius: '50px', boxShadow: '0 10px 30px rgba(0,0,0,0.25)', width: '100%', maxWidth: '950px', backdropFilter: 'blur(10px)' },
-    brandSection: { cursor: 'pointer', paddingRight: '20px', borderRight: '1px solid rgba(255,255,255,0.1)', marginRight: '10px' },
-    logoText: { fontWeight: '900', color: '#fff', fontSize: '1.2rem', letterSpacing: '2px' },
-    menuItems: { display: 'flex', gap: '8px', alignItems: 'center' },
-    navItem: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '40px', borderRadius: '25px', padding: '0 10px', cursor: 'pointer', overflow: 'hidden', whiteSpace: 'nowrap' },
-    icon: { fontSize: '1.2rem', lineHeight: '1' },
-    label: { fontSize: '0.9rem', fontWeight: '600', marginLeft: '8px', transition: 'all 0.3s ease' },
-    profileSection: { display: 'flex', alignItems: 'center', gap: '10px', paddingLeft: '20px', borderLeft: '1px solid rgba(255,255,255,0.1)', marginLeft: '10px' },
-    avatarCircle: { width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#636e72', color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center', fontWeight: 'bold', fontSize: '0.9rem' },
-    logoutBtn: { background: 'none', border: 'none', color: '#d63031', fontSize: '1.2rem', cursor: 'pointer', padding: '5px' },
+    navWrapper: {
+        position: 'sticky',
+        top: '20px',
+        zIndex: 9999,
+        display: 'flex',
+        justifyContent: 'center',
+        width: '100%',
+        padding: '0 20px',
+        boxSizing: 'border-box',
+        marginBottom: '40px',
+    },
+    island: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        // Glassmorphism effect
+        backgroundColor: 'rgba(15, 23, 42, 0.85)', // Dark Slate semi-transparent
+        backdropFilter: 'blur(16px)', // Efecto borroso detrás
+        WebkitBackdropFilter: 'blur(16px)',
+        border: '1px solid rgba(255, 255, 255, 0.1)', // Borde sutil brillante
+        borderRadius: '24px',
+        padding: '8px 12px',
+        width: '100%',
+        maxWidth: '1200px', // Más ancho para que quepan todos los módulos
+        boxShadow: '0 20px 40px -10px rgba(0,0,0,0.5), 0 0 15px rgba(255,255,255,0.05) inset', // Sombra profunda + Brillo interno
+    },
+    
+    // Logo
+    brandSection: {
+        display: 'flex',
+        alignItems: 'center',
+        paddingRight: '20px',
+        borderRight: '1px solid rgba(255,255,255,0.1)',
+        cursor: 'pointer',
+    },
+    logoContainer: {
+        display: 'flex',
+        alignItems: 'center',
+        height: '40px',
+    },
+    logoImage: {
+        height: '38px', // Ajusta según tu imagen
+        width: 'auto',
+        objectFit: 'contain',
+        filter: 'drop-shadow(0 0 5px rgba(255,255,255,0.3))', // Resplandor sutil al logo
+        transition: 'transform 0.3s ease',
+    },
+    fallbackLogoText: {
+        display: 'none', // Se muestra solo si falla la imagen
+        color: '#fff',
+        fontWeight: '900',
+        letterSpacing: '2px',
+        fontSize: '1.2rem',
+    },
+
+    // Menú Central
+    menuItems: {
+        display: 'flex',
+        gap: '6px',
+        alignItems: 'center',
+        overflowX: 'auto', // Permite scroll horizontal en pantallas pequeñas
+        padding: '0 10px',
+        flex: 1, // Toma el espacio disponible
+        justifyContent: 'center', // Centrado
+        scrollbarWidth: 'none', // Oculta scrollbar en Firefox
+    },
+    navItem: {
+        // Estilos base manejados en CSS class .nav-pill
+    },
+    label: {
+        fontSize: '0.85rem',
+        fontWeight: '600',
+        whiteSpace: 'nowrap',
+    },
+
+    // Perfil Derecha
+    profileSection: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        paddingLeft: '20px',
+        borderLeft: '1px solid rgba(255,255,255,0.1)',
+    },
+    userInfo: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+    },
+    avatarCircle: {
+        width: '36px',
+        height: '36px',
+        borderRadius: '50%',
+        background: 'linear-gradient(135deg, #6366f1, #a855f7)', // Gradiente futurista
+        color: 'white',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        fontWeight: 'bold',
+        fontSize: '0.9rem',
+        boxShadow: '0 0 10px rgba(168, 85, 247, 0.4)',
+    },
+    userName: {
+        color: '#e2e8f0',
+        fontSize: '0.85rem',
+        fontWeight: '500',
+        display: 'none', // Oculto en pantallas muy pequeñas, visible en media query si quisieras
+        '@media (min-width: 1024px)': { display: 'block' } 
+    },
+    logoutBtn: {
+        background: 'rgba(255,255,255,0.05)',
+        border: 'none',
+        borderRadius: '8px',
+        padding: '6px',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        transition: 'background 0.2s',
+    }
 };
 
 export default Navbar;

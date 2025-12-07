@@ -3,9 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import CreateProductForm from '../components/CreateProductForm'; // El componente ahora es un Modal
+import CreateProductForm from '../components/CreateProductForm';
 import AdvancedSearchBar from '../components/AdvancedSearchBar';
 import TableSkeleton from '../components/TableSkeleton';
+
+// --- ICONOS SVG ---
+const IconBox = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>;
+const IconPlus = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
+const IconEye = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>;
 
 const PRODUCTOS_URL = '/api/inventario/productos/';
 const EXISTENCIAS_URL = '/api/inventario/existencias/';
@@ -15,31 +20,26 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // --- ESTADOS DE FILTRO ---
     const [searchTerm, setSearchTerm] = useState('');
     const [filters, setFilters] = useState({ minPrice: '', maxPrice: '', status: '' });
-    
-    // Estado para controlar el modal
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // 1. Obtener la lista de existencias (stock, estado)
-                const stockResponse = await axios.get(EXISTENCIAS_URL);
+                const [stockResponse, productResponse] = await Promise.all([
+                    axios.get(EXISTENCIAS_URL),
+                    axios.get(PRODUCTOS_URL)
+                ]);
+
                 const stockMap = new Map(stockResponse.data.map(s => [s.id_producto, s]));
 
-                // 2. Obtener la lista de productos (nombre, precio, marca, etc)
-                const productResponse = await axios.get(PRODUCTOS_URL);
-                
-                // 3. Consolidar los datos
                 const consolidatedData = productResponse.data.map(p => {
                     const stock = stockMap.get(p.id_producto);
                     return {
                         ...p,
                         current_stock: stock ? stock.cantidad : 0,
                         stock_status: stock ? stock.estado : 'AGOTADO',
-                        // Acceso a datos anidados (manejo de nulos seguro)
                         marca: p.id_marca_nombre || '-', 
                         categoria: p.id_categoria_nombre || '-'
                     };
@@ -47,13 +47,12 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
                 
                 setProducts(consolidatedData);
             } catch (err) {
-                setError(`Error de conexión al Inventario: ${err.message}.`);
-                console.error("Fallo al cargar Inventario:", err);
+                setError(`Error de conexión: ${err.message}.`);
+                console.error("Fallo inventario:", err);
             } finally {
                 setLoading(false);
             }
         };
-
         fetchData();
     }, [refreshTrigger]);
 
@@ -67,165 +66,217 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
     };
 
     const filteredProducts = products.filter(p => {
-        // 1. Texto (Nombre o SKU)
         const matchText = p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           p.sku.toLowerCase().includes(searchTerm.toLowerCase());
-        
-        // 2. Precio Min/Max
         const price = parseFloat(p.precio_venta);
         const matchMin = filters.minPrice ? price >= parseFloat(filters.minPrice) : true;
         const matchMax = filters.maxPrice ? price <= parseFloat(filters.maxPrice) : true;
-
-        // 3. Estado (Disponible/Agotado)
         const matchStatus = filters.status ? p.stock_status === filters.status : true;
-
         return matchText && matchMin && matchMax && matchStatus;
     });
 
-    if (loading) {
-        return (
-            <div style={{ padding: '20px' }}>
-                {/* Mantenemos el Header visible para que no salte la pantalla */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <div>
-                        <h2>📊 Inventario General</h2>
-                        <p style={{ color: '#666' }}>Cargando datos en tiempo real...</p>
-                    </div>
+    // Métricas rápidas (KPIs)
+    const totalStock = products.reduce((acc, p) => acc + p.current_stock, 0);
+    const valorInventario = products.reduce((acc, p) => acc + (p.current_stock * parseFloat(p.precio_venta)), 0);
+    const agotadosCount = products.filter(p => p.stock_status === 'AGOTADO').length;
+
+    if (loading) return (
+        <div style={styles.container}>
+            <div style={styles.header}>
+                <div style={styles.titleGroup}>
+                    <div style={styles.iconCircle}><IconBox /></div>
+                    <div><h2 style={styles.title}>Inventario General</h2><p style={styles.subtitle}>Cargando datos...</p></div>
                 </div>
-                
-                {/* Barra de búsqueda falsa (opcional, para estética) */}
-                <div style={{height: '50px', background: '#fff', borderRadius: '8px', marginBottom: '20px', border: '1px solid #eee'}}></div>
-
-                {/* El Esqueleto de la Tabla */}
-                <TableSkeleton rows={8} columns={6} />
             </div>
-        );
-    }
+            {/* Ajustado a 7 columnas para el esqueleto */}
+            <TableSkeleton rows={8} columns={7} />
+        </div>
+    );
 
-    if (error) return <p style={{ color: 'red', fontWeight: 'bold' }}>🛑 Error: {error}</p>;
+    if (error) return <div style={{padding:40, textAlign:'center', color:'#ef4444'}}>🛑 {error}</div>;
 
     return (
-        <div style={{ padding: '20px' }}>
-            {/* ENCABEZADO CON BOTÓN DE ACCIÓN */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <div>
-                    <h2>📊 Inventario General (Vista Consolidada)</h2>
-                    <p style={{ color: '#666', margin: '5px 0 0 0' }}>
-                        Listado de productos y existencia actual en el sistema.
-                    </p>
+        <div style={styles.container}>
+            
+            {/* 1. HEADER & KPIs */}
+            <div style={styles.topSection}>
+                <div style={styles.header}>
+                    <div style={styles.titleGroup}>
+                        <div style={styles.iconCircle}><IconBox /></div>
+                        <div>
+                            <h2 style={styles.title}>Inventario General</h2>
+                            <p style={styles.subtitle}>Vista consolidada de existencias y precios</p>
+                        </div>
+                    </div>
+                    <button onClick={() => setIsCreateModalOpen(true)} style={styles.createBtn}>
+                        <IconPlus /> Nuevo Producto
+                    </button>
                 </div>
-                
-                {/* BOTÓN PARA ABRIR EL MODAL */}
-                <button 
-                    onClick={() => setIsCreateModalOpen(true)} 
-                    style={createBtnStyle}
-                >
-                    + Nuevo Producto
-                </button>
+
+                <div style={styles.kpiGrid}>
+                    <div style={styles.kpiCard}>
+                        <span style={styles.kpiLabel}>Total Productos</span>
+                        <span style={styles.kpiValue}>{products.length}</span>
+                    </div>
+                    <div style={styles.kpiCard}>
+                        <span style={styles.kpiLabel}>Unidades en Stock</span>
+                        <span style={{...styles.kpiValue, color: '#0ea5e9'}}>{totalStock}</span>
+                    </div>
+                    <div style={styles.kpiCard}>
+                        <span style={styles.kpiLabel}>Valor Estimado</span>
+                        <span style={{...styles.kpiValue, color: '#10b981'}}>${valorInventario.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                    </div>
+                    <div style={styles.kpiCard}>
+                        <span style={styles.kpiLabel}>Agotados</span>
+                        <span style={{...styles.kpiValue, color: agotadosCount > 0 ? '#ef4444' : '#64748b'}}>{agotadosCount}</span>
+                    </div>
+                </div>
             </div>
 
-            {/* BARRA DE BÚSQUEDA */}
-            <AdvancedSearchBar 
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
-                filters={filters}
-                onFilterChange={handleFilterChange}
-                config={{
-                    searchPlaceholder: "Buscar por Nombre o SKU...",
-                    showPriceRange: true,
-                    statusOptions: [
-                        { value: 'DISPONIBLE', label: 'Disponible' },
-                        { value: 'AGOTADO', label: 'Agotado' },
-                        { value: 'BAJA_EXISTENCIA', label: 'Baja existencia' }
-                    ]
-                }}
-            />
-            
-            {/* EL FORMULARIO AHORA ES UN MODAL (Controlado por isCreateModalOpen) */}
+            {/* 2. FILTROS & TABLA */}
+            <div style={styles.content}>
+                <div style={{ padding: '20px 24px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
+                    <AdvancedSearchBar 
+                        searchTerm={searchTerm} onSearchChange={setSearchTerm}
+                        filters={filters} onFilterChange={handleFilterChange}
+                        config={{
+                            searchPlaceholder: "🔍 Buscar por Nombre o SKU...", showPriceRange: true,
+                            statusOptions: [
+                                { value: 'DISPONIBLE', label: '🟢 Disponible' },
+                                { value: 'AGOTADO', label: '🔴 Agotado' },
+                                { value: 'BAJA_EXISTENCIA', label: '🟠 Baja existencia' }
+                            ]
+                        }}
+                    />
+                </div>
+
+                <div style={{overflowX: 'auto'}}>
+                    <table style={styles.table}>
+                        <thead>
+                            <tr style={styles.theadRow}>
+                                <th style={styles.th}>Producto</th>
+                                {/* 🚨 AHORA SON DOS COLUMNAS SEPARADAS */}
+                                <th style={styles.th}>Marca</th>
+                                <th style={styles.th}>Categoría</th>
+                                <th style={styles.thRight}>Precio Venta</th>
+                                <th style={styles.thRight}>Stock</th>
+                                <th style={styles.th}>Estado</th>
+                                <th style={styles.thAction}>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredProducts.map(p => (
+                                <tr key={p.id_producto} style={styles.tr}>
+                                    <td style={styles.td}>
+                                        <div style={styles.prodName}>{p.nombre}</div>
+                                        <div style={styles.prodSku}>SKU: {p.sku}</div>
+                                    </td>
+                                    
+                                    {/* COLUMNA MARCA */}
+                                    <td style={styles.td}>
+                                        <div style={styles.brandText}>{p.marca}</div>
+                                    </td>
+
+                                    {/* COLUMNA CATEGORÍA */}
+                                    <td style={styles.td}>
+                                        <span style={styles.categoryBadge}>{p.categoria}</span>
+                                    </td>
+
+                                    <td style={styles.tdRight}>${p.precio_venta}</td>
+                                    <td style={{ ...styles.tdRight, fontWeight: '700', color: p.current_stock > 0 ? '#0f172a' : '#94a3b8' }}>
+                                        {p.current_stock}
+                                    </td>
+                                    <td style={styles.td}>
+                                        <span style={getStatusStyle(p.stock_status)}>
+                                            {p.stock_status.replace('_', ' ')}
+                                        </span>
+                                    </td>
+                                    <td style={styles.tdAction}>
+                                        <Link to={`/inventario/lotes/${p.id_producto}`} style={styles.linkBtn}>
+                                            <IconEye /> Ver Lotes
+                                        </Link>
+                                    </td>
+                                </tr>
+                            ))}
+                            {filteredProducts.length === 0 && (
+                                <tr><td colSpan="7" style={styles.empty}>No se encontraron productos.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <CreateProductForm 
                 isOpen={isCreateModalOpen} 
                 onClose={() => setIsCreateModalOpen(false)} 
                 onUpdate={onUpdate}
             /> 
-
-            {/* TABLA DE PRODUCTOS */}
-            <table style={tableStyle}>
-                <thead>
-                    <tr style={headerStyle}>
-                        <th style={thStyle}>Producto</th>
-                        <th style={thStyle}>Marca / Categoría</th>
-                        <th style={thStyle}>Precio Venta</th>
-                        <th style={thStyle}>Stock Actual</th>
-                        <th style={thStyle}>Estado</th>
-                        <th style={thStyle}>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {filteredProducts.map(p => (
-                        <tr key={p.id_producto} style={rowStyle}>
-                            <td style={tdStyle}>
-                                <strong>{p.nombre}</strong>
-                                <br/>
-                                <span style={{fontSize: '0.85em', color: '#777'}}>SKU: {p.sku}</span>
-                            </td>
-                            <td style={tdStyle}>
-                                {p.marca} / {p.categoria}
-                            </td>
-                            <td style={tdStyle}>${p.precio_venta}</td>
-                            <td style={{ ...tdStyle, color: p.current_stock > 0 ? 'green' : 'orange', fontWeight: 'bold', textAlign: 'right' }}>
-                                {p.current_stock}
-                            </td>
-                            <td style={tdStyle}>
-                                <span style={{
-                                    padding: '4px 8px',
-                                    borderRadius: '4px',
-                                    backgroundColor: p.stock_status === 'DISPONIBLE' ? '#e8f5e9' : '#ffebee',
-                                    color: p.stock_status === 'DISPONIBLE' ? '#2e7d32' : '#c62828',
-                                    fontSize: '0.85em',
-                                    fontWeight: 'bold'
-                                }}>
-                                    {p.stock_status}
-                                </span>
-                            </td>
-                            <td style={tdStyle}>
-                                <Link 
-                                    to={`/inventario/lotes/${p.id_producto}`}
-                                    style={{ textDecoration: 'none', color: '#2196f3', fontWeight: 'bold' }}
-                                >
-                                    Ver Trazabilidad
-                                </Link>
-                            </td>
-                        </tr>
-                    ))}
-                    {filteredProducts.length === 0 && (
-                        <tr><td colSpan="6" style={{textAlign:'center', padding:'20px'}}>No se encontraron resultados.</td></tr>
-                    )}
-                </tbody>
-            </table>
         </div>
     );
 }
 
-// ----------------------------------------------------
-// DEFINICIÓN DE ESTILOS (AQUÍ ESTABA EL ERROR)
-// ----------------------------------------------------
-
-const createBtnStyle = {
-    padding: '10px 20px',
-    backgroundColor: '#009688', // Color "Teal"
-    color: 'white',
-    border: 'none',
-    borderRadius: '5px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
-    fontSize: '1em',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+// FUNCIONES DE ESTILO DINÁMICO
+const getStatusStyle = (status) => {
+    const base = { padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700', display: 'inline-block' };
+    if (status === 'DISPONIBLE') return { ...base, backgroundColor: '#dcfce7', color: '#166534' };
+    if (status === 'AGOTADO') return { ...base, backgroundColor: '#fee2e2', color: '#991b1b' };
+    if (status === 'BAJA_EXISTENCIA') return { ...base, backgroundColor: '#ffedd5', color: '#9a3412' };
+    return { ...base, backgroundColor: '#f1f5f9', color: '#475569' };
 };
 
-const tableStyle = { width: '100%', borderCollapse: 'collapse', backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' };
-const headerStyle = { backgroundColor: '#f4f4f4', borderBottom: '2px solid #ddd' };
-const rowStyle = { borderBottom: '1px solid #eee' };
-const thStyle = { padding: '12px', textAlign: 'left', color: '#555', borderBottom: '2px solid #ddd' };
-const tdStyle = { padding: '10px', borderBottom: '1px solid #eee' };
+// ESTILOS MODERNOS (Premium UI)
+const styles = {
+    container: { padding: '24px 32px', maxWidth: '1400px', margin: '0 auto', fontFamily: "'Inter', sans-serif" },
+    
+    // Top Section
+    topSection: { marginBottom: '32px' },
+    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' },
+    titleGroup: { display: 'flex', alignItems: 'center', gap: '16px' },
+    iconCircle: { width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#f0f9ff', color: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+    title: { margin: 0, fontSize: '1.5rem', color: '#0f172a', fontWeight: '700' },
+    subtitle: { margin: '4px 0 0', color: '#64748b', fontSize: '0.9rem' },
+    createBtn: {
+        backgroundColor: '#0f172a', color: 'white', border: 'none',
+        padding: '10px 20px', borderRadius: '10px', fontSize: '0.9rem', fontWeight: '600',
+        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+        transition: 'transform 0.1s ease'
+    },
+
+    // KPIs
+    kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' },
+    kpiCard: { backgroundColor: '#fff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
+    kpiLabel: { display: 'block', fontSize: '0.8rem', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase', fontWeight: '600' },
+    kpiValue: { fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', lineHeight: 1 },
+
+    // Content Area
+    content: { backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', overflow: 'hidden', border: '1px solid #e2e8f0' },
+    
+    // Tabla
+    table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' },
+    theadRow: { backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' },
+    th: { padding: '16px 24px', textAlign: 'left', fontWeight: '600', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' },
+    thRight: { padding: '16px 24px', textAlign: 'right', fontWeight: '600', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' },
+    thAction: { padding: '16px 24px', textAlign: 'center', fontWeight: '600', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase' },
+    
+    tr: { borderBottom: '1px solid #f1f5f9', transition: 'background 0.1s' },
+    td: { padding: '16px 24px', verticalAlign: 'middle', color: '#334155' },
+    tdRight: { padding: '16px 24px', verticalAlign: 'middle', textAlign: 'right', color: '#334155', fontFamily: 'monospace', fontSize: '0.95rem' },
+    tdAction: { padding: '16px 24px', verticalAlign: 'middle', textAlign: 'center' },
+
+    // Elementos de Celda
+    prodName: { fontWeight: '600', color: '#0f172a', marginBottom: '2px' },
+    prodSku: { fontSize: '0.75rem', color: '#94a3b8', fontFamily: 'monospace' },
+    categoryBadge: { display: 'inline-block', backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', color: '#475569', fontWeight: '600' },
+    brandText: { fontSize: '0.85rem', color: '#475569', fontWeight: '500' },
+    
+    linkBtn: { 
+        display: 'inline-flex', alignItems: 'center', gap: '6px',
+        color: '#3b82f6', textDecoration: 'none', fontWeight: '600', fontSize: '0.85rem',
+        padding: '6px 12px', borderRadius: '6px', backgroundColor: '#eff6ff',
+        transition: 'background 0.2s'
+    },
+    empty: { padding: '40px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }
+};
 
 export default InventoryDashboard;

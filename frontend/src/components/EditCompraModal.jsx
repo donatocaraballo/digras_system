@@ -2,197 +2,167 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const COMPRAS_URL = '/api/compras/compras/';
+const IconClose = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
+const IconTrash = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
 
 function EditCompraModal({ compra, onClose, onSave }) {
-    // 1. Estados iniciales (para la Compra Cabecera)
-    const [metodoPago, setMetodoPago] = useState(compra.metodo_pago);
-    const [fechaPedido, setFechaPedido] = useState(compra.fecha_pedido);
-    
-    // 2. Estado para manejar los detalles anidados, inicializado vacío
+    // Si compra es null (por renderizado rápido), no hacemos nada
+    if (!compra) return null;
+
+    const [fechaPedido, setFechaPedido] = useState(compra.fecha_pedido || '');
     const [detalles, setDetalles] = useState([]); 
     const [loadingDetails, setLoadingDetails] = useState(true);
-    
-    const [status, setStatus] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // 🚨 RESTRICCIÓN EN FRONTEND: Determinada por el estado de la compra padre
-    const isReceived = compra.estado_de_envio === 'RECIBIDA_COMPLETA' || compra.estado_de_envio === 'RECIBIDA_PARCIAL'; 
+    // 🚨 CORRECCIÓN: Validación segura de propiedades (evita crash si es undefined)
+    const isLocked = 
+        (compra.estado_de_envio && ['RECIBIDA_COMPLETA', 'RECIBIDA_PARCIAL'].includes(compra.estado_de_envio)) ||
+        (compra.estado_de_pago && ['PAGADO', 'PAGADO_PARCIAL'].includes(compra.estado_de_pago));
 
-    // --- EFECTO PARA CARGAR DETALLES COMPLETOS DE MANERA ASÍNCRONA ---
     useEffect(() => {
-        const fetchFullDetails = async () => {
+        const fetchDetails = async () => {
             try {
-                // Hacemos un GET al endpoint de detalle para obtener la Compra COMPLETA 
-                // con todos los campos anidados (detalles)
+                // Solo pedimos detalles si tenemos ID
+                if (!compra.id_compra) return;
+                
                 const response = await axios.get(`${COMPRAS_URL}${compra.id_compra}/`);
-                
-                // Usamos los detalles completos para el estado
                 setDetalles(response.data.detalles || []); 
-                
             } catch (err) {
-                console.error("Fallo al obtener detalles completos para edición:", err);
-                setStatus('❌ Error al cargar detalles. Revisa la consola.');
+                console.error("Error cargando detalles:", err);
+                toast.error("Error al cargar detalles");
             } finally {
                 setLoadingDetails(false);
             }
         };
 
-        // Solo cargamos los detalles si la compra se puede editar
-        if (!isReceived) {
-            fetchFullDetails();
+        // Si está bloqueada, no necesitamos cargar detalles para editar (solo mostrar mensaje)
+        // Pero si quieres mostrarlos en modo lectura, quita el 'if (!isLocked)'
+        if (!isLocked) {
+            fetchDetails();
         } else {
-             setLoadingDetails(false);
+            setLoadingDetails(false);
         }
-
-    }, [compra.id_compra, isReceived]);
+    }, [compra.id_compra, isLocked]);
     
-    // Manejadores para DetalleCompra
     const handleDetailChange = (index, field, value) => {
         const newDetalles = [...detalles];
-        // Aseguramos que los valores numéricos se mantengan como números
         newDetalles[index][field] = (field === 'cantidad' || field === 'precio_unitario') ? parseFloat(value) : value;
         setDetalles(newDetalles);
     };
 
     const handleRemoveDetail = (index) => {
         const newDetalles = [...detalles];
-        newDetalles.splice(index, 1); // Elimina el detalle del índice
+        newDetalles.splice(index, 1);
         setDetalles(newDetalles);
     };
     
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
-        setStatus('Actualizando Compra y Detalles...');
-        
-        // La validación de estado ya está arriba (isReceived), pero la duplicamos aquí para seguridad
-        if (isReceived) {
-            setStatus('❌ Error: Compra recibida, no se puede actualizar.');
-            setIsSubmitting(false);
-            return;
-        }
+        const loadingToast = toast.loading("Actualizando...");
 
         try {
-            // Preparamos los datos anidados para el PATCH (solo campos editables)
             const updateData = {
-                metodo_pago: metodoPago,
                 fecha_pedido: fechaPedido,
-                // Mapeamos y enviamos los detalles anidados:
                 detalles: detalles.map(d => ({
                     id_detallec: d.id_detallec,  
                     id_producto: d.id_producto,
                     cantidad: d.cantidad,
                     precio_unitario: d.precio_unitario,
-                    subtotal: d.subtotal,
-                    devolucion: d.devolucion,
-                    cantidad_devolvida: d.cantidad_devolvida,
-                    nota: d.nota
+                    subtotal: d.cantidad * d.precio_unitario,
                 })),
             };
             
             await axios.patch(`${COMPRAS_URL}${compra.id_compra}/`, updateData);
-            
-            setStatus('✅ Compra y Detalles actualizados.');
-            onSave(); 
-            setTimeout(onClose, 1000);
-            
+            toast.dismiss(loadingToast);
+            toast.success("Compra Actualizada");
+            onSave();
         } catch (error) {
-            const errMsg = error.response ? JSON.stringify(error.response.data) : error.message;
-            setStatus('❌ Error al actualizar: ' + errMsg);
-            console.error("Error PATCH:", error);
+            toast.dismiss(loadingToast);
+            const msg = error.response?.data?.error || "Error al actualizar";
+            toast.error(msg);
             setIsSubmitting(false);
         }
     };
 
-    if (loadingDetails) return <p style={{ padding: '30px' }}>Cargando detalles para edición...</p>;
+    if (loadingDetails) return null;
 
     return (
-        <div style={modalOverlayStyle}>
-            <div style={modalContentStyle}>
-                <h3>Editar Compra N°{compra.id_compra}</h3>
-                <p>Proveedor: **{compra.id_proveedor_nombre}**</p>
-
-                {isReceived && (
-                    <p style={{ color: 'red', fontWeight: 'bold', marginBottom: '15px' }}>
-                        🚨 Advertencia: Esta compra ya fue Recibida. No se permite su edición.
-                    </p>
-                )}
-                
-                <form onSubmit={handleSubmit}>
-                    {/* CABECERA DE COMPRA */}
-                    <label style={labelStyle}>Método de Pago:</label>
-                    <input type="text" value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} required style={inputStyle} disabled={isReceived} />
-                    
-                    <label style={labelStyle}>Fecha del Pedido:</label>
-                    <input type="date" value={fechaPedido} onChange={(e) => setFechaPedido(e.target.value)} required style={inputStyle} disabled={isReceived} />
-                    
-                    <hr style={{margin: '20px 0'}} />
-                    
-                    <h4>Detalles de la Compra (Líneas)</h4>
-                    {detalles && detalles.length > 0 ? (
-                        detalles.map((detalle, index) => (
-                            <div key={detalle.id_detallec || index} style={detailGroupStyle}>
-                                <p style={{ fontWeight: 'bold' }}>Producto: {detalle.id_producto_nombre} (ID: {detalle.id_producto})</p>
-                                
-                                <label>Cantidad:</label>
-                                <input 
-                                    type="number" 
-                                    value={detalle.cantidad} 
-                                    onChange={(e) => handleDetailChange(index, 'cantidad', e.target.value)} 
-                                    required 
-                                    min="1"
-                                    style={detailInputStyle} 
-                                    disabled={isReceived}
-                                />
-
-                                <label>Precio Unitario:</label>
-                                <input 
-                                    type="number" 
-                                    value={detalle.precio_unitario} 
-                                    onChange={(e) => handleDetailChange(index, 'precio_unitario', e.target.value)} 
-                                    required 
-                                    step="0.01"
-                                    style={detailInputStyle} 
-                                    disabled={isReceived}
-                                />
-                                
-                                <button type="button" onClick={() => handleRemoveDetail(index)} style={removeButtonStyle} disabled={isReceived || detalles.length === 1}>
-                                    Quitar Detalle
-                                </button>
-                            </div>
-                        ))
-                    ) : (
-                         <p style={{ color: 'red' }}>No se encontraron líneas de detalle para esta compra.</p>
-                    )}
-
-                    <p style={{ marginTop: '10px', fontSize: 'small', color: '#f44336' }}>
-                        *Advertencia: No se puede cambiar la Cantidad de una compra ya recibida.
-                    </p>
-                    
-                    <div style={buttonGroupStyle}>
-                        <button type="submit" style={saveButtonStyle} disabled={isSubmitting || isReceived}>Guardar Cambios</button>
-                        <button type="button" onClick={onClose} style={cancelButtonStyle} disabled={isSubmitting}>Cancelar</button>
+        <div style={styles.overlay}>
+            <div style={styles.modal}>
+                <div style={styles.header}>
+                    <div>
+                        <h3 style={styles.title}>Editar Compra #{compra.id_compra}</h3>
+                        <p style={styles.subtitle}>Proveedor: {compra.id_proveedor_nombre}</p>
                     </div>
-                    {status && <p style={{marginTop: '10px'}}>{status}</p>}
-                </form>
+                    <button onClick={onClose} style={styles.closeBtn}><IconClose /></button>
+                </div>
+
+                {isLocked ? (
+                    <div style={{padding:40, textAlign:'center', color:'#ef4444'}}>
+                        <p style={{fontSize: '1.2em', marginBottom: '10px'}}>🛑 Acción No Permitida</p>
+                        Esta compra ya fue <b>Recibida</b> o tiene <b>Pagos Registrados</b>.<br/>
+                        No se puede editar para mantener la integridad contable.
+                    </div>
+                ) : (
+                    <form onSubmit={handleSubmit} style={styles.formContent}>
+                        <div style={styles.sectionCard}>
+                            <label style={styles.label}>Fecha Pedido</label>
+                            <input type="date" value={fechaPedido} onChange={(e) => setFechaPedido(e.target.value)} required style={styles.input} />
+                        </div>
+
+                        <div style={styles.detailsContainer}>
+                            {detalles.map((detalle, index) => (
+                                <div key={detalle.id_detallec || index} style={styles.detailRow}>
+                                    <div style={{flex:3}}>
+                                        <label style={styles.miniLabel}>Producto</label>
+                                        <div style={{fontWeight:'600', fontSize:'0.9rem'}}>{detalle.id_producto_nombre}</div>
+                                    </div>
+                                    <div style={{flex:1}}>
+                                        <label style={styles.miniLabel}>Cant.</label>
+                                        <input type="number" min="1" value={detalle.cantidad} onChange={(e) => handleDetailChange(index, 'cantidad', e.target.value)} style={styles.input} />
+                                    </div>
+                                    <div style={{flex:1}}>
+                                        <label style={styles.miniLabel}>Precio</label>
+                                        <input type="number" step="0.01" value={detalle.precio_unitario} onChange={(e) => handleDetailChange(index, 'precio_unitario', e.target.value)} style={styles.input} />
+                                    </div>
+                                    <button type="button" onClick={() => handleRemoveDetail(index)} style={styles.removeBtn}><IconTrash /></button>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div style={styles.footer}>
+                            <button type="button" onClick={onClose} style={styles.btnCancel}>Cancelar</button>
+                            <button type="submit" style={styles.btnSubmit} disabled={isSubmitting}>Guardar Cambios</button>
+                        </div>
+                    </form>
+                )}
             </div>
         </div>
     );
 }
 
-// Estilos
-const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000 };
-const modalContentStyle = { backgroundColor: 'white', padding: '30px', borderRadius: '8px', width: '500px', maxHeight: '90vh', overflowY: 'auto' };
-const labelStyle = { display: 'block', fontWeight: 'bold', marginTop: '10px' };
-const inputStyle = { width: '100%', padding: '8px', margin: '5px 0 15px', boxSizing: 'border-box', border: '1px solid #ccc' };
-const detailInputStyle = { width: '48%', padding: '8px', margin: '5px 5px 10px 0', boxSizing: 'border-box', border: '1px solid #ccc' };
-const detailGroupStyle = { border: '1px dashed #ccc', padding: '15px', marginBottom: '15px' };
-const removeButtonStyle = { padding: '5px 10px', backgroundColor: '#d32f2f', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', float: 'right' };
-const buttonGroupStyle = { marginTop: '20px', display: 'flex', justifyContent: 'flex-end' };
-const saveButtonStyle = { padding: '10px 15px', backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '10px' };
-const cancelButtonStyle = { padding: '10px 15px', backgroundColor: '#9e9e9e', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' };
-
+const styles = {
+    overlay: { position: 'fixed', inset:0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 },
+    modal: { background: '#fff', width: '600px', maxHeight: '90vh', borderRadius: '16px', display: 'flex', flexDirection: 'column', overflow: 'hidden' },
+    header: { padding: '20px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display:'flex', justifyContent:'space-between' },
+    title: { margin: 0, fontSize: '1.2rem', color: '#0f172a' },
+    subtitle: { margin: 0, color: '#64748b', fontSize: '0.9rem' },
+    closeBtn: { background:'none', border:'none', cursor:'pointer', color:'#94a3b8' },
+    formContent: { display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1 },
+    sectionCard: { padding: '20px 24px' },
+    detailsContainer: { flex: 1, overflowY: 'auto', padding: '0 24px 20px', background:'#f8fafc', borderTop:'1px solid #e2e8f0' },
+    detailRow: { background:'#fff', padding:12, borderRadius:8, marginBottom:8, display:'flex', gap:10, alignItems:'center', border:'1px solid #e2e8f0' },
+    label: { display: 'block', fontSize: '0.75rem', fontWeight: '600', color: '#475569', marginBottom: '6px', textTransform: 'uppercase' },
+    miniLabel: { fontSize: '0.65rem', color: '#94a3b8', display: 'block', marginBottom:2 },
+    input: { width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.9rem', boxSizing:'border-box' },
+    removeBtn: { background:'none', border:'none', color:'#ef4444', cursor:'pointer', padding:8 },
+    footer: { padding: '20px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: 10 },
+    btnCancel: { padding: '10px 20px', border: 'none', background: '#f1f5f9', color: '#475569', borderRadius: '8px', cursor: 'pointer', fontWeight:'600' },
+    btnSubmit: { padding: '10px 24px', border: 'none', background: '#0f172a', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontWeight:'600' }
+};
 
 export default EditCompraModal;
