@@ -16,6 +16,8 @@ import ReceptionDashboard from './pages/ReceptionDashboard';
 import ProviderDashboard from './pages/ProviderDashboard';
 import Clientes from './pages/Clientes';
 import GerenteAprobaciones from './pages/GerenteAprobaciones';
+import PreparacionOrdenes from './pages/PreparacionOrdenes';
+import TransporteEnvios from './pages/TransporteEnvios';
 
 // 🚨 COMPONENTE DE ESTILOS FUTURISTAS (El que creamos antes)
 import GlobalStyles from './components/GlobalStyles';
@@ -104,6 +106,8 @@ function App() {
           <Route path="/proveedores" element={<RutasProtegidas><ProviderDashboard /></RutasProtegidas>} />
           <Route path="/clientes" element={<RutasProtegidas><Clientes /></RutasProtegidas>} />
           <Route path="/aprobaciones" element={<RutasProtegidas><GerenteAprobaciones /></RutasProtegidas>} />
+          <Route path="/preparacion" element={<RutasProtegidas><PreparacionOrdenes /></RutasProtegidas>} />
+          <Route path="/envios" element={<RutasProtegidas><TransporteEnvios /></RutasProtegidas>} />
 
           <Route path="*" element={<h2 style={{textAlign:'center', marginTop: 100, color:'#64748b'}}>404 | Página no encontrada</h2>} />
         </Routes>

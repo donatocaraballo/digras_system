@@ -29,6 +29,12 @@ function Navbar() {
         // Admin
         { path: '/aprobaciones', name: 'Aprobar', icon: '✅', color: '#a3e635', glow: '0 0 10px #a3e635' }, // Lime
         { path: '/proveedores', name: 'Proveedores', icon: '🚚', color: '#94a3b8', glow: '0 0 10px #94a3b8' }, // Slate
+
+        // Almacen
+        { path: '/preparacion', name: 'Preparacion', icon: '🚚', color: '#94a3b8', glow: '0 0 10px #94a3b8' }, // Slate
+
+        // Transporte
+        { path: '/envios', name: 'Envios', icon: '🚚', color: '#94a3b8', glow: '0 0 10px #94a3b8' }, // Slate
     ];
 
     return (
