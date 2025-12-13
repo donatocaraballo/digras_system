@@ -11,6 +11,7 @@ from .views import (
     UnidadViewSet, 
     EnvioViewSet,
     ClienteViewSet,
+    CustomLogin
 )
 # Eliminamos OrdenViewSet de aquí porque ya tiene su propia app
 
@@ -27,6 +28,6 @@ urlpatterns = [
     
     # 🚨 RUTA DE LOGIN POR TOKEN 🚨
     # La URL final será: http://127.0.0.1:8000/api/base/login/
-    path('login/', obtain_auth_token, name='api_token_auth'),
+    path('login/', CustomLogin.as_view(), name='api_login'),
     path('tasa-dolar/', obtener_tasa_dolar, name='tasa_dolar'),
 ]

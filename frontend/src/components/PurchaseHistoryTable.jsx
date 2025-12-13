@@ -44,7 +44,7 @@ function PurchaseHistoryTable({ refreshTrigger, onUpdate, onEditClick }) {
             'APROBADA': { bg: '#dbeafe', text: '#1e40af' }, // Azul
             'PENDIENTE': { bg: '#ffedd5', text: '#9a3412' }, // Naranja
             'PENDIENTE_APROBACION': { bg: '#ffedd5', text: '#9a3412' },
-            'PAGADA_PARCIAL': { bg: '#ccfbf1', text: '#115e59' }, // Teal
+            'PAGADO_PARCIAL': { bg: '#ccfbf1', text: '#115e59' }, // Teal
             'RECIBIDA_PARCIAL': { bg: '#ccfbf1', text: '#115e59' },
             'CANCELADA': { bg: '#fee2e2', text: '#991b1b' }, // Rojo
         };

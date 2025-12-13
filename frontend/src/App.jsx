@@ -18,6 +18,8 @@ import Clientes from './pages/Clientes';
 import GerenteAprobaciones from './pages/GerenteAprobaciones';
 import PreparacionOrdenes from './pages/PreparacionOrdenes';
 import TransporteEnvios from './pages/TransporteEnvios';
+import Usuarios from './pages/Usuarios';
+import RegistroAcciones from './pages/RegistroAcciones';
 
 // 🚨 COMPONENTE DE ESTILOS FUTURISTAS (El que creamos antes)
 import GlobalStyles from './components/GlobalStyles';
@@ -108,6 +110,8 @@ function App() {
           <Route path="/aprobaciones" element={<RutasProtegidas><GerenteAprobaciones /></RutasProtegidas>} />
           <Route path="/preparacion" element={<RutasProtegidas><PreparacionOrdenes /></RutasProtegidas>} />
           <Route path="/envios" element={<RutasProtegidas><TransporteEnvios /></RutasProtegidas>} />
+          <Route path="/usuarios" element={<RutasProtegidas><Usuarios /></RutasProtegidas>} />
+          <Route path="/registros" element={<RutasProtegidas><RegistroAcciones /></RutasProtegidas>} />
 
           <Route path="*" element={<h2 style={{textAlign:'center', marginTop: 100, color:'#64748b'}}>404 | Página no encontrada</h2>} />
         </Routes>

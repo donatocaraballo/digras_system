@@ -5,6 +5,8 @@ from rest_framework import status, permissions
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
+from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework.authtoken.models import Token
 
 from base.viewsets import BaseViewSet
 from .utils import registrar_accion
@@ -734,3 +736,35 @@ class UnidadViewSet(BaseViewSet):
         )
 
         return response
+    
+class CustomLogin(ObtainAuthToken):
+    """
+    Vista de Login que devuelve:
+    {
+        "token": "...",
+        "user": {
+            "id_usuario": 1,
+            "username": "admin",
+            "tipo": "GERENTE",
+            "first_name": "Juan",
+            "last_name": "Perez",
+            ...
+        }
+    }
+    """
+    def post(self, request, *args, **kwargs):
+        # Valida credenciales (username/password)
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
+        
+        # Obtiene o crea el token
+        token, created = Token.objects.get_or_create(user=user)
+        
+        # Serializa el usuario completo usando tu UsuarioSerializer
+        user_data = UsuarioSerializer(user).data
+
+        return Response({
+            'token': token.key,
+            'user': user_data
+        })

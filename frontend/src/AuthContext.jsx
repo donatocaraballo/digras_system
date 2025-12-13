@@ -17,11 +17,18 @@ export const AuthProvider = ({ children }) => {
             const storedToken = localStorage.getItem('auth_token');
 
             if (storedUser && storedToken) {
-                // 🚨 ESTA LÍNEA ES CRÍTICA: Configura el header globalmente
+                // Configurar header globalmente
                 axios.defaults.headers.common['Authorization'] = `Token ${storedToken}`;
-                setUser(JSON.parse(storedUser));
+                
+                // Parsear usuario (Aquí recuperamos el rol, nombre, etc. guardado)
+                try {
+                    setUser(JSON.parse(storedUser));
+                } catch (e) {
+                    console.error("Error parseando usuario:", e);
+                    localStorage.removeItem('user_data');
+                }
             }
-            setLoading(false); // Solo después de esto, la app renderiza las rutas protegidas
+            setLoading(false); 
         };
         checkLoggedIn();
     }, []);
@@ -29,27 +36,26 @@ export const AuthProvider = ({ children }) => {
     // 2. Función de Login
     const login = async (username, password) => {
         try {
-            // URL correcta según el nuevo base/urls.py
+            // Petición al nuevo endpoint CustomLogin
+            // Asegúrate que la URL coincida con tu urls.py (ej: /api/base/login/)
             const response = await axios.post('http://127.0.0.1:8000/api/base/login/', { 
                 username, 
                 password 
             });
 
-            // 🚨 CAMBIO CLAVE PARA TOKEN AUTH 🚨
-            // Django Token Auth devuelve: { "token": "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b" }
-            const { token } = response.data; 
+            // 🚨 AHORA EL BACKEND DEVUELVE: { token: "...", user: { ...datos_completos } }
+            const { token, user: userData } = response.data; 
             
             // Guardamos el token
             localStorage.setItem('auth_token', token);
             
-            // Como TokenAuth no devuelve datos del usuario, creamos un objeto básico
-            // o hacemos una petición extra a /api/base/usuarios/me/ si tuvieras ese endpoint.
-            const userData = { username }; 
+            // 🚨 CRÍTICO: Guardamos el OBJETO COMPLETO del usuario (id, tipo, nombre, etc)
             localStorage.setItem('user_data', JSON.stringify(userData));
             
-            // Configurar Axios: IMPORTANTE usar "Token" en vez de "Bearer"
+            // Configurar Axios
             axios.defaults.headers.common['Authorization'] = `Token ${token}`;
             
+            // Actualizar estado
             setUser(userData);
             return true;
             
@@ -62,10 +68,11 @@ export const AuthProvider = ({ children }) => {
     // 3. Función de Logout
     const logout = () => {
         localStorage.removeItem('auth_token');
-        localStorage.removeItem('refresh_token');
         localStorage.removeItem('user_data');
         delete axios.defaults.headers.common['Authorization'];
         setUser(null);
+        // Opcional: Redirigir o recargar si es necesario
+        window.location.href = '/login'; 
     };
 
     return (

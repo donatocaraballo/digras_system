@@ -1,261 +1,308 @@
 // frontend/src/pages/TransporteEnvios.jsx
+
 import React, { useEffect, useState } from "react";
 import api from "../api/api";
 
 const ESTADO_CREACION_ENVIO = "PENDIENTE POR APROBACION";
 
+// --- ICONOS SVG ---
+const IconTruck = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>;
+const IconSearch = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>;
+const IconRefresh = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>;
+const IconPlus = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
+
+// --- ESTILOS PREMIUM DIGRAS ---
 const styles = {
+  // Layout Principal
   page: {
-    minHeight: "100vh",
-    margin: 0,
-    padding: "24px",
-    background: "#f4f5fb",
-    fontFamily:
-      "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    display: "flex",
-    justifyContent: "center",
+    paddingTop: "40px", // Separación superior para el título flotante
+    paddingBottom: "40px",
+    fontFamily: "'Segoe UI', 'Roboto', sans-serif",
+    maxWidth: "1400px",
+    margin: "0 auto",
   },
-  card: {
-    width: "100%",
-    maxWidth: "1200px",
-    background: "#ffffff",
-    borderRadius: "14px",
-    boxShadow: "0 18px 40px rgba(15, 23, 42, 0.12)",
-    padding: "20px 24px 24px",
-    boxSizing: "border-box",
+
+  // --- HEADER FLOTANTE (FUERA DE LA TARJETA) ---
+  headerRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "15px",
+    marginBottom: "25px",
+    paddingLeft: "10px",
+  },
+  titleGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: "15px",
+  },
+  iconCircle: {
+    width: '56px', height: '56px', borderRadius: '14px', 
+    backgroundColor: '#e0f2fe', color: '#0284c7', 
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
   },
   title: {
-    fontSize: "22px",
-    fontWeight: 600,
-    color: "#0f172a",
+    fontSize: "1.8rem",
+    fontWeight: "800",
+    color: "#0f172a", // Azul Corporativo
     margin: 0,
+    letterSpacing: "-0.5px",
   },
   subtitle: {
-    fontSize: "13px",
-    color: "#6b7280",
-    margin: "4px 0 18px 0",
+    fontSize: "1rem",
+    color: "#64748b",
+    marginTop: "4px",
   },
+
+  // --- TARJETA PRINCIPAL DE CONTENIDO ---
+  card: {
+    background: "#ffffff",
+    borderRadius: "20px",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.05)",
+    padding: "30px",
+    border: "1px solid #f0f0f0",
+  },
+  
+  // Layout de Columnas (Unidades | Envíos)
   colLayout: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "18px",
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr", // Dos columnas iguales
+    gap: "30px",
   },
+  
+  // Tarjetas de Sección (Gris claro)
   sectionCard: {
-    flex: 1,
-    borderRadius: "12px",
-    border: "1px solid #e5e7eb",
-    padding: "14px 16px",
-    background: "#f9fafb",
+    borderRadius: "16px",
+    border: "1px solid #e2e8f0",
+    padding: "20px",
+    background: "#f8fafc",
+    display: 'flex',
+    flexDirection: 'column',
+    height: 'fit-content'
   },
   sectionHeader: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "10px",
+    alignItems: "flex-start",
+    marginBottom: "20px",
   },
   sectionTitle: {
-    fontSize: "16px",
-    fontWeight: 600,
-    color: "#111827",
-    margin: 0,
+    fontSize: "1.1rem",
+    fontWeight: "700",
+    color: "#0f172a",
+    margin: "0 0 5px 0",
   },
   smallText: {
-    fontSize: "11px",
-    color: "#6b7280",
+    fontSize: "0.85rem",
+    color: "#64748b",
+    lineHeight: "1.4",
   },
+
+  // Botones (SOLIDOS)
   buttonPrimary: {
     border: "none",
-    borderRadius: "999px",
-    padding: "0 14px",
-    height: "32px",
-    background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+    borderRadius: "10px",
+    padding: "0 16px",
+    height: "36px",
+    background: "#0f172a", // 🚨 COLOR SÓLIDO AZUL OSCURO
     color: "#ffffff",
     cursor: "pointer",
-    fontSize: "12px",
-    fontWeight: 500,
+    fontSize: "0.85rem",
+    fontWeight: "600",
     display: "flex",
     alignItems: "center",
     gap: "6px",
+    boxShadow: "0 4px 12px rgba(15, 23, 42, 0.2)",
+    transition: "transform 0.1s",
+    whiteSpace: "nowrap"
   },
   buttonGhost: {
-    borderRadius: "999px",
-    padding: "0 14px",
-    height: "30px",
+    borderRadius: "10px",
+    padding: "0 12px",
+    height: "32px",
     background: "#ffffff",
-    border: "1px solid #d1d5db",
-    color: "#374151",
+    border: "1px solid #cbd5e1",
+    color: "#64748b",
     cursor: "pointer",
-    fontSize: "12px",
+    fontSize: "0.8rem",
+    fontWeight: "600",
+    transition: "background 0.2s",
+    whiteSpace: "nowrap"
   },
   buttonDanger: {
-    borderRadius: "999px",
-    padding: "0 14px",
-    height: "30px",
-    background: "#ef4444",
-    border: "none",
-    color: "#ffffff",
-    cursor: "pointer",
-    fontSize: "12px",
-    fontWeight: 500,
-  },
-  tableWrapper: {
     borderRadius: "10px",
-    border: "1px solid #e5e7eb",
+    padding: "0 12px",
+    height: "32px",
+    background: "#fee2e2",
+    border: "1px solid #fecaca",
+    color: "#991b1b",
+    cursor: "pointer",
+    fontSize: "0.8rem",
+    fontWeight: "600",
+    whiteSpace: "nowrap"
+  },
+
+  // Buscador
+  searchRow: {
+    display: "flex",
+    gap: "10px",
+    marginBottom: "15px",
+  },
+  searchInput: {
+    flex: 1,
+    height: "36px",
+    borderRadius: "8px",
+    border: "1px solid #cbd5e1",
+    padding: "0 12px",
+    fontSize: "0.9rem",
+    outline: "none",
+    width: "100%",
+    boxSizing: "border-box",
+    backgroundColor: "#fff",
+  },
+
+  // Tabla
+  tableWrapper: {
+    borderRadius: "12px",
+    border: "1px solid #e2e8f0",
     overflow: "hidden",
     background: "#ffffff",
+    boxShadow: "0 2px 5px rgba(0,0,0,0.02)",
   },
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    fontSize: "11.5px",
+    fontSize: "0.85rem",
   },
   th: {
-    background: "#f3f4f6",
+    background: "#f1f5f9",
     textAlign: "left",
-    padding: "6px 8px",
-    borderBottom: "1px solid #e5e7eb",
-    color: "#4b5563",
-    fontWeight: 600,
+    padding: "10px 12px",
+    borderBottom: "1px solid #e2e8f0",
+    color: "#475569",
+    fontWeight: "700",
     whiteSpace: "nowrap",
+    textTransform: "uppercase",
+    fontSize: "0.75rem",
   },
   td: {
-    padding: "6px 8px",
-    borderBottom: "1px solid #e5e7eb",
-    color: "#111827",
-    verticalAlign: "top",
+    padding: "10px 12px",
+    borderBottom: "1px solid #f1f5f9",
+    color: "#334155",
+    verticalAlign: "middle",
   },
   rowAlt: {
-    background: "#f9fafb",
+    background: "#f8fafc",
   },
+
+  // Badges (Pills)
   badgeEstadoUnidad: (estado) => {
     const norm = (estado || "").toUpperCase();
     const activo = norm === "ACTIVA" || norm === "DISPONIBLE";
     return {
       display: "inline-block",
       padding: "2px 8px",
-      borderRadius: "999px",
-      fontSize: "10px",
-      fontWeight: 600,
+      borderRadius: "20px",
+      fontSize: "0.7rem",
+      fontWeight: "700",
       background: activo ? "#dcfce7" : "#fee2e2",
-      color: activo ? "#166534" : "#b91c1c",
+      color: activo ? "#166534" : "#991b1b",
+      border: `1px solid ${activo ? "#bbf7d0" : "#fecaca"}`,
     };
   },
   badgeEstadoEnvio: (estado) => {
     const norm = (estado || "").toUpperCase();
-    let bg = "#e5e7eb";
-    let color = "#374151";
+    let bg = "#f1f5f9", color = "#475569", border = "#e2e8f0";
 
     if (norm.includes("LISTO") || norm.includes("APROB")) {
-      bg = "#dcfce7";
-      color = "#166534";
-    } else if (norm.includes("RUTA") || norm.includes("TRANSITO")) {
-      bg = "#dbeafe";
-      color = "#1d4ed8";
+      bg = "#dcfce7"; color = "#166534"; border = "#bbf7d0";
+    } else if (norm.includes("RUTA") || norm.includes("TRANSITO") || norm.includes("PENDIENTE")) {
+      bg = "#ffedd5"; color = "#9a3412"; border = "#fed7aa"; // Naranja
     } else if (norm.includes("CANCEL")) {
-      bg = "#fee2e2";
-      color = "#b91c1c";
+      bg = "#fee2e2"; color = "#991b1b"; border = "#fecaca";
     }
 
     return {
       display: "inline-block",
       padding: "2px 8px",
-      borderRadius: "999px",
-      fontSize: "10px",
-      fontWeight: 600,
+      borderRadius: "20px",
+      fontSize: "0.7rem",
+      fontWeight: "700",
       background: bg,
-      color,
+      color: color,
+      border: `1px solid ${border}`,
     };
   },
-  searchInput: {
-    height: "32px",
-    borderRadius: "999px",
-    border: "1px solid #d1d5db",
-    padding: "0 10px",
-    fontSize: "12px",
-    outline: "none",
-    width: "100%",
-    boxSizing: "border-box",
-  },
-  searchRow: {
-    display: "flex",
-    gap: "8px",
-    marginBottom: "8px",
-  },
   pillSmall: {
-    fontSize: "11px",
+    fontSize: "0.75rem",
     padding: "2px 8px",
-    borderRadius: "999px",
-    background: "#e5e7eb",
-    color: "#374151",
+    borderRadius: "6px",
+    background: "#e0f2fe",
+    color: "#0369a1",
+    fontWeight: "600",
   },
+
+  // Modal
   modalOverlay: {
     position: "fixed",
     inset: 0,
-    background: "rgba(15, 23, 42, 0.35)",
+    background: "rgba(15, 23, 42, 0.6)",
+    backdropFilter: "blur(4px)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 40,
+    zIndex: 4000,
   },
   modal: {
     width: "100%",
     maxWidth: "520px",
     background: "#ffffff",
-    borderRadius: "14px",
-    boxShadow: "0 18px 40px rgba(15, 23, 42, 0.2)",
-    padding: "18px 20px 20px",
+    borderRadius: "16px",
+    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+    padding: "30px",
     boxSizing: "border-box",
+    animation: "scaleUp 0.2s ease-out",
   },
   modalTitle: {
-    fontSize: "18px",
-    fontWeight: 600,
+    fontSize: "1.3rem",
+    fontWeight: "700",
     color: "#0f172a",
-    marginBottom: "4px",
+    marginBottom: "5px",
   },
   modalSubtitle: {
-    fontSize: "12px",
-    color: "#6b7280",
-    marginBottom: "12px",
+    fontSize: "0.9rem",
+    color: "#64748b",
+    marginBottom: "20px",
   },
   formGrid: {
     display: "grid",
     gridTemplateColumns: "1fr",
-    gap: "8px",
-    marginTop: "8px",
+    gap: "15px",
+    marginTop: "10px",
   },
   label: {
-    fontSize: "11px",
-    fontWeight: 500,
-    color: "#4b5563",
-    marginBottom: "3px",
+    fontSize: "0.8rem",
+    fontWeight: "700",
+    color: "#475569",
+    marginBottom: "5px",
+    textTransform: "uppercase",
   },
   input: {
-    height: "34px",
-    borderRadius: "10px",
-    border: "1px solid #d1d5db",
-    padding: "0 8px",
-    fontSize: "12px",
+    height: "40px",
+    borderRadius: "8px",
+    border: "1px solid #cbd5e1",
+    padding: "0 12px",
+    fontSize: "0.9rem",
     outline: "none",
     width: "100%",
-    boxSizing: "border-box",
-  },
-  textarea: {
-    minHeight: "60px",
-    borderRadius: "10px",
-    border: "1px solid #d1d5db",
-    padding: "6px 8px",
-    fontSize: "12px",
-    outline: "none",
-    width: "100%",
-    resize: "vertical",
     boxSizing: "border-box",
   },
   select: {
-    height: "34px",
-    borderRadius: "10px",
-    border: "1px solid #d1d5db",
-    padding: "0 8px",
-    fontSize: "12px",
+    height: "40px",
+    borderRadius: "8px",
+    border: "1px solid #cbd5e1",
+    padding: "0 12px",
+    fontSize: "0.9rem",
     outline: "none",
     width: "100%",
     boxSizing: "border-box",
@@ -264,32 +311,36 @@ const styles = {
   modalActions: {
     display: "flex",
     justifyContent: "flex-end",
-    gap: "8px",
-    marginTop: "14px",
+    gap: "10px",
+    marginTop: "25px",
+    borderTop: "1px solid #f1f5f9",
+    paddingTop: "20px",
   },
   errorText: {
-    marginTop: "6px",
-    fontSize: "12px",
-    color: "#b91c1c",
+    marginTop: "10px", fontSize: "0.85rem", color: "#b91c1c", fontWeight: '600', padding:'8px', background:'#fee2e2', borderRadius:'6px'
   },
   okText: {
-    marginTop: "6px",
-    fontSize: "12px",
-    color: "#15803d",
+    marginTop: "10px", fontSize: "0.85rem", color: "#166534", fontWeight: '600', padding:'8px', background:'#dcfce7', borderRadius:'6px'
   },
   chipOrd: {
     display: "inline-block",
-    fontSize: "10px",
-    padding: "2px 6px",
-    borderRadius: "999px",
-    background: "#eff6ff",
-    color: "#1d4ed8",
+    fontSize: "0.75rem",
+    padding: "2px 8px",
+    borderRadius: "12px",
+    background: "#f1f5f9",
+    color: "#334155",
+    border: "1px solid #e2e8f0",
     marginRight: "4px",
-    marginBottom: "2px",
+    marginBottom: "4px",
   },
 };
 
-function TransporteEnvios() {
+// Inyectar animación
+const styleSheet = document.createElement("style");
+styleSheet.innerText = `@keyframes scaleUp { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }`;
+document.head.appendChild(styleSheet);
+
+export default function TransporteEnvios() {
   // -----------------------------
   // ESTADO GENERAL
   // -----------------------------
@@ -430,7 +481,7 @@ function TransporteEnvios() {
     );
   });
 
-  const enviosFiltrados = envios.filter((e) => {
+  const enviosFiltradas = envios.filter((e) => {
     const t = (searchEnvio || "").toLowerCase();
     if (!t) return true;
     return (
@@ -730,7 +781,7 @@ function TransporteEnvios() {
         const creado = res.data;
 
         setMensaje(
-          "Envío creado correctamente en estado 'pendiente por aprobación'. Ahora selecciona las órdenes que deseas incluir."
+          "Envío creado correctamente. Ahora asigna las órdenes."
         );
         setShowEnvioModal(false);
         await cargarEnvios();
@@ -765,14 +816,14 @@ function TransporteEnvios() {
         estado: "PENDIENTE_PREPARACION",
       });
       setMensaje(
-        `Envío ${envio.codigo_envio} cerrado y enviado a preparación de almacén.`
+        `Envío ${envio.codigo_envio} cerrado y enviado a preparación.`
       );
       await cargarEnvios();
     } catch (err) {
       console.error("Error cerrando envío:", err);
       const msg = err.response?.data?.detail || err.response?.data?.error;
       alert(
-        msg || "No se pudo cerrar el envío. Verifica los estados o tus permisos."
+        msg || "No se pudo cerrar el envío."
       );
     }
   };
@@ -781,7 +832,6 @@ function TransporteEnvios() {
   // ASIGNACIÓN DE ÓRDENES
   // -----------------------------
   const abrirAsignarOrdenes = async (envio) => {
-    // Guardamos qué envío estamos trabajando
     setEnvioSeleccionado(envio);
     setShowAsignarModal(true);
     setAsignarError("");
@@ -789,13 +839,9 @@ function TransporteEnvios() {
     setAsignarLoading(true);
 
     try {
-      // Traemos todas las órdenes desde el backend normal
       const res = await api.get("/ordenes/");
       const raw = Array.isArray(res.data) ? res.data : res.data.results || [];
 
-      // Filtramos aquí en el front: solo
-      // - estados APROBADA / POR_PREPARACION / PREPARADA
-      // - sin envío asignado (id_envio nulo)
       const ESTADOS_PERMITIDOS = [
         "APROBADA",
         "POR_PREPARACION",
@@ -804,7 +850,7 @@ function TransporteEnvios() {
 
       const filtradas = raw.filter((o) => {
         const estado = (o.estado_de_envio || "").toUpperCase();
-        const sinEnvio = !o.id_envio; // null, undefined o 0 -> false
+        const sinEnvio = !o.id_envio; 
         return ESTADOS_PERMITIDOS.includes(estado) && sinEnvio;
       });
 
@@ -814,7 +860,7 @@ function TransporteEnvios() {
       const msg = err.response?.data?.detail || err.response?.data?.error;
       setAsignarError(
         msg ||
-          "No se pudieron cargar las órdenes disponibles para envío. Verifica permisos."
+          "No se pudieron cargar las órdenes disponibles."
       );
     } finally {
       setAsignarLoading(false);
@@ -854,7 +900,7 @@ function TransporteEnvios() {
       const msg = err.response?.data?.detail || err.response?.data?.error;
       setAsignarError(
         msg ||
-          "No se pudieron asignar las órdenes. Verifica estados o permisos."
+          "No se pudieron asignar las órdenes."
       );
     } finally {
       setAsignarLoading(false);
@@ -866,50 +912,50 @@ function TransporteEnvios() {
   // -----------------------------
   return (
     <div style={styles.page}>
+      
+      {/* 1. HEADER FLOTANTE (FUERA DE LA TARJETA) */}
+      <div style={styles.headerRow}>
+        <div style={styles.titleGroup}>
+          <div style={styles.iconCircle}><IconTruck /></div>
+          <div>
+            <h2 style={styles.title}>Transporte y Envíos</h2>
+            <p style={styles.subtitle}>Gestión de flota y asignación de carga</p>
+          </div>
+        </div>
+      </div>
+
+      {mensaje && <div style={styles.statusOk}>{mensaje}</div>}
+      {error && <div style={styles.statusError}>{error}</div>}
+
+      {/* 2. TARJETA PRINCIPAL BLANCA */}
       <div style={styles.card}>
-        <h2 style={styles.title}>Gestión de transporte y envíos</h2>
-        <p style={styles.subtitle}>
-          Define las unidades de transporte, registra transportistas, crea envíos
-          y asigna órdenes aprobadas / por preparar / preparadas a cada unidad.
-        </p>
-
-        {mensaje && <div style={styles.okText}>{mensaje}</div>}
-        {error && <div style={styles.errorText}>{error}</div>}
-
         <div style={styles.colLayout}>
-          {/* UNIDADES */}
+          
+          {/* COLUMNA 1: UNIDADES */}
           <div style={styles.sectionCard}>
             <div style={styles.sectionHeader}>
               <div>
-                <h3 style={styles.sectionTitle}>Unidades de transporte</h3>
+                <h3 style={styles.sectionTitle}>Unidades de Transporte</h3>
                 <div style={styles.smallText}>
-                  Crea, edita, asigna transportistas, activa / desactiva y
-                  elimina unidades. Solo se puede modificar una unidad si cumple
-                  las reglas de negocio del backend.
+                  Gestión de flota y transportistas
                 </div>
               </div>
-              <button
-                type="button"
-                style={styles.buttonPrimary}
-                onClick={abrirCrearUnidad}
-              >
-                + Nueva unidad
+              <button type="button" style={styles.buttonPrimary} onClick={abrirCrearUnidad}>
+                <IconPlus /> Nueva Unidad
               </button>
             </div>
 
             <div style={styles.searchRow}>
-              <input
-                style={styles.searchInput}
-                placeholder="Buscar por código o placa..."
-                value={searchUnidad}
-                onChange={(e) => setSearchUnidad(e.target.value)}
-              />
-              <button
-                type="button"
-                style={styles.buttonGhost}
-                onClick={() => setSearchUnidad("")}
-              >
-                Limpiar
+              <div style={{flex:1, display:'flex', alignItems:'center'}}>
+                <input
+                  style={styles.searchInput}
+                  placeholder="Buscar por código o placa..."
+                  value={searchUnidad}
+                  onChange={(e) => setSearchUnidad(e.target.value)}
+                />
+              </div>
+              <button type="button" style={styles.buttonGhost} onClick={() => setSearchUnidad("")}>
+                <IconRefresh /> Limpiar
               </button>
             </div>
 
@@ -920,75 +966,51 @@ function TransporteEnvios() {
                     <th style={styles.th}>Código</th>
                     <th style={styles.th}>Placa</th>
                     <th style={styles.th}>Transportista</th>
-                    <th style={styles.th}>Capacidad</th>
+                    <th style={styles.th}>Cap. (kg)</th>
                     <th style={styles.th}>Estado</th>
-                    <th style={styles.th}>Acciones</th>
+                    <th style={{...styles.th, textAlign:'center'}}>Acción</th>
                   </tr>
                 </thead>
                 <tbody>
                   {unidadesFiltradas.length === 0 && !loadingUnidades && (
                     <tr>
-                      <td style={styles.td} colSpan={6}>
-                        No hay unidades registradas o que coincidan con la
-                        búsqueda.
+                      <td style={{...styles.td, textAlign:'center', color:'#94a3b8', padding:'20px'}} colSpan={6}>
+                        No hay unidades registradas.
                       </td>
                     </tr>
                   )}
 
                   {unidadesFiltradas.map((u, idx) => {
-                    const rowBase =
-                      idx % 2 === 1
-                        ? { ...styles.td, ...styles.rowAlt }
-                        : styles.td;
-                    const esActiva =
-                      (u.estado || "").toUpperCase() === "ACTIVA" ||
-                      (u.estado || "").toUpperCase() === "DISPONIBLE";
+                    const rowBase = { ...styles.td, ...(idx % 2 === 1 ? styles.rowAlt : {}) };
+                    const esActiva = (u.estado || "").toUpperCase() === "ACTIVA" || (u.estado || "").toUpperCase() === "DISPONIBLE";
 
                     return (
                       <tr key={u.id_unidad}>
-                        <td style={rowBase}>{u.codigo_unidad}</td>
+                        <td style={{...rowBase, fontWeight:'600', color:'#0d47a1'}}>{u.codigo_unidad}</td>
                         <td style={rowBase}>{u.placa || "-"}</td>
-                        <td style={rowBase}>
-                          {getTransportistaLabel(u.id_usuario)}
-                        </td>
+                        <td style={rowBase}>{getTransportistaLabel(u.id_usuario)}</td>
                         <td style={rowBase}>{u.capacidad_carga || "-"}</td>
                         <td style={rowBase}>
                           <span style={styles.badgeEstadoUnidad(u.estado)}>
                             {u.estado || "N/A"}
                           </span>
                         </td>
-                        <td style={rowBase}>
-                          <div style={{ display: "flex", gap: "4px" }}>
-                            <button
-                              type="button"
-                              style={styles.buttonGhost}
-                              onClick={() => abrirEditarUnidad(u)}
-                            >
+                        <td style={{...rowBase, textAlign:'center'}}>
+                          <div style={{ display: "flex", gap: "6px", justifyContent:'center' }}>
+                            <button type="button" style={styles.buttonGhost} onClick={() => abrirEditarUnidad(u)}>
                               Editar
                             </button>
                             {esActiva ? (
-                              <button
-                                type="button"
-                                style={styles.buttonGhost}
-                                onClick={() => desactivarUnidad(u)}
-                              >
+                              <button type="button" style={styles.buttonGhost} onClick={() => desactivarUnidad(u)}>
                                 Desactivar
                               </button>
                             ) : (
-                              <button
-                                type="button"
-                                style={styles.buttonGhost}
-                                onClick={() => activarUnidad(u)}
-                              >
+                              <button type="button" style={styles.buttonGhost} onClick={() => activarUnidad(u)}>
                                 Activar
                               </button>
                             )}
-                            <button
-                              type="button"
-                              style={styles.buttonDanger}
-                              onClick={() => eliminarUnidad(u)}
-                            >
-                              Eliminar
+                            <button type="button" style={styles.buttonDanger} onClick={() => eliminarUnidad(u)}>
+                              <IconTrash />
                             </button>
                           </div>
                         </td>
@@ -998,46 +1020,34 @@ function TransporteEnvios() {
                 </tbody>
               </table>
             </div>
-
-            {loadingUnidades && (
-              <div style={styles.smallText}>Cargando unidades...</div>
-            )}
+            {loadingUnidades && <div style={{textAlign:'center', fontSize:'0.8rem', color:'#64748b'}}>Cargando unidades...</div>}
           </div>
 
-          {/* ENVÍOS */}
+          {/* COLUMNA 2: ENVÍOS */}
           <div style={styles.sectionCard}>
             <div style={styles.sectionHeader}>
               <div>
-                <h3 style={styles.sectionTitle}>Envíos y asignación de órdenes</h3>
+                <h3 style={styles.sectionTitle}>Envíos Activos</h3>
                 <div style={styles.smallText}>
-                  Crea envíos, asígnalos a una unidad disponible y agrega órdenes
-                  aprobadas / por preparar / preparadas. Cuando tengas todas las
-                  órdenes deseadas, cierra el envío para enviarlo a preparación de
-                  almacén.
+                  Asignación de carga y seguimiento
                 </div>
               </div>
-              <button
-                type="button"
-                style={styles.buttonPrimary}
-                onClick={abrirCrearEnvio}
-              >
-                + Nuevo envío
+              <button type="button" style={styles.buttonPrimary} onClick={abrirCrearEnvio}>
+                <IconPlus /> Nuevo Envío
               </button>
             </div>
 
             <div style={styles.searchRow}>
-              <input
-                style={styles.searchInput}
-                placeholder="Buscar por código de envío o estado..."
-                value={searchEnvio}
-                onChange={(e) => setSearchEnvio(e.target.value)}
-              />
-              <button
-                type="button"
-                style={styles.buttonGhost}
-                onClick={() => setSearchEnvio("")}
-              >
-                Limpiar
+              <div style={{flex:1, display:'flex', alignItems:'center'}}>
+                 <input
+                    style={styles.searchInput}
+                    placeholder="Buscar por código..."
+                    value={searchEnvio}
+                    onChange={(e) => setSearchEnvio(e.target.value)}
+                  />
+              </div>
+              <button type="button" style={styles.buttonGhost} onClick={() => setSearchEnvio("")}>
+                <IconRefresh /> Limpiar
               </button>
             </div>
 
@@ -1048,44 +1058,30 @@ function TransporteEnvios() {
                     <th style={styles.th}>Código</th>
                     <th style={styles.th}>Unidad</th>
                     <th style={styles.th}>Estado</th>
-                    <th style={styles.th}>Fecha salida</th>
+                    <th style={styles.th}>Salida</th>
                     <th style={styles.th}>Órdenes</th>
-                    <th style={styles.th}>Acciones</th>
+                    <th style={{...styles.th, textAlign:'center'}}>Acción</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {enviosFiltrados.length === 0 && !loadingEnvios && (
+                  {enviosFiltradas.length === 0 && !loadingEnvios && (
                     <tr>
-                      <td style={styles.td} colSpan={6}>
-                        No hay envíos registrados o que coincidan con la
-                        búsqueda.
+                      <td style={{...styles.td, textAlign:'center', color:'#94a3b8', padding:'20px'}} colSpan={6}>
+                        No hay envíos registrados.
                       </td>
                     </tr>
                   )}
 
-                  {enviosFiltrados.map((e, idx) => {
-                    const rowBase =
-                      idx % 2 === 1
-                        ? { ...styles.td, ...styles.rowAlt }
-                        : styles.td;
-
-                    const ordenesResumen =
-                      e.ordenes_resumen || e.ordenes || e.ordenes_ids || [];
-
+                  {enviosFiltradas.map((e, idx) => {
+                    const rowBase = { ...styles.td, ...(idx % 2 === 1 ? styles.rowAlt : {}) };
+                    const ordenesResumen = e.ordenes_resumen || e.ordenes || e.ordenes_ids || [];
                     const estadoUpper = (e.estado || "").toUpperCase();
-                    const puedeCerrar =
-                      estadoUpper === "PENDIENTE" ||
-                      estadoUpper === "ASIGNADO" ||
-                      estadoUpper === "PENDIENTE POR APROBACION";
+                    const puedeCerrar = estadoUpper === "PENDIENTE" || estadoUpper === "ASIGNADO" || estadoUpper === "PENDIENTE POR APROBACION";
 
                     return (
                       <tr key={e.id_envio}>
-                        <td style={rowBase}>{e.codigo_envio}</td>
-                        <td style={rowBase}>
-                          <span style={styles.pillSmall}>
-                            {getUnidadLabel(e.id_unidad)}
-                          </span>
-                        </td>
+                        <td style={{...rowBase, fontWeight:'600', color:'#0d47a1'}}>{e.codigo_envio}</td>
+                        <td style={rowBase}><span style={styles.pillSmall}>{getUnidadLabel(e.id_unidad)}</span></td>
                         <td style={rowBase}>
                           <span style={styles.badgeEstadoEnvio(e.estado)}>
                             {e.estado || "N/A"}
@@ -1093,54 +1089,27 @@ function TransporteEnvios() {
                         </td>
                         <td style={rowBase}>{e.fecha_salida || "-"}</td>
                         <td style={rowBase}>
-                          {Array.isArray(ordenesResumen) &&
-                          ordenesResumen.length > 0 ? (
+                          {Array.isArray(ordenesResumen) && ordenesResumen.length > 0 ? (
                             ordenesResumen.map((o) => {
-                              const texto =
-                                typeof o === "object"
-                                  ? `#${o.id_orden} · ${
-                                      o.cliente_nombre || ""
-                                    }`
-                                  : `#${o}`;
-                              const key =
-                                typeof o === "object" ? o.id_orden : o;
-                              return (
-                                <span key={key} style={styles.chipOrd}>
-                                  {texto}
-                                </span>
-                              );
+                              const texto = typeof o === "object" ? `#${o.id_orden}` : `#${o}`;
+                              const key = typeof o === "object" ? o.id_orden : o;
+                              return <span key={key} style={styles.chipOrd}>{texto}</span>;
                             })
                           ) : (
-                            <span style={styles.smallText}>
-                              Sin órdenes asignadas
-                            </span>
+                            <span style={{fontSize:'0.75rem', color:'#94a3b8'}}>Vacío</span>
                           )}
                         </td>
-                        <td style={rowBase}>
-                          <div style={{ display: "flex", gap: "4px" }}>
-                            <button
-                              type="button"
-                              style={styles.buttonGhost}
-                              onClick={() => abrirEditarEnvio(e)}
-                            >
+                        <td style={{...rowBase, textAlign:'center'}}>
+                          <div style={{ display: "flex", gap: "6px", justifyContent:'center' }}>
+                            <button type="button" style={styles.buttonGhost} onClick={() => abrirEditarEnvio(e)}>
                               Editar
                             </button>
-
-                            <button
-                              type="button"
-                              style={styles.buttonGhost}
-                              onClick={() => abrirAsignarOrdenes(e)}
-                            >
-                              Asignar órdenes
+                            <button type="button" style={styles.buttonGhost} onClick={() => abrirAsignarOrdenes(e)}>
+                              Asignar
                             </button>
-
                             {puedeCerrar && (
-                              <button
-                                type="button"
-                                style={styles.buttonGhost}
-                                onClick={() => cerrarEnvio(e)}
-                              >
-                                Cerrar envío
+                              <button type="button" style={{...styles.buttonGhost, borderColor:'#0d47a1', color:'#0d47a1'}} onClick={() => cerrarEnvio(e)}>
+                                Cerrar
                               </button>
                             )}
                           </div>
@@ -1151,10 +1120,7 @@ function TransporteEnvios() {
                 </tbody>
               </table>
             </div>
-
-            {loadingEnvios && (
-              <div style={styles.smallText}>Cargando envíos...</div>
-            )}
+            {loadingEnvios && <div style={{textAlign:'center', fontSize:'0.8rem', color:'#64748b'}}>Cargando envíos...</div>}
           </div>
         </div>
 
@@ -1163,25 +1129,20 @@ function TransporteEnvios() {
           <div style={styles.modalOverlay}>
             <div style={styles.modal}>
               <div style={styles.modalTitle}>
-                {unidadMode === "crear"
-                  ? "Registrar nueva unidad"
-                  : "Editar unidad de transporte"}
+                {unidadMode === "crear" ? "Registrar Unidad" : "Editar Unidad"}
               </div>
               <div style={styles.modalSubtitle}>
-                Completa los datos de la unidad y selecciona un transportista.
-                Solo el gerente / administrador puede gestionar estas unidades.
+                Completa los datos de la unidad y asigna un transportista.
               </div>
 
               <form onSubmit={guardarUnidad}>
                 <div style={styles.formGrid}>
                   <div>
-                    <div style={styles.label}>Código de unidad *</div>
+                    <div style={styles.label}>Código *</div>
                     <input
                       style={styles.input}
                       value={unidadForm.codigo_unidad}
-                      onChange={(e) =>
-                        handleUnidadChange("codigo_unidad", e.target.value)
-                      }
+                      onChange={(e) => handleUnidadChange("codigo_unidad", e.target.value)}
                       placeholder="Ej: CAMIÓN-01"
                     />
                   </div>
@@ -1191,9 +1152,7 @@ function TransporteEnvios() {
                     <input
                       style={styles.input}
                       value={unidadForm.placa}
-                      onChange={(e) =>
-                        handleUnidadChange("placa", e.target.value)
-                      }
+                      onChange={(e) => handleUnidadChange("placa", e.target.value)}
                       placeholder="ABC-123"
                     />
                   </div>
@@ -1203,14 +1162,10 @@ function TransporteEnvios() {
                     <select
                       style={styles.select}
                       value={unidadForm.id_usuario}
-                      onChange={(e) =>
-                        handleUnidadChange("id_usuario", e.target.value)
-                      }
+                      onChange={(e) => handleUnidadChange("id_usuario", e.target.value)}
                     >
                       <option value="">
-                        {loadingTransportistas
-                          ? "Cargando transportistas..."
-                          : "Selecciona un transportista"}
+                        {loadingTransportistas ? "Cargando..." : "Selecciona..."}
                       </option>
                       {transportistas.map((t) => {
                         const id = t.id_usuario ?? t.id;
@@ -1221,13 +1176,13 @@ function TransporteEnvios() {
                         );
                       })}
                     </select>
-                    <div style={{ marginTop: "4px" }}>
+                    <div style={{ marginTop: "8px" }}>
                       <button
                         type="button"
-                        style={styles.buttonGhost}
+                        style={{...styles.buttonGhost, width:'100%', justifyContent:'center'}}
                         onClick={abrirNuevoTransportista}
                       >
-                        + Registrar nuevo transportista
+                        + Nuevo Transportista
                       </button>
                     </div>
                   </div>
@@ -1237,22 +1192,18 @@ function TransporteEnvios() {
                     <input
                       style={styles.input}
                       value={unidadForm.telefono}
-                      onChange={(e) =>
-                        handleUnidadChange("telefono", e.target.value)
-                      }
+                      onChange={(e) => handleUnidadChange("telefono", e.target.value)}
                       placeholder="0414-0000000"
                     />
                   </div>
 
                   <div>
-                    <div style={styles.label}>Capacidad de carga (Kg)</div>
+                    <div style={styles.label}>Capacidad (Kg)</div>
                     <input
                       type="number"
                       style={styles.input}
                       value={unidadForm.capacidad_carga}
-                      onChange={(e) =>
-                        handleUnidadChange("capacidad_carga", e.target.value)
-                      }
+                      onChange={(e) => handleUnidadChange("capacidad_carga", e.target.value)}
                       placeholder="Ej: 5000"
                     />
                   </div>
@@ -1262,9 +1213,7 @@ function TransporteEnvios() {
                     <select
                       style={styles.select}
                       value={unidadForm.estado}
-                      onChange={(e) =>
-                        handleUnidadChange("estado", e.target.value)
-                      }
+                      onChange={(e) => handleUnidadChange("estado", e.target.value)}
                     >
                       <option value="ACTIVA">ACTIVA</option>
                       <option value="INACTIVA">INACTIVA</option>
@@ -1272,29 +1221,14 @@ function TransporteEnvios() {
                   </div>
                 </div>
 
-                {unidadFormError && (
-                  <div style={styles.errorText}>{unidadFormError}</div>
-                )}
+                {unidadFormError && <div style={styles.errorText}>{unidadFormError}</div>}
 
                 <div style={styles.modalActions}>
-                  <button
-                    type="button"
-                    style={styles.buttonGhost}
-                    onClick={() => setShowUnidadModal(false)}
-                    disabled={unidadFormLoading}
-                  >
+                  <button type="button" style={styles.buttonGhost} onClick={() => setShowUnidadModal(false)} disabled={unidadFormLoading}>
                     Cancelar
                   </button>
-                  <button
-                    type="submit"
-                    style={styles.buttonPrimary}
-                    disabled={unidadFormLoading}
-                  >
-                    {unidadFormLoading
-                      ? "Guardando..."
-                      : unidadMode === "crear"
-                      ? "Crear unidad"
-                      : "Guardar cambios"}
+                  <button type="submit" style={styles.buttonPrimary} disabled={unidadFormLoading}>
+                    {unidadFormLoading ? "Guardando..." : "Guardar"}
                   </button>
                 </div>
               </form>
@@ -1302,14 +1236,13 @@ function TransporteEnvios() {
           </div>
         )}
 
-        {/* MODAL NUEVO TRANSPORTISTA */}
+        {/* MODAL TRANSPORTISTA */}
         {showTransportistaModal && (
           <div style={styles.modalOverlay}>
             <div style={styles.modal}>
-              <div style={styles.modalTitle}>Registrar nuevo transportista</div>
+              <div style={styles.modalTitle}>Nuevo Transportista</div>
               <div style={styles.modalSubtitle}>
-                Crea un usuario con rol TRANSPORTISTA para asignarlo a una
-                unidad de transporte.
+                Crea un usuario para asignar a la unidad.
               </div>
 
               <form onSubmit={guardarTransportista}>
@@ -1319,82 +1252,54 @@ function TransporteEnvios() {
                     <input
                       style={styles.input}
                       value={transportistaForm.username}
-                      onChange={(e) =>
-                        handleTransportistaChange("username", e.target.value)
-                      }
-                      placeholder="Usuario de inicio de sesión"
+                      onChange={(e) => handleTransportistaChange("username", e.target.value)}
+                      placeholder="Usuario login"
                     />
                   </div>
-
                   <div>
                     <div style={styles.label}>Nombre</div>
                     <input
                       style={styles.input}
                       value={transportistaForm.first_name}
-                      onChange={(e) =>
-                        handleTransportistaChange("first_name", e.target.value)
-                      }
-                      placeholder="Nombre"
+                      onChange={(e) => handleTransportistaChange("first_name", e.target.value)}
                     />
                   </div>
-
                   <div>
                     <div style={styles.label}>Apellido</div>
                     <input
                       style={styles.input}
                       value={transportistaForm.last_name}
-                      onChange={(e) =>
-                        handleTransportistaChange("last_name", e.target.value)
-                      }
-                      placeholder="Apellido"
+                      onChange={(e) => handleTransportistaChange("last_name", e.target.value)}
                     />
                   </div>
-
                   <div>
                     <div style={styles.label}>Teléfono</div>
                     <input
                       style={styles.input}
                       value={transportistaForm.telefono}
-                      onChange={(e) =>
-                        handleTransportistaChange("telefono", e.target.value)
-                      }
-                      placeholder="0414-0000000"
+                      onChange={(e) => handleTransportistaChange("telefono", e.target.value)}
                     />
                   </div>
-
                   <div>
-                    <div style={styles.label}>Contraseña (opcional)</div>
+                    <div style={styles.label}>Contraseña</div>
                     <input
                       type="password"
                       style={styles.input}
                       value={transportistaForm.password}
-                      onChange={(e) =>
-                        handleTransportistaChange("password", e.target.value)
-                      }
-                      placeholder="Si la dejas en blanco se usará 123456"
+                      onChange={(e) => handleTransportistaChange("password", e.target.value)}
+                      placeholder="Opcional (Default: 123456)"
                     />
                   </div>
                 </div>
 
-                {transportistaFormError && (
-                  <div style={styles.errorText}>{transportistaFormError}</div>
-                )}
+                {transportistaFormError && <div style={styles.errorText}>{transportistaFormError}</div>}
 
                 <div style={styles.modalActions}>
-                  <button
-                    type="button"
-                    style={styles.buttonGhost}
-                    onClick={() => setShowTransportistaModal(false)}
-                    disabled={transportistaFormLoading}
-                  >
+                  <button type="button" style={styles.buttonGhost} onClick={() => setShowTransportistaModal(false)} disabled={transportistaFormLoading}>
                     Cancelar
                   </button>
-                  <button
-                    type="submit"
-                    style={styles.buttonPrimary}
-                    disabled={transportistaFormLoading}
-                  >
-                    {transportistaFormLoading ? "Creando..." : "Crear transportista"}
+                  <button type="submit" style={styles.buttonPrimary} disabled={transportistaFormLoading}>
+                    {transportistaFormLoading ? "Creando..." : "Crear"}
                   </button>
                 </div>
               </form>
@@ -1407,41 +1312,29 @@ function TransporteEnvios() {
           <div style={styles.modalOverlay}>
             <div style={styles.modal}>
               <div style={styles.modalTitle}>
-                {envioMode === "crear" ? "Crear nuevo envío" : "Editar envío"}
+                {envioMode === "crear" ? "Nuevo Envío" : "Editar Envío"}
               </div>
               <div style={styles.modalSubtitle}>
-                El código de envío se genera automáticamente. Selecciona una
-                unidad de transporte disponible y, opcionalmente, una fecha de
-                salida. Luego podrás asignar las órdenes.
+                Configura los datos del envío.
               </div>
 
               <form onSubmit={guardarEnvio}>
                 <div style={styles.formGrid}>
                   <div>
-                    <div style={styles.label}>Código de envío</div>
-                    <input
-                      style={styles.input}
-                      value={envioForm.codigo_envio}
-                      readOnly
-                    />
+                    <div style={styles.label}>Código</div>
+                    <input style={{...styles.input, backgroundColor:'#f1f5f9'}} value={envioForm.codigo_envio} readOnly />
                   </div>
 
                   <div>
-                    <div style={styles.label}>Unidad asignada *</div>
+                    <div style={styles.label}>Unidad Asignada *</div>
                     <select
                       style={styles.select}
                       value={envioForm.id_unidad}
-                      onChange={(e) =>
-                        handleEnvioChange("id_unidad", e.target.value)
-                      }
+                      onChange={(e) => handleEnvioChange("id_unidad", e.target.value)}
                     >
-                      <option value="">Selecciona una unidad</option>
+                      <option value="">Selecciona unidad...</option>
                       {unidades
-                        .filter(
-                          (u) =>
-                            (u.estado || "").toUpperCase() === "ACTIVA" ||
-                            (u.estado || "").toUpperCase() === "DISPONIBLE"
-                        )
+                        .filter((u) => (u.estado || "").toUpperCase().includes("ACTIVA") || (u.estado || "").includes("DISPONIBLE"))
                         .map((u) => (
                           <option key={u.id_unidad} value={u.id_unidad}>
                             {u.codigo_unidad} · {u.placa || ""}
@@ -1451,41 +1344,24 @@ function TransporteEnvios() {
                   </div>
 
                   <div>
-                    <div style={styles.label}>Fecha de salida (opcional)</div>
+                    <div style={styles.label}>Fecha Salida *</div>
                     <input
                       type="date"
                       style={styles.input}
                       value={envioForm.fecha_salida}
-                      onChange={(e) =>
-                        handleEnvioChange("fecha_salida", e.target.value)
-                      }
+                      onChange={(e) => handleEnvioChange("fecha_salida", e.target.value)}
                     />
                   </div>
                 </div>
 
-                {envioFormError && (
-                  <div style={styles.errorText}>{envioFormError}</div>
-                )}
+                {envioFormError && <div style={styles.errorText}>{envioFormError}</div>}
 
                 <div style={styles.modalActions}>
-                  <button
-                    type="button"
-                    style={styles.buttonGhost}
-                    onClick={() => setShowEnvioModal(false)}
-                    disabled={envioFormLoading}
-                  >
+                  <button type="button" style={styles.buttonGhost} onClick={() => setShowEnvioModal(false)} disabled={envioFormLoading}>
                     Cancelar
                   </button>
-                  <button
-                    type="submit"
-                    style={styles.buttonPrimary}
-                    disabled={envioFormLoading}
-                  >
-                    {envioFormLoading
-                      ? "Guardando..."
-                      : envioMode === "crear"
-                      ? "Crear envío"
-                      : "Guardar cambios"}
+                  <button type="submit" style={styles.buttonPrimary} disabled={envioFormLoading}>
+                    {envioFormLoading ? "Guardando..." : "Guardar"}
                   </button>
                 </div>
               </form>
@@ -1494,119 +1370,71 @@ function TransporteEnvios() {
         )}
 
         {/* MODAL ASIGNAR ÓRDENES */}
-        {(() => {
-          // Filtrado de órdenes para el buscador
-          const ordenesFiltradas = ordenesDisponibles.filter((o) => {
-            const texto = (searchOrden || "").toLowerCase();
-            if (!texto) return true;
-            const idText = String(o.id_orden || "");
-            const cliente = (o.cliente_nombre || "").toLowerCase();
-            const estado = (o.estado_de_envio || "").toLowerCase();
-            return (
-              idText.includes(texto) ||
-              cliente.includes(texto) ||
-              estado.includes(texto)
-            );
-          });
-          return (
-            showAsignarModal && (
-              <div style={styles.modalOverlay}>
-                <div style={styles.modal}>
-                  <div style={styles.modalTitle}>
-                    Asignar órdenes al envío {envioSeleccionado?.codigo_envio || ""}
-                  </div>
-                  <div style={styles.modalSubtitle}>
-                    Se muestran únicamente las órdenes aprobadas / por preparar /
-                    preparadas que aún no tienen envío asignado.
-                  </div>
-
-                  {asignarLoading ? (
-                    <div style={styles.smallText}>Cargando órdenes...</div>
-                  ) : (
-                    <>
-                      <div style={{ marginBottom: "8px" }}>
-                        <input
-                          style={styles.searchInput}
-                          placeholder="Buscar orden por #, cliente o estado..."
-                          value={searchOrden}
-                          onChange={(e) => setSearchOrden(e.target.value)}
-                        />
-                      </div>
-                      <div
-                        style={{
-                          maxHeight: "260px",
-                          overflowY: "auto",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: "10px",
-                          padding: "6px 8px",
-                          background: "#f9fafb",
-                        }}
-                      >
-                        {ordenesFiltradas.length === 0 ? (
-                          <div style={styles.smallText}>
-                            No hay órdenes disponibles para asignar.
-                          </div>
-                        ) : (
-                          ordenesFiltradas.map((o) => (
-                            <label
-                              key={o.id_orden}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "6px",
-                                padding: "4px 2px",
-                                fontSize: "12px",
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={ordenesSeleccionadas.includes(o.id_orden)}
-                                onChange={() => toggleOrdenSeleccionada(o.id_orden)}
-                              />
-                              <span>
-                                <strong>#{o.id_orden}</strong> ·{" "}
-                                {o.cliente_nombre || "Sin cliente"} ·{" "}
-                                {o.estado_de_envio} · Peso: {o.peso_total || 0} Kg
-                              </span>
-                            </label>
-                          ))
-                        )}
-                      </div>
-
-                      {asignarError && (
-                        <div style={styles.errorText}>{asignarError}</div>
-                      )}
-
-                      <div style={styles.modalActions}>
-                        <button
-                          type="button"
-                          style={styles.buttonGhost}
-                          onClick={() => setShowAsignarModal(false)}
-                          disabled={asignarLoading}
-                        >
-                          Cancelar
-                        </button>
-                        <button
-                          type="button"
-                          style={styles.buttonPrimary}
-                          onClick={confirmarAsignacion}
-                          disabled={asignarLoading}
-                        >
-                          {asignarLoading
-                            ? "Asignando..."
-                            : "Confirmar asignación"}
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
+        {showAsignarModal && (
+          <div style={styles.modalOverlay}>
+            <div style={styles.modal}>
+              <div style={styles.modalTitle}>Asignar Órdenes</div>
+              <div style={styles.modalSubtitle}>
+                Envío: <strong>{envioSeleccionado?.codigo_envio}</strong>
               </div>
-            )
-          );
-        })()}
+
+              {asignarLoading ? (
+                <div style={{textAlign:'center', padding:20, color:'#64748b'}}>Cargando órdenes...</div>
+              ) : (
+                <>
+                  <div style={{marginBottom:'10px'}}>
+                    <input
+                      style={styles.searchInput}
+                      placeholder="Filtrar orden..."
+                      value={searchOrden}
+                      onChange={(e) => setSearchOrden(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div style={{maxHeight:'300px', overflowY:'auto', border:'1px solid #e2e8f0', borderRadius:'10px', padding:'10px'}}>
+                    {ordenesDisponibles.filter(o => 
+                        String(o.id_orden).includes(searchOrden) || 
+                        (o.cliente_nombre||'').toLowerCase().includes(searchOrden.toLowerCase())
+                    ).length === 0 ? (
+                        <div style={{textAlign:'center', color:'#94a3b8', fontSize:'0.8rem'}}>No hay órdenes disponibles.</div>
+                    ) : (
+                        ordenesDisponibles
+                        .filter(o => String(o.id_orden).includes(searchOrden) || (o.cliente_nombre||'').toLowerCase().includes(searchOrden.toLowerCase()))
+                        .map(o => (
+                            <label key={o.id_orden} style={{display:'flex', alignItems:'center', gap:'10px', padding:'8px', borderBottom:'1px solid #f1f5f9', fontSize:'0.85rem'}}>
+                                <input 
+                                    type="checkbox" 
+                                    checked={ordenesSeleccionadas.includes(o.id_orden)}
+                                    onChange={() => {
+                                        setOrdenesSeleccionadas(prev => prev.includes(o.id_orden) ? prev.filter(id => id !== o.id_orden) : [...prev, o.id_orden]);
+                                    }}
+                                />
+                                <div>
+                                    <div style={{fontWeight:'bold', color:'#0d47a1'}}>#{o.id_orden}</div>
+                                    <div style={{color:'#64748b', fontSize:'0.75rem'}}>{o.cliente_nombre || "Cliente"} · {o.estado_de_envio}</div>
+                                </div>
+                            </label>
+                        ))
+                    )}
+                  </div>
+
+                  {asignarError && <div style={styles.errorText}>{asignarError}</div>}
+
+                  <div style={styles.modalActions}>
+                    <button type="button" style={styles.buttonGhost} onClick={() => setShowAsignarModal(false)} disabled={asignarLoading}>
+                        Cancelar
+                    </button>
+                    <button type="button" style={styles.buttonPrimary} onClick={confirmarAsignacion} disabled={asignarLoading}>
+                        {asignarLoading ? "Asignando..." : "Confirmar"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
 }
-
-export default TransporteEnvios;

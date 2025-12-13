@@ -5,11 +5,12 @@ import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const COMPRAS_URL = '/api/compras/compras/';
+
+// Iconos SVG simples
 const IconClose = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
 const IconTrash = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
 
 function EditCompraModal({ compra, onClose, onSave }) {
-    // Si compra es null (por renderizado rápido), no hacemos nada
     if (!compra) return null;
 
     const [fechaPedido, setFechaPedido] = useState(compra.fecha_pedido || '');
@@ -17,7 +18,7 @@ function EditCompraModal({ compra, onClose, onSave }) {
     const [loadingDetails, setLoadingDetails] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // 🚨 CORRECCIÓN: Validación segura de propiedades (evita crash si es undefined)
+    // Validación segura de bloqueo
     const isLocked = 
         (compra.estado_de_envio && ['RECIBIDA_COMPLETA', 'RECIBIDA_PARCIAL'].includes(compra.estado_de_envio)) ||
         (compra.estado_de_pago && ['PAGADO', 'PAGADO_PARCIAL'].includes(compra.estado_de_pago));
@@ -25,9 +26,7 @@ function EditCompraModal({ compra, onClose, onSave }) {
     useEffect(() => {
         const fetchDetails = async () => {
             try {
-                // Solo pedimos detalles si tenemos ID
                 if (!compra.id_compra) return;
-                
                 const response = await axios.get(`${COMPRAS_URL}${compra.id_compra}/`);
                 setDetalles(response.data.detalles || []); 
             } catch (err) {
@@ -38,8 +37,6 @@ function EditCompraModal({ compra, onClose, onSave }) {
             }
         };
 
-        // Si está bloqueada, no necesitamos cargar detalles para editar (solo mostrar mensaje)
-        // Pero si quieres mostrarlos en modo lectura, quita el 'if (!isLocked)'
         if (!isLocked) {
             fetchDetails();
         } else {
@@ -58,9 +55,45 @@ function EditCompraModal({ compra, onClose, onSave }) {
         newDetalles.splice(index, 1);
         setDetalles(newDetalles);
     };
+
+    // 🚨 NUEVA FUNCIÓN: Eliminar la orden completa si se queda vacía
+    const handleDeleteOrder = async () => {
+        setIsSubmitting(true);
+        const loadingToast = toast.loading("Eliminando orden vacía...");
+
+        try {
+            await axios.delete(`${COMPRAS_URL}${compra.id_compra}/`);
+            toast.dismiss(loadingToast);
+            toast.success("Orden eliminada correctamente");
+            onSave(); // Refresca la lista principal
+            onClose(); // Cierra el modal
+        } catch (error) {
+            toast.dismiss(loadingToast);
+            // Manejo especial si el backend rechaza el borrado (ej: ya tiene pagos)
+            const msg = error.response?.data?.error || "No se pudo eliminar la orden.";
+            toast.error(msg);
+            setIsSubmitting(false);
+        }
+    };
     
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        // 🚨 VALIDACIÓN CRÍTICA: DETECCIÓN DE ORDEN VACÍA 🚨
+        if (detalles.length === 0) {
+            const confirmDelete = window.confirm(
+                "⚠️ ATENCIÓN:\n\nHas eliminado todos los productos de esta lista.\n\n¿Deseas ELIMINAR definitivamente esta Orden de Compra?\n(Si cancelas, podrás agregar productos de nuevo)"
+            );
+
+            if (confirmDelete) {
+                // Si el usuario acepta, llamamos a la función de borrado
+                handleDeleteOrder();
+            }
+            // Si cancela, no hacemos nada y dejamos que el usuario siga editando
+            return;
+        }
+
+        // --- Flujo normal de actualización (PATCH) ---
         setIsSubmitting(true);
         const loadingToast = toast.loading("Actualizando...");
 
@@ -80,6 +113,7 @@ function EditCompraModal({ compra, onClose, onSave }) {
             toast.dismiss(loadingToast);
             toast.success("Compra Actualizada");
             onSave();
+            onClose(); // Cerramos el modal al terminar
         } catch (error) {
             toast.dismiss(loadingToast);
             const msg = error.response?.data?.error || "Error al actualizar";
@@ -115,6 +149,13 @@ function EditCompraModal({ compra, onClose, onSave }) {
                         </div>
 
                         <div style={styles.detailsContainer}>
+                            {detalles.length === 0 && (
+                                <div style={{padding: '20px', textAlign: 'center', color: '#f59e0b', backgroundColor: '#fffbeb', borderRadius: '8px', border: '1px solid #fcd34d'}}>
+                                    ⚠️ <strong>Advertencia:</strong><br/>
+                                    Si guardas sin productos, se te pedirá confirmar la eliminación de la orden.
+                                </div>
+                            )}
+
                             {detalles.map((detalle, index) => (
                                 <div key={detalle.id_detallec || index} style={styles.detailRow}>
                                     <div style={{flex:3}}>
@@ -136,7 +177,17 @@ function EditCompraModal({ compra, onClose, onSave }) {
 
                         <div style={styles.footer}>
                             <button type="button" onClick={onClose} style={styles.btnCancel}>Cancelar</button>
-                            <button type="submit" style={styles.btnSubmit} disabled={isSubmitting}>Guardar Cambios</button>
+                            <button 
+                                type="submit" 
+                                style={{
+                                    ...styles.btnSubmit,
+                                    // Cambiamos color del botón si está vacío para indicar peligro/eliminación
+                                    backgroundColor: detalles.length === 0 ? '#ef4444' : '#0f172a'
+                                }} 
+                                disabled={isSubmitting}
+                            >
+                                {detalles.length === 0 ? 'Eliminar Orden' : 'Guardar Cambios'}
+                            </button>
                         </div>
                     </form>
                 )}
@@ -165,4 +216,4 @@ const styles = {
     btnSubmit: { padding: '10px 24px', border: 'none', background: '#0f172a', color: '#fff', borderRadius: '8px', cursor: 'pointer', fontWeight:'600' }
 };
 
-export default EditCompraModal;
+export default EditCompraModal; 

@@ -1,244 +1,66 @@
 // frontend/src/pages/Clientes.jsx
+
 import React, { useEffect, useState } from "react";
 import api from "../api/api";
 
+// --- ICONOS SVG (Estilo Unificado) ---
+const IconUser = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>;
+const IconSearch = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>;
+const IconPlus = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
+const IconTrash = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
+const IconEdit = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>;
+const IconRefresh = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>;
+
+// --- ESTILOS PREMIUM DIGRAS (Copiados EXACTAMENTE de CrearOrden) ---
 const styles = {
-  page: {
-    minHeight: "100vh",
-    margin: 0,
-    padding: "24px",
-    background: "#f4f5fb",
-    fontFamily:
-      "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-    display: "flex",
-    justifyContent: "center",
-  },
-  card: {
-    width: "100%",
-    maxWidth: "1100px",
-    background: "#ffffff",
-    borderRadius: "14px",
-    boxShadow: "0 18px 40px rgba(15, 23, 42, 0.12)",
-    padding: "20px 24px 24px",
-    boxSizing: "border-box",
-  },
-  headerRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "10px",
-  },
-  title: {
-    fontSize: "22px",
-    fontWeight: 600,
-    color: "#0f172a",
-    margin: 0,
-  },
-  subtitle: {
-    fontSize: "13px",
-    color: "#6b7280",
-    marginBottom: "18px",
-  },
-  buttonPrimary: {
-    border: "none",
-    borderRadius: "999px",
-    padding: "0 16px",
-    height: "36px",
-    background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
-    color: "#ffffff",
-    cursor: "pointer",
-    fontSize: "13px",
-    fontWeight: 500,
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-  },
-  buttonGhost: {
-    borderRadius: "999px",
-    padding: "0 14px",
-    height: "32px",
-    background: "#ffffff",
-    border: "1px solid #d1d5db",
-    color: "#374151",
-    cursor: "pointer",
-    fontSize: "12px",
-  },
-  statusTextOk: {
-    fontSize: "12px",
-    color: "#15803d",
-    marginBottom: "6px",
-  },
-  statusTextError: {
-    fontSize: "12px",
-    color: "#b91c1c",
-    marginBottom: "6px",
-  },
-  searchRow: {
-    display: "flex",
-    gap: "10px",
-    marginBottom: "12px",
-  },
-  searchInput: {
-    flex: 1,
-    height: "36px",
-    borderRadius: "999px",
-    border: "1px solid #d1d5db",
-    padding: "0 14px",
-    fontSize: "13px",
-    outline: "none",
-  },
-  tableWrapper: {
-    borderRadius: "10px",
-    border: "1px solid #e5e7eb",
-    overflow: "hidden",
-    background: "#f9fafb",
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    fontSize: "12px",
-  },
-  th: {
-    background: "#f3f4f6",
-    textAlign: "left",
-    padding: "8px 10px",
-    borderBottom: "1px solid #e5e7eb",
-    color: "#4b5563",
-    fontWeight: 600,
-    whiteSpace: "nowrap",
-  },
-  td: {
-    padding: "8px 10px",
-    borderBottom: "1px solid #e5e7eb",
-    color: "#111827",
-    verticalAlign: "top",
-  },
-  rowAlt: {
-    background: "#f9fafb",
-  },
-  badgeActivo: (activo) => ({
-    display: "inline-block",
-    padding: "2px 8px",
-    borderRadius: "999px",
-    fontSize: "10px",
-    fontWeight: 600,
-    background: activo ? "#dcfce7" : "#fee2e2",
-    color: activo ? "#166534" : "#b91c1c",
-  }),
-  resumenResultados: {
-    fontSize: "11px",
-    color: "#6b7280",
-    marginTop: "8px",
-  },
-  detalleCard: {
-    marginTop: "18px",
-    padding: "14px 16px",
-    borderRadius: "10px",
-    border: "1px solid #e5e7eb",
-    background: "#f9fafb",
-    fontSize: "12px",
-  },
-  detalleTitle: {
-    fontSize: "13px",
-    fontWeight: 600,
-    color: "#111827",
-    marginBottom: "6px",
-  },
-  detalleLine: {
-    marginBottom: "4px",
-  },
-  detalleActionsRow: {
-    marginTop: "10px",
-    display: "flex",
-    gap: "8px",
-    flexWrap: "wrap",
-  },
-  pillSmall: {
-    fontSize: "11px",
-    padding: "2px 8px",
-    borderRadius: "999px",
-    background: "#e5e7eb",
-    color: "#374151",
-  },
-  modalOverlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(15, 23, 42, 0.35)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 40,
-  },
-  modal: {
-    width: "100%",
-    maxWidth: "480px",
-    background: "#ffffff",
-    borderRadius: "14px",
-    boxShadow: "0 18px 40px rgba(15, 23, 42, 0.2)",
-    padding: "18px 20px 20px",
-    boxSizing: "border-box",
-  },
-  modalTitle: {
-    fontSize: "18px",
-    fontWeight: 600,
-    color: "#0f172a",
-    marginBottom: "4px",
-  },
-  modalSubtitle: {
-    fontSize: "12px",
-    color: "#6b7280",
-    marginBottom: "12px",
-  },
-  formGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr",
-    gap: "8px",
-    marginTop: "8px",
-  },
-  label: {
-    fontSize: "11px",
-    fontWeight: 500,
-    color: "#4b5563",
-    marginBottom: "3px",
-  },
-  input: {
-    height: "34px",
-    borderRadius: "10px",
-    border: "1px solid #d1d5db",
-    padding: "0 8px",
-    fontSize: "12px",
-    outline: "none",
-    width: "100%",
-    boxSizing: "border-box",
-  },
-  textarea: {
-    minHeight: "60px",
-    borderRadius: "10px",
-    border: "1px solid #d1d5db",
-    padding: "6px 8px",
-    fontSize: "12px",
-    outline: "none",
-    width: "100%",
-    resize: "vertical",
-    boxSizing: "border-box",
-  },
-  modalActions: {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: "8px",
-    marginTop: "14px",
-  },
-  buttonDanger: {
-    borderRadius: "999px",
-    padding: "0 14px",
-    height: "32px",
-    background: "#ef4444",
-    border: "none",
-    color: "#ffffff",
-    cursor: "pointer",
-    fontSize: "12px",
-    fontWeight: 500,
-  },
+  // Contenedor y Card Principal
+  container: { padding: '24px 32px', maxWidth: '1400px', margin: '0 auto', fontFamily: "'Inter', sans-serif" },
+  content: { backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)', overflow: 'hidden', border: '1px solid #f1f5f9', padding: '30px' },
+  
+  // Header
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' },
+  titleGroup: { display: 'flex', alignItems: 'center', gap: '16px' },
+  iconCircle: { width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  title: { margin: 0, fontSize: '1.5rem', color: '#0f172a', fontWeight: '700' },
+  subtitle: { margin: '4px 0 0', color: '#64748b', fontSize: '0.9rem' },
+
+  // Inputs y Selects
+  label: { display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#475569', marginBottom: '6px', textTransform: 'uppercase' },
+  input: { width: '100%', height: '42px', padding: '0 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', backgroundColor: '#fff', boxSizing:'border-box', transition: 'border 0.2s' },
+  
+  // Grid de Formulario (Usado en el Modal)
+  formGrid: { display: 'grid', gridTemplateColumns: '1fr', gap: '20px', marginBottom: '30px' },
+
+  // Botones (CORREGIDO: btnPrimary ahora es color sólido #0f172a)
+  btnPrimary: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px 24px', backgroundColor: '#0f172a', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', fontSize:'0.95rem', transition: 'transform 0.1s' },
+  btnGhost: { display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: 'transparent', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize:'0.9rem' },
+  btnSecondary: { background: '#eff6ff', color: '#2563eb', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '6px' },
+  btnIcon: { width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #fecaca', backgroundColor: '#fef2f2', color: '#ef4444', borderRadius: '8px', cursor: 'pointer' },
+
+  // Tabla (Adaptación del estilo de lista de productos de CrearOrden)
+  tableWrapper: { borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' },
+  table: { width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" },
+  th: { background: "#f8fafc", textAlign: "left", padding: "15px 20px", borderBottom: "1px solid #e2e8f0", color: "#0f172a", fontWeight: "700", whiteSpace: "nowrap", textTransform: "uppercase", fontSize: '0.8rem' },
+  td: { padding: "15px 20px", borderBottom: "1px solid #f1f5f9", color: "#334155", verticalAlign: "middle" },
+  rowAlt: { background: "#f8fafc" },
+
+  // Search Section (Adaptado de section en CrearOrden)
+  searchSection: { backgroundColor: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '25px', display: 'flex', gap: '15px', alignItems: 'center' },
+
+  // Mensajes y Badges
+  statusOk: { padding: '12px', background: '#dcfce7', color: '#166534', borderRadius: '8px', marginBottom: '20px', border: '1px solid #bbf7d0', fontSize: '0.9rem' },
+  statusError: { padding: '12px', background: '#fee2e2', color: '#991b1b', borderRadius: '8px', marginBottom: '20px', border: '1px solid #fecaca', fontSize: '0.9rem' },
+  badge: { display: 'inline-block', padding: '4px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: '700', border: '1px solid' },
+
+  // Resumen Final (Usado para Detalle de Cliente)
+  resumenCard: { marginTop: '30px', padding: '30px', backgroundColor: '#eff6ff', borderRadius: '16px', border: '1px solid #bfdbfe', boxShadow: '0 4px 15px rgba(37, 99, 235, 0.05)' },
+  resumenTitle: { fontSize: '1.2rem', fontWeight: '800', marginBottom: '15px', textTransform: 'uppercase', color: '#1e40af', borderBottom: '2px solid #bfdbfe', paddingBottom: '10px' },
+  resumenLine: { display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '0.95rem', color: '#334155', borderBottom: '1px dotted #bfdbfe', paddingBottom: '5px' },
+  
+  // Modal Overlay (Estilo NestedCard de CrearOrden adaptado a modal)
+  modalOverlay: { position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 4000 },
+  modal: { width: "100%", maxWidth: "500px", background: "#ffffff", borderRadius: "20px", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", padding: "35px", boxSizing: "border-box" },
+  modalTitle: { fontSize: "1.4rem", fontWeight: "700", color: "#0f172a", marginBottom: "5px" },
 };
 
 export default function Clientes() {
@@ -248,7 +70,6 @@ export default function Clientes() {
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
-
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
 
   const [showFormModal, setShowFormModal] = useState(false);
@@ -256,18 +77,10 @@ export default function Clientes() {
   const [formError, setFormError] = useState("");
   const [formLoading, setFormLoading] = useState(false);
 
-  const [formData, setFormData] = useState({
-    nombre: "",
-    telefono: "",
-    correo: "",
-    direccion: "",
-  });
+  const [formData, setFormData] = useState({ nombre: "", telefono: "", correo: "", direccion: "" });
 
   const cargarClientes = async () => {
-    setLoading(true);
-    setError("");
-    setMensaje("");
-
+    setLoading(true); setError(""); setMensaje("");
     try {
       const res = await api.get("/base/clientes/");
       const data = Array.isArray(res.data) ? res.data : res.data.results || [];
@@ -275,233 +88,159 @@ export default function Clientes() {
       setMensaje(`Se encontraron ${data.length} cliente(s).`);
     } catch (err) {
       console.error("Error cargando clientes:", err);
-      const backendMsg =
-        err.response?.data?.error || err.response?.data?.detail;
-      setError(
-        backendMsg || "No se pudieron cargar los clientes. Revisa el token o el servidor."
-      );
-    } finally {
-      setLoading(false);
-    }
+      setError("No se pudieron cargar los clientes.");
+    } finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    cargarClientes();
-  }, []);
+  useEffect(() => { cargarClientes(); }, []);
 
   const filtrados = clientes.filter((c) => {
     const texto = (search || "").toLowerCase();
     if (!texto) return true;
-    const nombre = (c.nombre || "").toLowerCase();
-    const correo = (c.correo || "").toLowerCase();
-    const telefono = (c.telefono || "").toLowerCase();
-    return (
-      nombre.includes(texto) ||
-      correo.includes(texto) ||
-      telefono.includes(texto)
-    );
+    return (c.nombre || "").toLowerCase().includes(texto) || (c.correo || "").toLowerCase().includes(texto) || (c.telefono || "").toLowerCase().includes(texto);
   });
 
   const abrirCrear = () => {
     setFormMode("crear");
-    setFormData({
-      nombre: "",
-      telefono: "",
-      correo: "",
-      direccion: "",
-    });
-    setFormError("");
-    setShowFormModal(true);
+    setFormData({ nombre: "", telefono: "", correo: "", direccion: "" });
+    setFormError(""); setShowFormModal(true);
   };
 
   const abrirEditar = (cliente) => {
     setFormMode("editar");
-    setFormData({
-      nombre: cliente.nombre || "",
-      telefono: cliente.telefono || "",
-      correo: cliente.correo || "",
-      direccion: cliente.direccion || "",
-    });
-    setFormError("");
-    setShowFormModal(true);
+    setFormData({ nombre: cliente.nombre || "", telefono: cliente.telefono || "", correo: cliente.correo || "", direccion: cliente.direccion || "" });
+    setFormError(""); setShowFormModal(true);
   };
 
-  const handleFormChange = (campo, valor) => {
-    setFormData((prev) => ({ ...prev, [campo]: valor }));
-  };
+  const handleFormChange = (campo, valor) => setFormData((prev) => ({ ...prev, [campo]: valor }));
 
   const guardarCliente = async (e) => {
     e.preventDefault();
-    setFormError("");
-    setFormLoading(true);
-
+    setFormError(""); setFormLoading(true);
     try {
-      if (!formData.nombre) {
-        setFormError("El nombre es obligatorio.");
-        setFormLoading(false);
-        return;
-      }
+      if (!formData.nombre) { setFormError("El nombre es obligatorio."); setFormLoading(false); return; }
+      if (formMode === "crear") await api.post("/base/clientes/", formData);
+      else if (formMode === "editar" && clienteSeleccionado) await api.patch(`/base/clientes/${clienteSeleccionado.id_cliente}/`, formData);
 
-      if (formMode === "crear") {
-        await api.post("/base/clientes/", formData);
-      } else if (formMode === "editar" && clienteSeleccionado) {
-        await api.patch(`/base/clientes/${clienteSeleccionado.id_cliente}/`, formData);
-      }
-
-      setShowFormModal(false);
-      setClienteSeleccionado(null);
-      await cargarClientes();
+      setShowFormModal(false); setClienteSeleccionado(null); await cargarClientes();
     } catch (err) {
-      console.error("Error guardando cliente:", err);
-      const backendMsg =
-        err.response?.data?.error || err.response?.data?.detail;
-      setFormError(
-        backendMsg || "No se pudo guardar el cliente. Revisa los datos."
-      );
-    } finally {
-      setFormLoading(false);
-    }
+      setFormError("No se pudo guardar el cliente.");
+    } finally { setFormLoading(false); }
   };
 
   const eliminarCliente = async () => {
     if (!clienteSeleccionado) return;
-    const confirmar = window.confirm(
-      `¿Seguro que deseas eliminar al cliente "${clienteSeleccionado.nombre}"?`
-    );
-    if (!confirmar) return;
-
+    if (!window.confirm(`¿Seguro que deseas eliminar al cliente "${clienteSeleccionado.nombre}"?`)) return;
     try {
       await api.delete(`/base/clientes/${clienteSeleccionado.id_cliente}/`);
-      setClienteSeleccionado(null);
-      await cargarClientes();
-    } catch (err) {
-      console.error("Error eliminando cliente:", err);
-      const backendMsg =
-        err.response?.data?.error || err.response?.data?.detail;
-      alert(
-        backendMsg ||
-          "No se pudo eliminar el cliente. Es posible que tenga órdenes asociadas."
-      );
-    }
+      setClienteSeleccionado(null); await cargarClientes();
+    } catch (err) { alert("No se pudo eliminar el cliente."); }
   };
 
   const cambiarEstadoCliente = async (activo) => {
     if (!clienteSeleccionado) return;
     try {
-      await api.patch(`/base/clientes/${clienteSeleccionado.id_cliente}/`, {
-        activo: !!activo,
-      });
-      await cargarClientes();
-      // Limpiamos la selección para evitar mostrar datos desactualizados
-      setClienteSeleccionado(null);
-    } catch (err) {
-      console.error("Error cambiando estado de cliente:", err);
-      const backendMsg =
-        err.response?.data?.error || err.response?.data?.detail;
-      alert(
-        backendMsg || "No se pudo cambiar el estado del cliente."
-      );
-    }
+      await api.patch(`/base/clientes/${clienteSeleccionado.id_cliente}/`, { activo: !!activo });
+      await cargarClientes(); setClienteSeleccionado(null);
+    } catch (err) { alert("No se pudo cambiar el estado."); }
   };
 
   const badgeActivo = (cli) => {
-    // Asumimos campo "activo" o, si no existe, lo tratamos como siempre activo.
-    const activo =
-      cli.activo !== undefined && cli.activo !== null ? cli.activo : true;
+    const activo = cli.activo !== undefined && cli.activo !== null ? cli.activo : true;
     return (
-      <span style={styles.badgeActivo(activo)}>
+      <span style={{ ...styles.badge, background: activo ? "#dcfce7" : "#fee2e2", color: activo ? "#166534" : "#991b1b", borderColor: activo ? "#bbf7d0" : "#fecaca" }}>
         {activo ? "ACTIVO" : "INACTIVO"}
       </span>
     );
   };
 
   const estadoClienteTexto = (cli) => {
-    const activo =
-      cli.activo !== undefined && cli.activo !== null ? cli.activo : true;
+    const activo = cli.activo !== undefined && cli.activo !== null ? cli.activo : true;
     return activo ? "Activo" : "Inactivo";
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <div style={styles.headerRow}>
-          <div>
-            <h2 style={styles.title}>Clientes</h2>
-            <p style={styles.subtitle}>
-              Consulta, crea, edita y administra los clientes de la distribuidora.
-            </p>
-          </div>
-          <button type="button" style={styles.buttonPrimary} onClick={abrirCrear}>
-            <span>+ Nuevo cliente</span>
-          </button>
+    <div style={styles.container}>
+      {/* HEADER */}
+      <div style={styles.header}>
+        <div style={styles.titleGroup}>
+            <div style={styles.iconCircle}><IconUser /></div>
+            <div>
+                <h2 style={styles.title}>Clientes</h2>
+                <p style={styles.subtitle}>Consulta y administra los clientes</p>
+            </div>
         </div>
+      </div>
 
-        {mensaje && <div style={styles.statusTextOk}>{mensaje}</div>}
-        {error && <div style={styles.statusTextError}>{error}</div>}
+      <div style={styles.content}>
+        
+        {mensaje && <div style={styles.statusOk}>{mensaje}</div>}
+        {error && <div style={styles.statusError}>{error}</div>}
 
         {/* BUSCADOR */}
-        <div style={styles.searchRow}>
-          <input
-            type="text"
-            style={styles.searchInput}
-            placeholder="Buscar por nombre, teléfono o correo..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <button
-            type="button"
-            style={styles.buttonGhost}
-            onClick={() => setSearch("")}
-          >
-            Limpiar
-          </button>
+        <div style={styles.searchSection}>
+            <div style={{flex: 1, display:'flex', alignItems:'center'}}>
+                <input
+                    type="text"
+                    style={styles.input}
+                    placeholder="Buscar por nombre, teléfono o correo..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                />
+            </div>
+            <button type="button" style={styles.btnGhost} onClick={() => setSearch("")}>
+                <IconRefresh /> Limpiar
+            </button>
+            <button type="button" style={styles.btnPrimary} onClick={abrirCrear}>
+                <IconPlus /> Nuevo Cliente
+            </button>
         </div>
 
-        {/* TABLA DE CLIENTES */}
+        {/* TABLA */}
         <div style={styles.tableWrapper}>
           <table style={styles.table}>
             <thead>
               <tr>
-                <th style={styles.th}>#</th>
+                <th style={styles.th}>ID</th>
                 <th style={styles.th}>Nombre</th>
                 <th style={styles.th}>Teléfono</th>
                 <th style={styles.th}>Correo</th>
-                <th style={styles.th}>Estado</th>
+                <th style={{...styles.th, textAlign:'center'}}>Estado</th>
               </tr>
             </thead>
             <tbody>
               {filtrados.length === 0 && !loading && (
                 <tr>
-                  <td style={styles.td} colSpan={6}>
+                  <td style={{...styles.td, textAlign:'center', color:'#94a3b8', padding: '30px'}} colSpan={5}>
                     No hay clientes que coincidan con la búsqueda.
                   </td>
                 </tr>
               )}
 
               {filtrados.map((c, idx) => {
-                const rowBase =
-                  idx % 2 === 1
-                    ? { ...styles.td, ...styles.rowAlt }
-                    : styles.td;
-
-                const seleccionado =
-                  clienteSeleccionado &&
-                  clienteSeleccionado.id_cliente === c.id_cliente;
+                const isSelected = clienteSeleccionado?.id_cliente === c.id_cliente;
+                const rowBase = {
+                    ...styles.td,
+                    ...(idx % 2 === 1 ? styles.rowAlt : {}),
+                    backgroundColor: isSelected ? "#eff6ff" : (idx % 2 === 1 ? "#f8fafc" : "#fff"),
+                    borderLeft: isSelected ? "4px solid #2563eb" : "4px solid transparent",
+                    fontWeight: isSelected ? '600' : 'normal'
+                };
 
                 return (
                   <tr
                     key={c.id_cliente}
-                    onClick={() => setClienteSeleccionado(c)}
-                    style={{
-                      cursor: "pointer",
-                      backgroundColor: seleccionado ? "#e0f2fe" : undefined,
+                    onClick={() => {
+                        setClienteSeleccionado(c);
+                        setTimeout(() => document.getElementById('detalle-cliente')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
                     }}
+                    style={{ cursor: "pointer", transition: 'all 0.2s' }}
                   >
-                    <td style={rowBase}>{c.id_cliente}</td>
+                    <td style={{...rowBase, color: isSelected ? '#0d47a1' : '#334155'}}>#{c.id_cliente}</td>
                     <td style={rowBase}>{c.nombre}</td>
                     <td style={rowBase}>{c.telefono || "-"}</td>
                     <td style={rowBase}>{c.correo || "-"}</td>
-                    <td style={rowBase}>{badgeActivo(c)}</td>
+                    <td style={{...rowBase, textAlign:'center'}}>{badgeActivo(c)}</td>
                   </tr>
                 );
               })}
@@ -511,176 +250,99 @@ export default function Clientes() {
 
         {filtrados.length > 0 && (
           <div style={styles.resumenResultados}>
-            Mostrando {filtrados.length} cliente(s). Haz clic en una fila para ver
-            el detalle y opciones.
+            Mostrando {filtrados.length} cliente(s). Haz clic para ver opciones.
           </div>
         )}
 
-        {/* DETALLE DE CLIENTE SELECCIONADO */}
+        {/* DETALLE DE CLIENTE (Estilo Resumen Orden) */}
         {clienteSeleccionado && (
-          <div style={styles.detalleCard}>
-            <div style={styles.detalleTitle}>
-              Cliente #{clienteSeleccionado.id_cliente} · {clienteSeleccionado.nombre}
+          <div id="detalle-cliente" style={styles.resumenCard}>
+            <div style={styles.resumenTitle}>
+              👤 {clienteSeleccionado.nombre} <span style={{fontSize:'0.9rem', color:'#64748b', fontWeight:'400'}}>#{clienteSeleccionado.id_cliente}</span>
             </div>
 
-            <div style={styles.detalleLine}>
-              <strong>Teléfono: </strong> {clienteSeleccionado.telefono || "No registrado"}
+            <div style={{display:'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap:'30px'}}>
+                <div>
+                    <div style={styles.resumenLine}>
+                        <span style={{fontWeight:'600', color:'#64748b'}}>Teléfono</span> 
+                        <span>{clienteSeleccionado.telefono || "No registrado"}</span>
+                    </div>
+                    <div style={styles.resumenLine}>
+                        <span style={{fontWeight:'600', color:'#64748b'}}>Correo</span> 
+                        <span>{clienteSeleccionado.correo || "No registrado"}</span>
+                    </div>
+                </div>
+                <div>
+                    <div style={styles.resumenLine}>
+                        <span style={{fontWeight:'600', color:'#64748b'}}>Dirección</span> 
+                        <span style={{maxWidth:'60%', textAlign:'right'}}>{clienteSeleccionado.direccion || "No registrada"}</span>
+                    </div>
+                    <div style={styles.resumenLine}>
+                        <span style={{fontWeight:'600', color:'#64748b'}}>Estado</span> 
+                        <span>{estadoClienteTexto(clienteSeleccionado)}</span>
+                    </div>
+                </div>
             </div>
-            <div style={styles.detalleLine}>
-              <strong>Correo: </strong> {clienteSeleccionado.correo || "No registrado"}
-            </div>
-            <div style={styles.detalleLine}>
-              <strong>Dirección: </strong>{" "}
-              {clienteSeleccionado.direccion || "No registrada"}
-            </div>
-            <div style={styles.detalleLine}>
-              <strong>Estado: </strong> {estadoClienteTexto(clienteSeleccionado)}{" "}
-              {badgeActivo(clienteSeleccionado)}
-            </div>
-
-            {/* Aquí en el futuro puedes agregar datos derivados:
-                - Total de órdenes del cliente
-                - Última compra, etc. */}
 
             <div style={styles.detalleActionsRow}>
-              {/* IMPORTANTE: 
-                  Las validaciones de que solo el vendedor asociado pueda hacer esto
-                  deben reforzarse en el backend.
-                  Aquí simplemente mostramos los botones. */}
-              <button
-                type="button"
-                style={styles.buttonGhost}
-                onClick={() => abrirEditar(clienteSeleccionado)}
-              >
-                Editar datos
+              <button type="button" style={styles.btnSecondary} onClick={() => abrirEditar(clienteSeleccionado)}>
+                <IconEdit /> Editar
               </button>
 
-              <button
-                type="button"
-                style={styles.buttonGhost}
-                onClick={() => cambiarEstadoCliente(false)}
-              >
-                Desactivar
+              <button type="button" style={styles.btnGhost} onClick={() => cambiarEstadoCliente(!clienteSeleccionado.activo)}>
+                {clienteSeleccionado.activo === false ? "Activar" : "Desactivar"}
               </button>
 
-              <button
-                type="button"
-                style={styles.buttonGhost}
-                onClick={() => cambiarEstadoCliente(true)}
-              >
-                Activar
-              </button>
-
-              <button
-                type="button"
-                style={styles.buttonDanger}
-                onClick={eliminarCliente}
-              >
-                Eliminar cliente
+              <button type="button" style={styles.btnIcon} onClick={eliminarCliente}>
+                <IconTrash />
               </button>
             </div>
           </div>
         )}
 
-        {loading && (
-          <div style={{ marginTop: "8px", fontSize: "12px", color: "#6b7280" }}>
-            Cargando clientes...
-          </div>
-        )}
+        {loading && <div style={{ marginTop: "20px", fontSize: "14px", color: "#64748b", textAlign:'center' }}>Cargando clientes...</div>}
       </div>
 
-      {/* MODAL CREAR / EDITAR CLIENTE */}
+      {/* MODAL */}
       {showFormModal && (
         <div style={styles.modalOverlay}>
           <div style={styles.modal}>
             <div style={styles.modalTitle}>
-              {formMode === "crear" ? "Nuevo cliente" : "Editar cliente"}
+              {formMode === "crear" ? "Nuevo Cliente" : "Editar Cliente"}
             </div>
-            <div style={styles.modalSubtitle}>
-              Completa los datos del cliente. Los campos marcados con * son obligatorios.
-            </div>
+            <div style={styles.subtitle}>Completa los datos del cliente.</div>
 
             <form onSubmit={guardarCliente}>
               <div style={styles.formGrid}>
                 <div>
-                  <div style={styles.label}>Nombre *</div>
-                  <input
-                    style={styles.input}
-                    value={formData.nombre}
-                    onChange={(e) => handleFormChange("nombre", e.target.value)}
-                    placeholder="Nombre del cliente"
-                  />
+                  <label style={styles.label}>Nombre *</label>
+                  <input style={styles.input} value={formData.nombre} onChange={(e) => handleFormChange("nombre", e.target.value)} placeholder="Nombre del cliente" />
                 </div>
-
                 <div>
-                  <div style={styles.label}>Teléfono</div>
-                  <input
-                    style={styles.input}
-                    value={formData.telefono}
-                    onChange={(e) =>
-                      handleFormChange("telefono", e.target.value)
-                    }
-                    placeholder="0414-0000000"
-                  />
+                  <label style={styles.label}>Teléfono</label>
+                  <input style={styles.input} value={formData.telefono} onChange={(e) => handleFormChange("telefono", e.target.value)} placeholder="0414-0000000" />
                 </div>
-
                 <div>
-                  <div style={styles.label}>Correo</div>
-                  <input
-                    type="email"
-                    style={styles.input}
-                    value={formData.correo}
-                    onChange={(e) =>
-                      handleFormChange("correo", e.target.value)
-                    }
-                    placeholder="cliente@correo.com"
-                  />
+                  <label style={styles.label}>Correo</label>
+                  <input type="email" style={styles.input} value={formData.correo} onChange={(e) => handleFormChange("correo", e.target.value)} placeholder="cliente@correo.com" />
                 </div>
-
                 <div>
-                  <div style={styles.label}>Dirección</div>
-                  <textarea
-                    style={styles.textarea}
-                    value={formData.direccion}
-                    onChange={(e) =>
-                      handleFormChange("direccion", e.target.value)
-                    }
-                    placeholder="Dirección fiscal y de entrega"
+                  <label style={styles.label}>Dirección</label>
+                  <textarea 
+                    style={{...styles.input, height:'80px', paddingTop:'10px', resize:'vertical', fontFamily:'inherit'}} 
+                    value={formData.direccion} 
+                    onChange={(e) => handleFormChange("direccion", e.target.value)} 
+                    placeholder="Dirección fiscal" 
                   />
                 </div>
               </div>
 
-              {formError && (
-                <div
-                  style={{
-                    marginTop: "8px",
-                    fontSize: "12px",
-                    color: "#b91c1c",
-                  }}
-                >
-                  {formError}
-                </div>
-              )}
+              {formError && <div style={{ marginTop: "15px", fontSize: "13px", color: "#b91c1c", fontWeight: '600', padding:'10px', background:'#fee2e2', borderRadius:'8px' }}>⚠️ {formError}</div>}
 
-              <div style={styles.modalActions}>
-                <button
-                  type="button"
-                  style={styles.buttonGhost}
-                  onClick={() => setShowFormModal(false)}
-                  disabled={formLoading}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  style={styles.buttonPrimary}
-                  disabled={formLoading}
-                >
-                  {formLoading
-                    ? "Guardando..."
-                    : formMode === "crear"
-                    ? "Crear cliente"
-                    : "Guardar cambios"}
+              <div style={{display:'flex', justifyContent:'flex-end', gap:'10px', marginTop:'25px', borderTop:'1px solid #f1f5f9', paddingTop:'20px'}}>
+                <button type="button" style={styles.btnGhost} onClick={() => setShowFormModal(false)} disabled={formLoading}>Cancelar</button>
+                <button type="submit" style={styles.btnPrimary} disabled={formLoading}>
+                  {formLoading ? "Guardando..." : formMode === "crear" ? "Crear Cliente" : "Guardar Cambios"}
                 </button>
               </div>
             </form>

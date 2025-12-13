@@ -37,7 +37,7 @@ def actualizar_estado_pago(sender, instance, **kwargs):
     if precio_total > 0 and total_pagado >= precio_total:
         compra.estado_de_pago = 'PAGADO' # O 'COMPLETO' según tu modelo
     elif total_pagado > 0:
-        compra.estado_de_pago = 'PAGADA_PARCIAL' # Ajusta esto a tus choices reales (ej: PARCIAL)
+        compra.estado_de_pago = 'PAGADO_PARCIAL' # Ajusta esto a tus choices reales (ej: PARCIAL)
     else:
         compra.estado_de_pago = 'PENDIENTE'
         

@@ -5,176 +5,204 @@ import { useAuth } from "../AuthContext";
 import api from "../api/api";
 import { toast } from "react-hot-toast";
 
+// --- ICONOS SVG ---
+const IconBox = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>;
+const IconCheck = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>;
+const IconSearch = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>;
+
+// --- ESTILOS PREMIUM DIGRAS ---
 const styles = {
-  pageTitle: {
-    fontSize: "22px",
-    fontWeight: 600,
-    marginBottom: "4px",
+  // Layout Principal
+  page: {
+    paddingTop: "40px",
+    paddingBottom: "40px",
+    fontFamily: "'Segoe UI', 'Roboto', sans-serif",
+    maxWidth: "1400px",
+    margin: "0 auto",
+  },
+  
+  // Header Flotante
+  headerRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "15px",
+    marginBottom: "25px",
+    paddingLeft: "10px",
+  },
+  iconCircle: {
+    width: '56px', height: '56px', borderRadius: '14px', 
+    backgroundColor: '#e0f2fe', color: '#0284c7', 
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+  },
+  title: {
+    fontSize: "1.8rem",
+    fontWeight: "800",
     color: "#0f172a",
+    margin: 0,
+    letterSpacing: "-0.5px",
   },
   subtitle: {
-    fontSize: "13px",
-    color: "#6b7280",
-    marginBottom: "16px",
+    fontSize: "1rem",
+    color: "#64748b",
+    marginTop: "4px",
   },
-  statusTextError: {
-    fontSize: "13px",
-    color: "#b91c1c",
-    marginBottom: "8px",
-  },
-  statusTextOk: {
-    fontSize: "13px",
-    color: "#15803d",
-    marginBottom: "8px",
-  },
-  tableWrapper: {
-    borderRadius: "10px",
-    border: "1px solid #e5e7eb",
-    overflow: "hidden",
+
+  // Tarjeta Principal
+  card: {
     background: "#ffffff",
+    borderRadius: "20px",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.05)",
+    padding: "30px",
+    border: "1px solid #f0f0f0",
+  },
+
+  // Secciones
+  sectionTitle: {
+    fontSize: "1.1rem",
+    fontWeight: "700",
+    color: "#334155",
+    marginBottom: "15px",
+    marginTop: "30px",
+    paddingLeft: "8px",
+    borderLeft: "4px solid #0d47a1",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+  },
+  sectionSubtitle: {
+    fontSize: "0.9rem",
+    color: "#64748b",
+    marginBottom: "20px",
+    lineHeight: "1.4",
+  },
+
+  // Tabla
+  tableWrapper: {
+    borderRadius: "12px",
+    border: "1px solid #e2e8f0",
+    overflow: "hidden",
+    boxShadow: "0 2px 5px rgba(0,0,0,0.02)",
+    marginBottom: "30px",
   },
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    fontSize: "13px",
+    fontSize: "0.85rem",
   },
   th: {
-    background: "#f3f4f6",
+    background: "#f8fafc",
     textAlign: "left",
-    padding: "8px 10px",
-    borderBottom: "1px solid #e5e7eb",
-    color: "#4b5563",
-    fontWeight: 600,
-    whiteSpace: "nowrap",
+    padding: "12px 15px",
+    borderBottom: "1px solid #e2e8f0",
+    color: "#475569",
+    fontWeight: "700",
+    textTransform: "uppercase",
+    fontSize: "0.75rem",
   },
   td: {
-    padding: "8px 10px",
-    borderBottom: "1px solid #e5e7eb",
-    color: "#111827",
-    verticalAlign: "top",
+    padding: "12px 15px",
+    borderBottom: "1px solid #f1f5f9",
+    color: "#334155",
+    verticalAlign: "middle",
   },
   rowAlt: {
-    background: "#f9fafb",
+    background: "#f8fafc",
   },
+
+  // Botones
   buttonPrimary: {
     border: "none",
-    borderRadius: "999px",
-    padding: "6px 14px",
-    background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+    borderRadius: "10px",
+    padding: "0 16px",
+    height: "36px",
+    background: "#0f172a", // Azul Sólido
     color: "#ffffff",
     cursor: "pointer",
-    fontSize: "12px",
-    fontWeight: 500,
+    fontSize: "0.85rem",
+    fontWeight: "600",
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    boxShadow: "0 4px 12px rgba(15, 23, 42, 0.2)",
+    transition: "transform 0.1s",
+    whiteSpace: "nowrap"
   },
   buttonSecondary: {
-    borderRadius: "999px",
-    padding: "6px 12px",
+    borderRadius: "10px",
+    padding: "0 12px",
+    height: "36px",
     background: "#ffffff",
-    border: "1px solid #d1d5db",
-    color: "#374151",
+    border: "1px solid #cbd5e1",
+    color: "#64748b",
     cursor: "pointer",
-    fontSize: "12px",
-    fontWeight: 500,
+    fontSize: "0.85rem",
+    fontWeight: "600",
+    transition: "background 0.2s",
   },
+
+  // Badges
   badgeEstado: {
     display: "inline-block",
-    padding: "2px 8px",
-    borderRadius: "999px",
-    fontSize: "11px",
-    fontWeight: 600,
+    padding: "3px 10px",
+    borderRadius: "20px",
+    fontSize: "0.7rem",
+    fontWeight: "700",
     background: "#e0f2fe",
     color: "#0369a1",
+    border: "1px solid #bae6fd",
+    textTransform: 'uppercase'
   },
-  resumenResultados: {
-    fontSize: "12px",
-    color: "#6b7280",
-    marginTop: "8px",
-  },
-  sectionTitle: {
-    fontSize: "18px",
-    fontWeight: 600,
-    marginTop: "24px",
-    marginBottom: "4px",
-    color: "#111827",
-  },
-  sectionSubtitle: {
-    fontSize: "13px",
-    color: "#6b7280",
-    marginBottom: "10px",
-  },
+
+  // Mensajes
+  statusTextOk: { padding: '12px', background: '#dcfce7', color: '#166534', borderRadius: '10px', marginBottom: '20px', border: '1px solid #bbf7d0', fontSize: '0.9rem' },
+  statusTextError: { padding: '12px', background: '#fee2e2', color: '#991b1b', borderRadius: '10px', marginBottom: '20px', border: '1px solid #fecaca', fontSize: '0.9rem' },
+  resumenResultados: { fontSize: "0.85rem", color: "#64748b", marginTop: "10px", textAlign: "right", fontStyle: "italic" },
+
+  // --- MODALES (AJUSTADO PARA CENTRADO PERFECTO) ---
   modalOverlay: {
-    position: "fixed",
-    inset: 0,
-    backgroundColor: "rgba(15,23,42,0.45)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 50,
+    position: "fixed", 
+    inset: 0, 
+    background: "rgba(15, 23, 42, 0.6)", // Fondo oscuro semitransparente
+    backdropFilter: "blur(4px)", // Efecto borroso elegante
+    display: "flex", 
+    justifyContent: "center", 
+    alignItems: "center", 
+    zIndex: 10000, // 🚨 Z-INDEX ALTO para estar sobre el Navbar
+    padding: "40px", // 🚨 PADDING para evitar que toque los bordes
   },
   modalCard: {
-    width: "100%",
-    maxWidth: "700px",
-    maxHeight: "80vh",
-    background: "#ffffff",
-    borderRadius: "12px",
-    boxShadow: "0 20px 50px rgba(15,23,42,0.25)",
-    padding: "18px 20px 20px",
-    boxSizing: "border-box",
-    overflowY: "auto",
+    width: "100%", 
+    maxWidth: "700px", 
+    maxHeight: "90vh", // Altura máxima segura
+    background: "#ffffff", 
+    borderRadius: "16px",
+    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", 
+    padding: "30px", 
+    boxSizing: "border-box", 
+    overflowY: "auto", // Scroll interno si es muy larga
+    animation: "scaleUp 0.2s ease-out",
+    position: "relative", // Para contexto de apilamiento
   },
-  modalHeaderRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "6px",
-  },
-  modalTitle: {
-    fontSize: "18px",
-    fontWeight: 600,
-    color: "#111827",
-  },
-  modalCloseButton: {
-    border: "none",
-    background: "transparent",
-    cursor: "pointer",
-    fontSize: "16px",
-    color: "#6b7280",
-  },
-  modalSectionTitle: {
-    fontSize: "13px",
-    fontWeight: 600,
-    color: "#4b5563",
-    marginTop: "10px",
-    marginBottom: "4px",
-  },
-  modalLine: {
-    fontSize: "13px",
-    marginBottom: "2px",
-  },
-  modalDetalleTable: {
-    width: "100%",
-    borderCollapse: "collapse",
-    marginTop: "4px",
-    fontSize: "13px",
-  },
-  modalDetalleTh: {
-    background: "#e5e7eb",
-    padding: "6px 8px",
-    borderBottom: "1px solid #d1d5db",
-    textAlign: "left",
-    fontWeight: 600,
-  },
-  modalDetalleTd: {
-    padding: "6px 8px",
-    borderBottom: "1px solid #e5e7eb",
-  },
-  modalActionsRow: {
-    marginTop: "12px",
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: "8px",
-  },
+  
+  // Estilos internos del modal
+  modalHeaderRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", borderBottom: '1px solid #f1f5f9', paddingBottom: '15px' },
+  modalTitle: { fontSize: "1.3rem", fontWeight: "700", color: "#0f172a", margin: 0 },
+  modalCloseButton: { border: "none", background: "transparent", cursor: "pointer", fontSize: "1.2rem", color: "#94a3b8" },
+  
+  modalSectionTitle: { fontSize: "0.85rem", fontWeight: "700", color: "#0f172a", marginTop: "20px", marginBottom: "10px", textTransform: "uppercase", borderBottom: '2px solid #e0f2fe', paddingBottom: '5px', display: 'inline-block' },
+  modalLine: { fontSize: "0.9rem", marginBottom: "8px", color: "#334155", display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #f1f5f9', paddingBottom: '4px' },
+  
+  modalDetalleTable: { width: "100%", borderCollapse: "collapse", marginTop: "10px", fontSize: "0.85rem", border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' },
+  modalDetalleTh: { background: "#f8fafc", padding: "10px", borderBottom: "1px solid #e2e8f0", textAlign: "left", fontWeight: "700", color: "#475569", textTransform: "uppercase", fontSize: '0.75rem' },
+  modalDetalleTd: { padding: "10px", borderBottom: "1px solid #f1f5f9", color: "#334155" },
+  
+  modalActionsRow: { marginTop: "25px", display: "flex", justifyContent: "flex-end", gap: "10px", borderTop: '1px solid #f1f5f9', paddingTop: '20px' },
 };
+
+// Inyección de animación
+const styleSheet = document.createElement("style");
+styleSheet.innerText = `@keyframes scaleUp { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }`;
+document.head.appendChild(styleSheet);
 
 export default function PreparacionOrdenes() {
   const { user } = useAuth();
@@ -226,7 +254,6 @@ export default function PreparacionOrdenes() {
   };
 
   const nombreUnidad = (envio) => {
-    // backend sugerido: campo unidad_codigo
     if (envio.unidad_codigo) return envio.unidad_codigo;
     if (envio.unidad_placa) return envio.unidad_placa;
     if (envio.id_unidad) return `Unidad #${envio.id_unidad}`;
@@ -234,7 +261,7 @@ export default function PreparacionOrdenes() {
   };
 
   // ============================
-  // Cargas iniciales (clientes, vendedores, órdenes, envíos)
+  // Cargas iniciales
   // ============================
   const cargarClientes = async () => {
     try {
@@ -269,17 +296,11 @@ export default function PreparacionOrdenes() {
       );
     } catch (err) {
       console.error("Error cargando órdenes para preparar:", err);
-
       if (err.response?.status === 403) {
-        setError(
-          "No tienes permiso para acceder a este módulo. Solo los usuarios de tipo ALMACENISTA pueden preparar órdenes."
-        );
+        setError("No tienes permiso para acceder a este módulo.");
       } else {
-        const backendMsg =
-          err.response?.data?.error || err.response?.data?.detail;
-        setError(
-          backendMsg || "No se pudieron cargar las órdenes para preparar."
-        );
+        const backendMsg = err.response?.data?.error || err.response?.data?.detail;
+        setError(backendMsg || "No se pudieron cargar las órdenes.");
       }
     } finally {
       setLoading(false);
@@ -290,22 +311,16 @@ export default function PreparacionOrdenes() {
     setLoadingEnvios(true);
     setErrorEnvios("");
     try {
-      // Endpoint sugerido en backend: @action(detail=False, url_path="para_verificar")
       const res = await api.get("/base/envios/para_verificar/");
       const data = Array.isArray(res.data) ? res.data : res.data.results || [];
       setEnvios(data);
     } catch (err) {
-      console.error("Error cargando envíos para verificar:", err);
+      console.error("Error cargando envíos:", err);
       if (err.response?.status === 403) {
-        setErrorEnvios(
-          "No tienes permiso para ver los envíos para verificar."
-        );
+        setErrorEnvios("No tienes permiso para ver los envíos.");
       } else {
-        const backendMsg =
-          err.response?.data?.error || err.response?.data?.detail;
-        setErrorEnvios(
-          backendMsg || "No se pudieron cargar los envíos para verificar."
-        );
+        const backendMsg = err.response?.data?.error || err.response?.data?.detail;
+        setErrorEnvios(backendMsg || "No se pudieron cargar los envíos.");
       }
     } finally {
       setLoadingEnvios(false);
@@ -333,11 +348,7 @@ export default function PreparacionOrdenes() {
       setOrdenDetalle(res.data);
     } catch (err) {
       console.error("Error cargando detalle de orden:", err);
-      const backendMsg =
-        err.response?.data?.error || err.response?.data?.detail;
-      setErrorDetalle(
-        backendMsg || "No se pudieron cargar los detalles de esta orden."
-      );
+      setErrorDetalle("No se pudieron cargar los detalles.");
     } finally {
       setLoadingDetalle(false);
     }
@@ -350,7 +361,7 @@ export default function PreparacionOrdenes() {
   };
 
   // ============================
-  // Acciones ORDEN: marcar PREPARADA
+  // Acciones ORDEN
   // ============================
   const marcarComoPreparada = async () => {
     if (!ordenDetalle) return;
@@ -372,19 +383,12 @@ export default function PreparacionOrdenes() {
       }
     } catch (err) {
       console.error("Error al preparar orden:", err);
-      const backendMsg =
-        err.response?.data?.error || err.response?.data?.detail;
-      toast.error(
-        backendMsg || "No se pudo marcar la orden como PREPARADA."
-      );
+      toast.error("No se pudo marcar la orden como PREPARADA.");
     } finally {
       setAccionLoading(false);
     }
   };
 
-  // ============================
-  // Acciones ORDEN: notificar preparación
-  // ============================
   const notificarPreparacion = async () => {
     if (!ordenDetalle) return;
     const id = ordenDetalle.orden?.id_orden;
@@ -392,17 +396,11 @@ export default function PreparacionOrdenes() {
     setAccionLoading(true);
     try {
       const res = await api.post(`/ordenes/${id}/notificar_preparacion/`);
-      const msg =
-        res.data?.mensaje ||
-        "Se notificó que la orden está lista para retiro/despacho.";
+      const msg = res.data?.mensaje || "Se notificó que la orden está lista.";
       toast.success(msg);
     } catch (err) {
       console.error("Error al notificar preparación:", err);
-      const backendMsg =
-        err.response?.data?.error || err.response?.data?.detail;
-      toast.error(
-        backendMsg || "No se pudo notificar que la orden está lista."
-      );
+      toast.error("No se pudo notificar que la orden está lista.");
     } finally {
       setAccionLoading(false);
     }
@@ -418,18 +416,11 @@ export default function PreparacionOrdenes() {
     setLoadingEnvioDetalle(true);
 
     try {
-      // Endpoint sugerido: /base/envios/<id>/detalle_verificacion/
-      const res = await api.get(
-        `/base/envios/${idEnvio}/detalle_verificacion/`
-      );
+      const res = await api.get(`/base/envios/${idEnvio}/detalle_verificacion/`);
       setEnvioDetalle(res.data);
     } catch (err) {
       console.error("Error cargando detalle de envío:", err);
-      const backendMsg =
-        err.response?.data?.error || err.response?.data?.detail;
-      setErrorEnvioDetalle(
-        backendMsg || "No se pudieron cargar los detalles de este envío."
-      );
+      setErrorEnvioDetalle("No se pudieron cargar los detalles.");
     } finally {
       setLoadingEnvioDetalle(false);
     }
@@ -442,7 +433,7 @@ export default function PreparacionOrdenes() {
   };
 
   // ============================
-  // Acciones ENVÍO: marcar listo para salir
+  // Acciones ENVÍO
   // ============================
   const marcarEnvioListo = async () => {
     if (!envioDetalle?.envio) return;
@@ -450,387 +441,246 @@ export default function PreparacionOrdenes() {
 
     setEnvioAccionLoading(true);
     try {
-      // Endpoint sugerido: /base/envios/<id>/marcar_listo_salida/
-      const res = await api.post(
-        `/base/envios/${id}/marcar_listo_salida/`
-      );
-      const msg =
-        res.data?.mensaje || "Envío marcado como listo para salir.";
+      const res = await api.post(`/base/envios/${id}/marcar_listo_salida/`);
+      const msg = res.data?.mensaje || "Envío marcado como listo para salir.";
       toast.success(msg);
-
-      // Quitamos el envío del listado
       setEnvios((prev) => prev.filter((e) => e.id_envio !== id));
       cerrarModalEnvio();
     } catch (err) {
-      console.error("Error al marcar envío listo para salir:", err);
-      const backendMsg =
-        err.response?.data?.error || err.response?.data?.detail;
-      toast.error(
-        backendMsg || "No se pudo marcar el envío como listo para salir."
-      );
+      console.error("Error al marcar envío:", err);
+      toast.error("No se pudo marcar el envío como listo.");
     } finally {
       setEnvioAccionLoading(false);
     }
   };
 
   // ============================
-  // Si aún no sabemos quién es el usuario
+  // Si no hay usuario
   // ============================
   if (!user) {
     return (
-      <div>
-        <h2 style={styles.pageTitle}>Preparación de órdenes</h2>
-        <p style={styles.subtitle}>Cargando datos de usuario...</p>
+      <div style={styles.page}>
+        <div style={styles.headerRow}>
+           <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+              <div style={styles.iconCircle}><IconBox /></div>
+              <div>
+                  <h2 style={styles.title}>Preparación de Órdenes</h2>
+                  <p style={styles.subtitle}>Cargando datos de usuario...</p>
+              </div>
+           </div>
+        </div>
       </div>
     );
   }
 
-  const tipoUsuarioActual =
-    user.tipo || (user.user && user.user.tipo) || "No especificado";
+  const tipoUsuarioActual = user.tipo || (user.user && user.user.tipo) || "No especificado";
 
   // ============================
   // Render principal
   // ============================
   return (
-    <div>
-      <h2 style={styles.pageTitle}>Preparación de órdenes</h2>
-      <p style={styles.subtitle}>
-        Módulo disponible para el rol de <strong>ALMACENISTA</strong>. Tu tipo
-        de usuario actual es: <strong>{tipoUsuarioActual}</strong>
-      </p>
+    <div style={styles.page}>
+      
+      {/* 1. HEADER FLOTANTE */}
+      <div style={styles.headerRow}>
+         <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
+            <div style={styles.iconCircle}><IconBox /></div>
+            <div>
+                <h2 style={styles.title}>Preparación de Órdenes</h2>
+                <p style={styles.subtitle}>
+                   Módulo de Almacén · Rol actual: <strong>{tipoUsuarioActual}</strong>
+                </p>
+            </div>
+         </div>
+      </div>
 
       {mensaje && <div style={styles.statusTextOk}>{mensaje}</div>}
       {error && <div style={styles.statusTextError}>{error}</div>}
 
-      {/* Si el backend dijo 403, no mostramos las tablas */}
-      {error && error.includes("Solo los usuarios de tipo ALMACENISTA") ? null : (
+      <div style={styles.card}>
+        
+        {/* SECCIÓN ÓRDENES */}
+        {(!error || !error.includes("Solo los usuarios de tipo ALMACENISTA")) && (
         <>
-          {/* =======================
-              SECCIÓN ÓRDENES
-          ======================== */}
-          <div style={styles.tableWrapper}>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}># Orden</th>
-                  <th style={styles.th}>Cliente</th>
-                  <th style={styles.th}>Vendedor</th>
-                  <th style={styles.th}>Fecha</th>
-                  <th style={styles.th}>Total (Bs)</th>
-                  <th style={styles.th}>Estado envío</th>
-                  <th style={styles.th}>Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ordenes.length === 0 && !loading && (
-                  <tr>
-                    <td style={styles.td} colSpan={7}>
-                      No hay órdenes pendientes por preparación.
-                    </td>
-                  </tr>
-                )}
-
-                {ordenes.map((o, idx) => {
-                  const baseTd =
-                    idx % 2 === 1
-                      ? { ...styles.td, ...styles.rowAlt }
-                      : styles.td;
-
-                  return (
-                    <tr key={o.id_orden}>
-                      <td style={baseTd}>{o.id_orden}</td>
-                      <td style={baseTd}>{nombreCliente(o.id_cliente)}</td>
-                      <td style={baseTd}>{nombreVendedor(o.id_usuario)}</td>
-                      <td style={baseTd}>{o.fecha_orden}</td>
-                      <td style={baseTd}>
-                        {Number(o.precio_final || 0).toFixed(2)}
-                      </td>
-                      <td style={baseTd}>
-                        <span style={styles.badgeEstado}>
-                          {o.estado_de_envio}
-                        </span>
-                      </td>
-                      <td style={baseTd}>
-                        <button
-                          type="button"
-                          style={styles.buttonPrimary}
-                          onClick={() => abrirDetalleOrden(o.id_orden)}
-                        >
-                          Revisar y preparar
-                        </button>
-                      </td>
+            <div style={{...styles.sectionTitle, marginTop:'0'}}>Órdenes Pendientes</div>
+            <div style={styles.tableWrapper}>
+                <table style={styles.table}>
+                <thead>
+                    <tr>
+                    <th style={styles.th}># Orden</th>
+                    <th style={styles.th}>Cliente</th>
+                    <th style={styles.th}>Vendedor</th>
+                    <th style={styles.th}>Fecha</th>
+                    <th style={styles.th}>Total (Bs)</th>
+                    <th style={styles.th}>Estado</th>
+                    <th style={{...styles.th, textAlign:'center'}}>Acción</th>
                     </tr>
-                  );
-                })}
-
-                {loading && (
-                  <tr>
-                    <td style={styles.td} colSpan={7}>
-                      Cargando órdenes...
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {ordenes.length > 0 && (
-            <div style={styles.resumenResultados}>
-              Mostrando {ordenes.length} orden(es) aprobadas para preparar.
-            </div>
-          )}
-
-          {/* =======================
-              SECCIÓN ENVÍOS
-          ======================== */}
-          <h3 style={styles.sectionTitle}>Verificación de envíos</h3>
-          <p style={styles.sectionSubtitle}>
-            Aquí se listan los envíos que ya fueron armados por el gerente y
-            contienen órdenes asignadas a tu almacén. Verifica el contenido y
-            marca el envío como <strong>listo para salir</strong>.
-          </p>
-
-          {errorEnvios && (
-            <div style={styles.statusTextError}>{errorEnvios}</div>
-          )}
-
-          <div style={styles.tableWrapper}>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}># Envío</th>
-                  <th style={styles.th}>Código</th>
-                  <th style={styles.th}>Unidad</th>
-                  <th style={styles.th}>Órdenes (tuyas / total)</th>
-                  <th style={styles.th}>Peso total (kg)</th>
-                  <th style={styles.th}>Estado</th>
-                  <th style={styles.th}>Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {envios.length === 0 && !loadingEnvios && (
-                  <tr>
-                    <td style={styles.td} colSpan={7}>
-                      No hay envíos pendientes de verificación.
-                    </td>
-                  </tr>
-                )}
-
-                {envios.map((e, idx) => {
-                  const baseTd =
-                    idx % 2 === 1
-                      ? { ...styles.td, ...styles.rowAlt }
-                      : styles.td;
-
-                  const cantTotal =
-                    e.cantidad_ordenes_total != null
-                      ? e.cantidad_ordenes_total
-                      : "-";
-                  const cantAlmacenista =
-                    e.cantidad_ordenes_almacenista != null
-                      ? e.cantidad_ordenes_almacenista
-                      : "-";
-
-                  return (
-                    <tr key={e.id_envio}>
-                      <td style={baseTd}>{e.id_envio}</td>
-                      <td style={baseTd}>{e.codigo_envio || "-"}</td>
-                      <td style={baseTd}>{nombreUnidad(e)}</td>
-                      <td style={baseTd}>
-                        {cantAlmacenista} / {cantTotal}
-                      </td>
-                      <td style={baseTd}>
-                        {e.peso_total != null
-                          ? Number(e.peso_total).toFixed(2)
-                          : "-"}
-                      </td>
-                      <td style={baseTd}>
-                        <span style={styles.badgeEstado}>
-                          {e.estado || "SIN ESTADO"}
-                        </span>
-                      </td>
-                      <td style={baseTd}>
-                        <button
-                          type="button"
-                          style={styles.buttonPrimary}
-                          onClick={() => abrirDetalleEnvio(e.id_envio)}
-                        >
-                          Revisar envío
-                        </button>
-                      </td>
+                </thead>
+                <tbody>
+                    {ordenes.length === 0 && !loading && (
+                    <tr>
+                        <td style={{...styles.td, textAlign:'center', color:'#94a3b8', padding:'30px'}} colSpan={7}>
+                        No hay órdenes pendientes.
+                        </td>
                     </tr>
-                  );
-                })}
+                    )}
 
-                {loadingEnvios && (
-                  <tr>
-                    <td style={styles.td} colSpan={7}>
-                      Cargando envíos...
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {envios.length > 0 && (
-            <div style={styles.resumenResultados}>
-              Mostrando {envios.length} envío(s) pendientes de verificación.
+                    {ordenes.map((o, idx) => {
+                    const rowBase = idx % 2 === 1 ? styles.rowAlt : {};
+                    return (
+                        <tr key={o.id_orden} style={rowBase}>
+                        <td style={{...styles.td, fontWeight:'700', color:'#0d47a1'}}>#{o.id_orden}</td>
+                        <td style={styles.td}>{nombreCliente(o.id_cliente)}</td>
+                        <td style={styles.td}>{nombreVendedor(o.id_usuario)}</td>
+                        <td style={styles.td}>{o.fecha_orden}</td>
+                        <td style={styles.td}>{Number(o.precio_final || 0).toFixed(2)}</td>
+                        <td style={styles.td}>
+                            <span style={styles.badgeEstado}>{o.estado_de_envio}</span>
+                        </td>
+                        <td style={{...styles.td, textAlign:'center'}}>
+                            <button type="button" style={styles.buttonPrimary} onClick={() => abrirDetalleOrden(o.id_orden)}>
+                            <IconSearch /> Revisar
+                            </button>
+                        </td>
+                        </tr>
+                    );
+                    })}
+                    {loading && <tr><td style={{...styles.td, textAlign:'center'}} colSpan={7}>Cargando...</td></tr>}
+                </tbody>
+                </table>
             </div>
-          )}
+
+            {ordenes.length > 0 && (
+                <div style={styles.resumenResultados}>
+                Mostrando {ordenes.length} orden(es) para preparar.
+                </div>
+            )}
+
+            {/* SECCIÓN ENVÍOS */}
+            <div style={styles.sectionTitle}>Verificación de Envíos</div>
+            <p style={styles.sectionSubtitle}>
+                Verifica los envíos armados por gerencia y márcalos como listos para salir.
+            </p>
+
+            {errorEnvios && <div style={styles.statusTextError}>{errorEnvios}</div>}
+
+            <div style={styles.tableWrapper}>
+                <table style={styles.table}>
+                <thead>
+                    <tr>
+                    <th style={styles.th}># Envío</th>
+                    <th style={styles.th}>Código</th>
+                    <th style={styles.th}>Unidad</th>
+                    <th style={styles.th}>Órdenes (Tuyas/Total)</th>
+                    <th style={styles.th}>Peso (kg)</th>
+                    <th style={styles.th}>Estado</th>
+                    <th style={{...styles.th, textAlign:'center'}}>Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {envios.length === 0 && !loadingEnvios && (
+                    <tr>
+                        <td style={{...styles.td, textAlign:'center', color:'#94a3b8', padding:'30px'}} colSpan={7}>
+                        No hay envíos pendientes.
+                        </td>
+                    </tr>
+                    )}
+
+                    {envios.map((e, idx) => {
+                    const rowBase = idx % 2 === 1 ? styles.rowAlt : {};
+                    const cantTotal = e.cantidad_ordenes_total ?? "-";
+                    const cantAlmacenista = e.cantidad_ordenes_almacenista ?? "-";
+
+                    return (
+                        <tr key={e.id_envio} style={rowBase}>
+                        <td style={{...styles.td, fontWeight:'700', color:'#0d47a1'}}>#{e.id_envio}</td>
+                        <td style={styles.td}>{e.codigo_envio || "-"}</td>
+                        <td style={styles.td}>{nombreUnidad(e)}</td>
+                        <td style={styles.td}>{cantAlmacenista} / {cantTotal}</td>
+                        <td style={styles.td}>{e.peso_total != null ? Number(e.peso_total).toFixed(2) : "-"}</td>
+                        <td style={styles.td}>
+                            <span style={styles.badgeEstado}>{e.estado || "SIN ESTADO"}</span>
+                        </td>
+                        <td style={{...styles.td, textAlign:'center'}}>
+                            <button type="button" style={styles.buttonPrimary} onClick={() => abrirDetalleEnvio(e.id_envio)}>
+                             <IconCheck /> Revisar
+                            </button>
+                        </td>
+                        </tr>
+                    );
+                    })}
+                </tbody>
+                </table>
+            </div>
+
+            {envios.length > 0 && (
+                <div style={styles.resumenResultados}>
+                Mostrando {envios.length} envío(s) pendientes.
+                </div>
+            )}
         </>
-      )}
+        )}
+      </div>
 
-      {/* ============================
-          MODAL DETALLE ORDEN
-      ============================ */}
+      {/* MODAL DETALLE ORDEN */}
       {modalAbierto && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalCard}>
             <div style={styles.modalHeaderRow}>
               <h3 style={styles.modalTitle}>
-                Detalles de la orden{" "}
-                {ordenDetalle?.orden
-                  ? `#${ordenDetalle.orden.id_orden}`
-                  : ""}
+                Detalles Orden {ordenDetalle?.orden ? `#${ordenDetalle.orden.id_orden}` : ""}
               </h3>
-              <button
-                type="button"
-                style={styles.modalCloseButton}
-                onClick={cerrarModalOrden}
-              >
-                ✕
-              </button>
+              <button type="button" style={styles.modalCloseButton} onClick={cerrarModalOrden}>✕</button>
             </div>
 
-            {loadingDetalle && (
-              <div style={styles.modalLine}>
-                Cargando detalles de la orden...
-              </div>
-            )}
-
-            {errorDetalle && (
-              <div
-                style={{
-                  ...styles.modalLine,
-                  color: "#b91c1c",
-                  marginBottom: "6px",
-                }}
-              >
-                {errorDetalle}
-              </div>
-            )}
+            {loadingDetalle && <div style={styles.modalLine}>Cargando...</div>}
+            {errorDetalle && <div style={{...styles.modalLine, color:'#b91c1c'}}>{errorDetalle}</div>}
 
             {ordenDetalle && !loadingDetalle && !errorDetalle && (
               <>
-                <div style={styles.modalSectionTitle}>
-                  Información general
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Cliente:</strong>{" "}
-                  {nombreCliente(ordenDetalle.orden.id_cliente)}
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Vendedor:</strong>{" "}
-                  {nombreVendedor(ordenDetalle.orden.id_usuario)}
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Método de pago:</strong>{" "}
-                  {ordenDetalle.orden.metodo_pago}
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Fecha de orden:</strong>{" "}
-                  {ordenDetalle.orden.fecha_orden}
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Estado de envío:</strong>{" "}
-                  {ordenDetalle.orden.estado_de_envio}
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Estado de pago:</strong>{" "}
-                  {ordenDetalle.orden.estado_de_pago}
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Total (Bs):</strong>{" "}
-                  {Number(ordenDetalle.orden.precio_final || 0).toFixed(2)}
-                </div>
+                <div style={styles.modalSectionTitle}>Información General</div>
+                <div style={styles.modalLine}><strong>Cliente:</strong> {nombreCliente(ordenDetalle.orden.id_cliente)}</div>
+                <div style={styles.modalLine}><strong>Vendedor:</strong> {nombreVendedor(ordenDetalle.orden.id_usuario)}</div>
+                <div style={styles.modalLine}><strong>Pago:</strong> {ordenDetalle.orden.metodo_pago}</div>
+                <div style={styles.modalLine}><strong>Fecha:</strong> {ordenDetalle.orden.fecha_orden}</div>
+                <div style={styles.modalLine}><strong>Estado Envío:</strong> {ordenDetalle.orden.estado_de_envio}</div>
+                <div style={styles.modalLine}><strong>Total (Bs):</strong> {Number(ordenDetalle.orden.precio_final || 0).toFixed(2)}</div>
 
-                <div style={styles.modalSectionTitle}>
-                  Productos de la orden
-                </div>
-                {(!ordenDetalle.detalles ||
-                  ordenDetalle.detalles.length === 0) && (
-                  <div style={styles.modalLine}>
-                    No se encontraron detalles de productos para esta orden.
-                  </div>
+                <div style={styles.modalSectionTitle}>Productos a Preparar</div>
+                {(!ordenDetalle.detalles || ordenDetalle.detalles.length === 0) && (
+                  <div style={styles.modalLine}>No hay productos.</div>
                 )}
 
-                {ordenDetalle.detalles &&
-                  ordenDetalle.detalles.length > 0 && (
-                    <table style={styles.modalDetalleTable}>
-                      <thead>
-                        <tr>
-                          <th style={styles.modalDetalleTh}>Producto</th>
-                          <th style={styles.modalDetalleTh}>Cantidad</th>
-                          <th style={styles.modalDetalleTh}>
-                            Peso subtotal
-                          </th>
-                          <th style={styles.modalDetalleTh}>
-                            Subtotal (Bs)
-                          </th>
+                {ordenDetalle.detalles && ordenDetalle.detalles.length > 0 && (
+                  <table style={styles.modalDetalleTable}>
+                    <thead>
+                      <tr>
+                        <th style={styles.modalDetalleTh}>Producto</th>
+                        <th style={styles.modalDetalleTh}>Cant.</th>
+                        <th style={styles.modalDetalleTh}>Peso</th>
+                        <th style={styles.modalDetalleTh}>Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ordenDetalle.detalles.map((d, idx) => (
+                        <tr key={idx}>
+                          <td style={styles.modalDetalleTd}>{d.producto}</td>
+                          <td style={styles.modalDetalleTd}>{d.cantidad}</td>
+                          <td style={styles.modalDetalleTd}>{d.peso}</td>
+                          <td style={styles.modalDetalleTd}>{d.subtotal}</td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {ordenDetalle.detalles.map((d, idx) => (
-                          <tr key={idx}>
-                            <td style={styles.modalDetalleTd}>
-                              {d.producto}
-                            </td>
-                            <td style={styles.modalDetalleTd}>
-                              {d.cantidad}
-                            </td>
-                            <td style={styles.modalDetalleTd}>
-                              {d.peso}
-                            </td>
-                            <td style={styles.modalDetalleTd}>
-                              {d.subtotal}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
+                      ))}
+                    </tbody>
+                  </table>
+                )}
 
                 <div style={styles.modalActionsRow}>
-                  <button
-                    type="button"
-                    style={styles.buttonSecondary}
-                    onClick={cerrarModalOrden}
-                    disabled={accionLoading}
-                  >
-                    Cerrar
+                  <button type="button" style={styles.buttonSecondary} onClick={cerrarModalOrden} disabled={accionLoading}>Cerrar</button>
+                  <button type="button" style={styles.buttonSecondary} onClick={notificarPreparacion} disabled={accionLoading}>
+                    {accionLoading ? "..." : "Notificar"}
                   </button>
-
-                  <button
-                    type="button"
-                    style={styles.buttonSecondary}
-                    onClick={notificarPreparacion}
-                    disabled={accionLoading}
-                  >
-                    {accionLoading
-                      ? "Procesando..."
-                      : "Notificar preparación"}
-                  </button>
-
-                  <button
-                    type="button"
-                    style={styles.buttonPrimary}
-                    onClick={marcarComoPreparada}
-                    disabled={accionLoading}
-                  >
-                    {accionLoading
-                      ? "Procesando..."
-                      : "Marcar como PREPARADA"}
+                  <button type="button" style={styles.buttonPrimary} onClick={marcarComoPreparada} disabled={accionLoading}>
+                    {accionLoading ? "Procesando..." : "Marcar PREPARADA"}
                   </button>
                 </div>
               </>
@@ -839,140 +689,61 @@ export default function PreparacionOrdenes() {
         </div>
       )}
 
-      {/* ============================
-          MODAL DETALLE ENVÍO
-      ============================ */}
+      {/* MODAL DETALLE ENVÍO */}
       {modalEnvioAbierto && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalCard}>
             <div style={styles.modalHeaderRow}>
               <h3 style={styles.modalTitle}>
-                Detalles del envío{" "}
-                {envioDetalle?.envio
-                  ? `#${envioDetalle.envio.id_envio} · ${envioDetalle.envio.codigo_envio || ""
-                  }`
-                  : ""}
+                Detalles Envío {envioDetalle?.envio ? `#${envioDetalle.envio.id_envio}` : ""}
               </h3>
-              <button
-                type="button"
-                style={styles.modalCloseButton}
-                onClick={cerrarModalEnvio}
-              >
-                ✕
-              </button>
+              <button type="button" style={styles.modalCloseButton} onClick={cerrarModalEnvio}>✕</button>
             </div>
 
-            {loadingEnvioDetalle && (
-              <div style={styles.modalLine}>
-                Cargando detalles del envío...
-              </div>
-            )}
-
-            {errorEnvioDetalle && (
-              <div
-                style={{
-                  ...styles.modalLine,
-                  color: "#b91c1c",
-                  marginBottom: "6px",
-                }}
-              >
-                {errorEnvioDetalle}
-              </div>
-            )}
+            {loadingEnvioDetalle && <div style={styles.modalLine}>Cargando...</div>}
+            {errorEnvioDetalle && <div style={{...styles.modalLine, color:'#b91c1c'}}>{errorEnvioDetalle}</div>}
 
             {envioDetalle && !loadingEnvioDetalle && !errorEnvioDetalle && (
               <>
-                <div style={styles.modalSectionTitle}>
-                  Información del envío
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Código:</strong>{" "}
-                  {envioDetalle.envio.codigo_envio || "-"}
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Unidad:</strong>{" "}
-                  {nombreUnidad(envioDetalle.envio)}
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Peso total (kg):</strong>{" "}
-                  {envioDetalle.envio.peso_total != null
-                    ? Number(envioDetalle.envio.peso_total).toFixed(2)
-                    : "-"}
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Estado:</strong>{" "}
-                  {envioDetalle.envio.estado || "SIN ESTADO"}
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Fecha salida:</strong>{" "}
-                  {envioDetalle.envio.fecha_salida || "No registrada"}
-                </div>
+                <div style={styles.modalSectionTitle}>Datos del Envío</div>
+                <div style={styles.modalLine}><strong>Código:</strong> {envioDetalle.envio.codigo_envio || "-"}</div>
+                <div style={styles.modalLine}><strong>Unidad:</strong> {nombreUnidad(envioDetalle.envio)}</div>
+                <div style={styles.modalLine}><strong>Peso Total:</strong> {envioDetalle.envio.peso_total != null ? Number(envioDetalle.envio.peso_total).toFixed(2) : "-"} kg</div>
+                <div style={styles.modalLine}><strong>Estado:</strong> {envioDetalle.envio.estado}</div>
+                <div style={styles.modalLine}><strong>Salida:</strong> {envioDetalle.envio.fecha_salida || "-"}</div>
 
-                <div style={styles.modalSectionTitle}>
-                  Órdenes incluidas en el envío
-                </div>
-                {(!envioDetalle.ordenes ||
-                  envioDetalle.ordenes.length === 0) && (
-                  <div style={styles.modalLine}>
-                    No se encontraron órdenes asociadas a este envío.
-                  </div>
+                <div style={styles.modalSectionTitle}>Órdenes Incluidas</div>
+                {(!envioDetalle.ordenes || envioDetalle.ordenes.length === 0) && (
+                  <div style={styles.modalLine}>No hay órdenes asociadas.</div>
                 )}
 
-                {envioDetalle.ordenes &&
-                  envioDetalle.ordenes.length > 0 && (
-                    <table style={styles.modalDetalleTable}>
-                      <thead>
-                        <tr>
-                          <th style={styles.modalDetalleTh}># Orden</th>
-                          <th style={styles.modalDetalleTh}>Cliente</th>
-                          <th style={styles.modalDetalleTh}>Total (Bs)</th>
-                          <th style={styles.modalDetalleTh}>
-                            Estado envío
-                          </th>
+                {envioDetalle.ordenes && envioDetalle.ordenes.length > 0 && (
+                  <table style={styles.modalDetalleTable}>
+                    <thead>
+                      <tr>
+                        <th style={styles.modalDetalleTh}># Orden</th>
+                        <th style={styles.modalDetalleTh}>Cliente</th>
+                        <th style={styles.modalDetalleTh}>Total</th>
+                        <th style={styles.modalDetalleTh}>Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {envioDetalle.ordenes.map((o, idx) => (
+                        <tr key={idx}>
+                          <td style={styles.modalDetalleTd}>{o.id_orden}</td>
+                          <td style={styles.modalDetalleTd}>{o.cliente_nombre || "-"}</td>
+                          <td style={styles.modalDetalleTd}>{o.precio_final != null ? Number(o.precio_final).toFixed(2) : "-"}</td>
+                          <td style={styles.modalDetalleTd}>{o.estado_de_envio || "-"}</td>
                         </tr>
-                      </thead>
-                      <tbody>
-                        {envioDetalle.ordenes.map((o, idx) => (
-                          <tr key={idx}>
-                            <td style={styles.modalDetalleTd}>
-                              {o.id_orden}
-                            </td>
-                            <td style={styles.modalDetalleTd}>
-                              {o.cliente_nombre || "-"}
-                            </td>
-                            <td style={styles.modalDetalleTd}>
-                              {o.precio_final != null
-                                ? Number(o.precio_final).toFixed(2)
-                                : "-"}
-                            </td>
-                            <td style={styles.modalDetalleTd}>
-                              {o.estado_de_envio || "-"}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
+                      ))}
+                    </tbody>
+                  </table>
+                )}
 
                 <div style={styles.modalActionsRow}>
-                  <button
-                    type="button"
-                    style={styles.buttonSecondary}
-                    onClick={cerrarModalEnvio}
-                    disabled={envioAccionLoading}
-                  >
-                    Cerrar
-                  </button>
-
-                  <button
-                    type="button"
-                    style={styles.buttonPrimary}
-                    onClick={marcarEnvioListo}
-                    disabled={envioAccionLoading}
-                  >
-                    {envioAccionLoading
-                      ? "Procesando..."
-                      : "Marcar envío listo para salir"}
+                  <button type="button" style={styles.buttonSecondary} onClick={cerrarModalEnvio} disabled={envioAccionLoading}>Cerrar</button>
+                  <button type="button" style={styles.buttonPrimary} onClick={marcarEnvioListo} disabled={envioAccionLoading}>
+                    {envioAccionLoading ? "Procesando..." : "Marcar LISTO PARA SALIR"}
                   </button>
                 </div>
               </>
