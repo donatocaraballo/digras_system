@@ -31,6 +31,13 @@ from .serializers import (
     UnidadSerializer,
 )
 
+# ============================================================
+#   CONSTANTES
+# ============================================================
+
+ESTADO_CREACION_ENVIO = "PENDIENTE POR APROBACION"
+ESTADO_ORDEN_ASIGNADA_ENVIO = "ASIGNADA_A_ENVIO"
+
 
 # ============================================================
 #   USUARIOS
@@ -161,10 +168,17 @@ class ClienteViewSet(BaseViewSet):
         if not usuario.is_authenticated:
             return Cliente.objects.none()
 
-        if getattr(usuario, "tipo", None) == "VENDEDOR":
+        tipo = getattr(usuario, "tipo", None)
+
+        # Vendedor: solo sus clientes
+        if tipo == "VENDEDOR":
             return Cliente.objects.filter(id_usuario=usuario)
 
-        # Otros roles no listan clientes
+        # Gerente o Administrador: todos los clientes
+        if tipo in ["GERENTE", "ADMINISTRADOR"]:
+            return Cliente.objects.all()
+
+        # Otros roles: nada
         return Cliente.objects.none()
 
     # ---------------------------
@@ -292,22 +306,6 @@ class ClienteViewSet(BaseViewSet):
 
 
 # ============================================================
-#   DETALLE DE ÓRDENES
-# ============================================================
-
-class DetalleOrdenViewSet(BaseViewSet):
-    """
-    Vista para consultar detalles de órdenes (si la necesitas desde base).
-    Normalmente las operaciones fuertes sobre órdenes se hacen en la app
-    `ordenes`, pero aquí tienes un acceso básico.
-    """
-
-    queryset = DetalleOrden.objects.all()
-    serializer_class = DetalleOrdenSerializer
-    search_fields = ["id_orden__id_orden", "id_producto__nombre"]
-
-
-# ============================================================
 #   ENVÍOS
 # ============================================================
 
@@ -318,9 +316,14 @@ class EnvioViewSet(BaseViewSet):
     Reglas:
     - Solo GERENTE y ADMINISTRADOR pueden crear / editar envíos y asignar órdenes.
     - Solo ALMACENISTA puede:
-        * Ver los envíos para preparar (para_verificar)
-        * Marcar un envío como listo (marcar_listo)
-    - Siempre se registra la acción importante.
+        * Ver los envíos para verificar/preparar (para_verificar)
+        * Ver el detalle de un envío (detalle_verificacion)
+        * Marcar un envío como listo para salir (marcar_listo_salida)
+    - Flujo de estados del envío:
+        * Al crear desde gerencia: "PENDIENTE POR APROBACION"
+        * Al cerrar desde gerencia: "ASIGNADO"
+        * Cuando el ALMACENISTA marca listo:
+              -> "LISTO_PARA_SALIR"
     """
 
     queryset = Envio.objects.all()
@@ -345,8 +348,9 @@ class EnvioViewSet(BaseViewSet):
         Crear envíos: Solo GERENTE o ADMIN.
 
         Además de crear el envío, si en el body viene una lista "ordenes"
-        (por ejemplo: {"id_unidad": 1, "estado": "PENDIENTE_PREPARACION", "ordenes": [1, 2, 3]}),
-        se asignan esas órdenes al envío recién creado y se recalcula el peso_total.
+        (por ejemplo: {"id_unidad": 1, "ordenes": [1, 2, 3]}),
+        se asignan esas órdenes al envío recién creado,
+        se marcan como ASIGNADA_A_ENVIO y se recalcula el peso_total.
         """
         usuario = self.request.user
         if not self._es_gerente_o_admin(usuario):
@@ -355,7 +359,12 @@ class EnvioViewSet(BaseViewSet):
             )
 
         with transaction.atomic():
-            envio = serializer.save()
+            # Forzamos estado de creación si no viene
+            estado_creacion = serializer.validated_data.get(
+                "estado",
+                ESTADO_CREACION_ENVIO,
+            )
+            envio = serializer.save(estado=estado_creacion)
 
             # Lista opcional de IDs de órdenes que el front quiere asignar de una vez
             ids_ordenes = self.request.data.get("ordenes", [])
@@ -368,7 +377,9 @@ class EnvioViewSet(BaseViewSet):
                     "PREPARADA",
                 ]
 
-                ordenes = Orden.objects.filter(id_orden__in=ids_ordenes)
+                ordenes = Orden.objects.select_for_update().filter(
+                    id_orden__in=ids_ordenes
+                )
 
                 if ordenes.count() != len(ids_ordenes):
                     raise ValidationError(
@@ -394,8 +405,11 @@ class EnvioViewSet(BaseViewSet):
                             }
                         )
 
-                # Asignar las órdenes al envío
-                ordenes.update(id_envio=envio)
+                # Asignar las órdenes al envío y marcar estado ASIGNADA_A_ENVIO
+                ordenes.update(
+                    id_envio=envio,
+                    estado_de_envio=ESTADO_ORDEN_ASIGNADA_ENVIO,
+                )
 
                 # Recalcular peso_total del envío
                 total_peso = (
@@ -407,7 +421,6 @@ class EnvioViewSet(BaseViewSet):
                     envio.peso_total = total_peso
                     envio.save(update_fields=["peso_total"])
 
-                # Registro de acción: creación + asignación
                 registrar_accion(
                     usuario,
                     "Envíos",
@@ -416,7 +429,6 @@ class EnvioViewSet(BaseViewSet):
                     id_referencia=envio.id_envio,
                 )
             else:
-                # Registro de acción: solo creación del envío (sin órdenes)
                 registrar_accion(
                     usuario,
                     "Envíos",
@@ -445,9 +457,6 @@ class EnvioViewSet(BaseViewSet):
             id_referencia=envio.id_envio,
         )
 
-    # (el resto de métodos: asignar_ordenes, remover_ordenes, para_verificar, marcar_listo
-    # se quedan como los tienes ahora)
-
     # ---------------------------
     #   Asignar órdenes a un envío (GERENTE / ADMIN)
     # ---------------------------
@@ -458,8 +467,8 @@ class EnvioViewSet(BaseViewSet):
         Body: {"ordenes": [1,2,3]}
 
         Asigna órdenes a un envío. Solo GERENTE / ADMIN.
-        Las órdenes deben estar en estados permitidos
-        (ajusta la lista según tus constantes reales).
+        Cambia el estado de la orden a ASIGNADA_A_ENVIO
+        y recalcula el peso_total del envío.
         """
         usuario = request.user
         if not self._es_gerente_o_admin(usuario):
@@ -475,45 +484,49 @@ class EnvioViewSet(BaseViewSet):
                 {"ordenes": "Debes enviar una lista de IDs de órdenes a asignar."}
             )
 
-        # Ajusta estos literales a los que uses realmente
         estados_permitidos = [
             "APROBADA",
             "POR_PREPARACION",
             "PREPARADA",
         ]
 
-        ordenes = Orden.objects.filter(id_orden__in=ids_ordenes)
-
-        if ordenes.count() != len(ids_ordenes):
-            raise ValidationError(
-                {"detail": "Alguna de las órdenes no existe."}
+        with transaction.atomic():
+            ordenes = Orden.objects.select_for_update().filter(
+                id_orden__in=ids_ordenes
             )
 
-        # Validamos que estén en estados permitidos y no tengan ya otro envío
-        for o in ordenes:
-            if o.estado_de_envio not in estados_permitidos:
+            if ordenes.count() != len(ids_ordenes):
                 raise ValidationError(
-                    {
-                        "detail": f"La orden {o.id_orden} no está en un estado permitido para ser asignada."
-                    }
-                )
-            if o.id_envio and o.id_envio != envio:
-                raise ValidationError(
-                    {
-                        "detail": f"La orden {o.id_orden} ya está asignada a otro envío."
-                    }
+                    {"detail": "Alguna de las órdenes no existe."}
                 )
 
-        # Asignamos
-        ordenes.update(id_envio=envio)
+            for o in ordenes:
+                if o.estado_de_envio not in estados_permitidos:
+                    raise ValidationError(
+                        {
+                            "detail": f"La orden {o.id_orden} no está en un estado permitido para ser asignada."
+                        }
+                    )
+                if o.id_envio and o.id_envio != envio:
+                    raise ValidationError(
+                        {
+                            "detail": f"La orden {o.id_orden} ya está asignada a otro envío."
+                        }
+                    )
 
-        # Opcional: recalcular peso_total del envío sumando pesos de órdenes
-        total_peso = (
-            Orden.objects.filter(id_envio=envio).aggregate(total=Sum("peso_total"))["total"]
-        )
-        if total_peso is not None:
-            envio.peso_total = total_peso
-            envio.save(update_fields=["peso_total"])
+            ordenes.update(
+                id_envio=envio,
+                estado_de_envio=ESTADO_ORDEN_ASIGNADA_ENVIO,
+            )
+
+            total_peso = (
+                Orden.objects.filter(id_envio=envio)
+                .aggregate(total=Sum("peso_total"))
+                .get("total")
+            )
+            if total_peso is not None:
+                envio.peso_total = total_peso
+                envio.save(update_fields=["peso_total"])
 
         registrar_accion(
             usuario,
@@ -551,14 +564,26 @@ class EnvioViewSet(BaseViewSet):
                 {"ordenes": "Debes enviar una lista de IDs de órdenes a remover."}
             )
 
-        ordenes = Orden.objects.filter(id_orden__in=ids_ordenes, id_envio=envio)
-
-        if not ordenes.exists():
-            raise ValidationError(
-                {"detail": "Ninguna de las órdenes indicadas pertenece a este envío."}
+        with transaction.atomic():
+            ordenes = Orden.objects.select_for_update().filter(
+                id_orden__in=ids_ordenes,
+                id_envio=envio,
             )
 
-        ordenes.update(id_envio=None)
+            if not ordenes.exists():
+                raise ValidationError(
+                    {"detail": "Ninguna de las órdenes indicadas pertenece a este envío."}
+                )
+
+            ordenes.update(id_envio=None)
+
+            total_peso = (
+                Orden.objects.filter(id_envio=envio)
+                .aggregate(total=Sum("peso_total"))
+                .get("total")
+            )
+            envio.peso_total = total_peso or 0
+            envio.save(update_fields=["peso_total"])
 
         registrar_accion(
             usuario,
@@ -579,10 +604,17 @@ class EnvioViewSet(BaseViewSet):
         """
         GET /api/base/envios/para_verificar/
 
-        Devuelve los envíos que el ALMACENISTA debe preparar/verificar.
-        Filtra por:
-        - tipo de usuario = ALMACENISTA
-        - estado del envío = 'PENDIENTE_PREPARACION' (ajusta si usas otro literal)
+        Devuelve los envíos que el ALMACENISTA debe verificar/preparar.
+
+        Reglas:
+        - Solo usuarios tipo ALMACENISTA.
+        - Solo envíos en estado "ASIGNADO".
+        - Devuelve, por cada envío:
+            * Datos básicos del envío
+            * Unidad (código, placa)
+            * cantidad_ordenes_total
+            * cantidad_ordenes_almacenista: cantidad de órdenes PREPARADAS
+              (útil para mostrar "Preparadas / Total" en el front).
         """
         usuario = request.user
 
@@ -594,23 +626,49 @@ class EnvioViewSet(BaseViewSet):
                 "Solo el almacenista puede ver los envíos para preparar."
             )
 
-        envios_qs = Envio.objects.filter(estado="PENDIENTE_PREPARACION")
+        envios_qs = Envio.objects.filter(estado="ASIGNADO").select_related("id_unidad")
 
-        serializer = self.get_serializer(envios_qs, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        data = []
+        for envio in envios_qs:
+            ordenes_qs = Orden.objects.filter(id_envio=envio)
+            total_ordenes = ordenes_qs.count()
+            ordenes_preparadas = ordenes_qs.filter(
+                estado_de_envio="PREPARADA"
+            ).count()
+
+            data.append(
+                {
+                    "id_envio": envio.id_envio,
+                    "codigo_envio": envio.codigo_envio,
+                    "estado": envio.estado,
+                    "peso_total": envio.peso_total,
+                    "id_unidad": envio.id_unidad_id,
+                    "unidad_codigo": getattr(envio.id_unidad, "codigo_unidad", None),
+                    "unidad_placa": getattr(envio.id_unidad, "placa", None),
+                    "cantidad_ordenes_total": total_ordenes,
+                    "cantidad_ordenes_almacenista": ordenes_preparadas,
+                }
+            )
+
+        return Response(data, status=status.HTTP_200_OK)
 
     # ---------------------------
-    #   Marcar envío como listo (ALMACENISTA)
+    #   Detalle de envío para verificación (ALMACENISTA)
     # ---------------------------
-    @action(detail=True, methods=["post"], url_path="marcar_listo")
-    def marcar_listo(self, request, pk=None):
+    @action(detail=True, methods=["get"], url_path="detalle_verificacion")
+    def detalle_verificacion(self, request, pk=None):
         """
-        POST /api/base/envios/<id>/marcar_listo/
+        GET /api/base/envios/<id>/detalle_verificacion/
 
-        Acción del ALMACENISTA para indicar que un envío ya está
-        completamente preparado y listo para salir.
-
-        Cambia el estado (por ejemplo, de 'PENDIENTE_PREPARACION' a 'LISTO_PARA_SALIR').
+        Devuelve:
+        {
+          "envio": {...},
+          "ordenes": [
+             {id_orden, cliente_nombre, precio_final, estado_de_envio},
+             ...
+          ]
+        }
+        Solo ALMACENISTA.
         """
         usuario = request.user
 
@@ -619,24 +677,124 @@ class EnvioViewSet(BaseViewSet):
 
         if not self._es_almacenista(usuario):
             raise PermissionDenied(
-                "Solo el almacenista puede marcar un envío como listo."
+                "Solo el almacenista puede ver el detalle de envío para verificación."
             )
 
         envio = self.get_object()
 
+        ordenes_qs = Orden.objects.filter(id_envio=envio).select_related("id_cliente")
+
+        ordenes_data = []
+        for o in ordenes_qs:
+            ordenes_data.append(
+                {
+                    "id_orden": o.id_orden,
+                    "cliente_nombre": getattr(o.id_cliente, "nombre", None),
+                    "precio_final": getattr(o, "precio_final", None),
+                    "estado_de_envio": o.estado_de_envio,
+                }
+            )
+
+        envio_data = {
+            "id_envio": envio.id_envio,
+            "codigo_envio": envio.codigo_envio,
+            "estado": envio.estado,
+            "peso_total": envio.peso_total,
+            "id_unidad": envio.id_unidad_id,
+            "unidad_codigo": getattr(envio.id_unidad, "codigo_unidad", None),
+            "unidad_placa": getattr(envio.id_unidad, "placa", None),
+            "fecha_salida": envio.fecha_salida,
+        }
+
+        return Response(
+            {
+                "envio": envio_data,
+                "ordenes": ordenes_data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    # ---------------------------
+    #   Marcar envío como LISTO PARA SALIR (ALMACENISTA)
+    # ---------------------------
+    @action(detail=True, methods=["post"], url_path="marcar_listo_salida")
+    def marcar_listo_salida(self, request, pk=None):
+        """
+        POST /api/base/envios/<id>/marcar_listo_salida/
+
+        Acción del ALMACENISTA para indicar que un envío ya está
+        preparado y listo para salir.
+
+        Reglas:
+        - Solo ALMACENISTA.
+        - El envío debe estar en estado "ASIGNADO".
+        - Debe tener al menos una orden asociada.
+        (Ya NO se valida el estado individual de cada orden aquí.)
+        """
+        usuario = request.user
+
+        if not usuario.is_authenticated:
+            raise PermissionDenied("Debes iniciar sesión.")
+
+        if not self._es_almacenista(usuario):
+            raise PermissionDenied(
+                "Solo el almacenista puede marcar un envío como listo para salir."
+            )
+
+        envio = self.get_object()
+
+        if envio.estado != "ASIGNADO":
+            raise ValidationError(
+                {
+                    "detail": (
+                        "Solo puedes marcar como LISTO PARA SALIR un envío que esté en estado ASIGNADO."
+                    )
+                }
+            )
+
+        ordenes_qs = Orden.objects.filter(id_envio=envio)
+
+        if not ordenes_qs.exists():
+            raise ValidationError(
+                {"detail": "Este envío no tiene órdenes asociadas."}
+            )
+
+        # Ya no chequeamos el estado de cada orden.
         envio.estado = "LISTO_PARA_SALIR"
         envio.save(update_fields=["estado"])
 
         registrar_accion(
             usuario,
             "Envíos",
-            "Marcar envío listo",
-            f"Envío {envio.codigo_envio} marcado como listo para salir.",
+            "Marcar envío listo para salir",
+            f"Envío {envio.codigo_envio} marcado como LISTO PARA SALIR.",
             id_referencia=envio.id_envio,
         )
 
         serializer = self.get_serializer(envio)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(
+            {
+                "mensaje": "Envío marcado como LISTO PARA SALIR.",
+                "envio": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+# ============================================================
+#   DETALLE DE ÓRDENES
+# ============================================================
+
+class DetalleOrdenViewSet(BaseViewSet):
+    """
+    Vista para consultar detalles de órdenes (si la necesitas desde base).
+    Normalmente las operaciones fuertes sobre órdenes se hacen en la app
+    `ordenes`, pero aquí tienes un acceso básico.
+    """
+
+    queryset = DetalleOrden.objects.all()
+    serializer_class = DetalleOrdenSerializer
+    search_fields = ["id_orden__id_orden", "id_producto__nombre"]
 
 
 # ============================================================
@@ -696,7 +854,6 @@ class UnidadViewSet(BaseViewSet):
                 "Solo el gerente o el administrador pueden editar unidades de transporte."
             )
 
-        # Evitamos que se cambie id_usuario desde el front (ya es read_only en el serializer)
         unidad = serializer.save()
 
         registrar_accion(
@@ -736,7 +893,12 @@ class UnidadViewSet(BaseViewSet):
         )
 
         return response
-    
+
+
+# ============================================================
+#   LOGIN PERSONALIZADO
+# ============================================================
+
 class CustomLogin(ObtainAuthToken):
     """
     Vista de Login que devuelve:
@@ -752,19 +914,25 @@ class CustomLogin(ObtainAuthToken):
         }
     }
     """
+
     def post(self, request, *args, **kwargs):
         # Valida credenciales (username/password)
-        serializer = self.serializer_class(data=request.data, context={'request': request})
+        serializer = self.serializer_class(
+            data=request.data,
+            context={"request": request},
+        )
         serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']
-        
+        user = serializer.validated_data["user"]
+
         # Obtiene o crea el token
         token, created = Token.objects.get_or_create(user=user)
-        
+
         # Serializa el usuario completo usando tu UsuarioSerializer
         user_data = UsuarioSerializer(user).data
 
-        return Response({
-            'token': token.key,
-            'user': user_data
-        })
+        return Response(
+            {
+                "token": token.key,
+                "user": user_data,
+            }
+        )

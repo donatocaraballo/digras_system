@@ -20,6 +20,7 @@ import PreparacionOrdenes from './pages/PreparacionOrdenes';
 import TransporteEnvios from './pages/TransporteEnvios';
 import Usuarios from './pages/Usuarios';
 import RegistroAcciones from './pages/RegistroAcciones';
+import Transportistas from './pages/Transportistas';
 
 // 🚨 COMPONENTE DE ESTILOS FUTURISTAS (El que creamos antes)
 import GlobalStyles from './components/GlobalStyles';
@@ -99,6 +100,7 @@ function App() {
           {/* MÓDULOS DE VENTAS */}
           <Route path="/ordenes" element={<RutasProtegidas><ListadoOrdenes /></RutasProtegidas>} />
           <Route path="/crear-orden" element={<RutasProtegidas><CrearOrden /></RutasProtegidas>} />
+          <Route path="/crear-orden/:idOrden" element={<RutasProtegidas><CrearOrden /></RutasProtegidas>} />
 
           {/* TUS MÓDULOS DE GESTIÓN */}
           <Route path="/inventario" element={<RutasProtegidas><InventoryDashboard refreshTrigger={refreshKey} onUpdate={handleUpdate} /></RutasProtegidas>} />
@@ -112,6 +114,8 @@ function App() {
           <Route path="/envios" element={<RutasProtegidas><TransporteEnvios /></RutasProtegidas>} />
           <Route path="/usuarios" element={<RutasProtegidas><Usuarios /></RutasProtegidas>} />
           <Route path="/registros" element={<RutasProtegidas><RegistroAcciones /></RutasProtegidas>} />
+
+          <Route path="/transportistas" element={<RutasProtegidas><Transportistas /></RutasProtegidas>} />
 
           <Route path="*" element={<h2 style={{textAlign:'center', marginTop: 100, color:'#64748b'}}>404 | Página no encontrada</h2>} />
         </Routes>

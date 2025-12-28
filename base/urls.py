@@ -4,6 +4,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken.views import obtain_auth_token # <--- Token Auth Nativo
 from .utils import obtener_tasa_dolar
+from transporte.views import TransporteViewSet
 
 from .views import (
     UsuarioViewSet, 
@@ -21,6 +22,7 @@ router.register('registros', RegistroAccionViewSet)
 router.register('unidades', UnidadViewSet)
 router.register('envios', EnvioViewSet) 
 router.register('clientes', ClienteViewSet)
+router.register("transporte", TransporteViewSet, basename="transporte")
 
 urlpatterns = [
     # Rutas del router (usuarios/, etc.)

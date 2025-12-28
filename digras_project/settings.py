@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'compras',
     'corsheaders',
     'ordenes',
+    'transporte',
 ]
 
 MIDDLEWARE = [

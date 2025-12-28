@@ -54,6 +54,8 @@ function Navbar() {
         { path: '/usuarios', name: 'Usuarios', icon: '👤', color: '#6366f1', glow: '0 0 10px #6366f1' }, // Indigo
 
         { path: '/registros', name: 'Acciones', icon: '👤', color: '#6366f1', glow: '0 0 10px #6366f1' },
+
+        { path: '/transportistas', name: 'Transportista', icon: '👤', color: '#6366f1', glow: '0 0 10px #6366f1' },
     ];
 
     // Helper para obtener color según el rol

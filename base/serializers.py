@@ -1,3 +1,4 @@
+# base/serializers.py
 from rest_framework import serializers
 from .models import (
     Usuario,
@@ -8,6 +9,8 @@ from .models import (
     Orden,
     DetalleOrden,
 )
+
+ESTADO_CREACION_ENVIO = "PENDIENTE POR APROBACION"
 
 
 # ============================================================
@@ -122,9 +125,11 @@ class EnvioSerializer(serializers.ModelSerializer):
     Serializador de Envío.
 
     - id_envio es solo lectura.
-    - codigo_envio se puede omitir en el front; si no se envía, se genera automáticamente.
-    - fecha_salida se puede omitir; si no se envía, se usa la fecha/hora actual.
+    - codigo_envio se genera automáticamente si no viene.
+    - fecha_salida se pone por defecto a "ahora" si no viene.
+    - estado se inicializa a "PENDIENTE POR APROBACION" si no viene.
     - peso_total se deja en 0 al crear y luego se recalcula cuando se asignan órdenes.
+    - ordenes_detalle muestra un resumen de las órdenes asignadas al envío.
     """
 
     codigo_envio = serializers.CharField(
@@ -136,6 +141,7 @@ class EnvioSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
+    ordenes_detalle = serializers.SerializerMethodField()
 
     class Meta:
         model = Envio
@@ -147,8 +153,9 @@ class EnvioSerializer(serializers.ModelSerializer):
             "fecha_salida",
             "fecha_llegada",
             "peso_total",
+            "ordenes_detalle",
         ]
-        read_only_fields = ["id_envio", "peso_total"]
+        read_only_fields = ["id_envio", "peso_total", "ordenes_detalle"]
 
     def _generar_codigo_envio(self) -> str:
         """
@@ -159,9 +166,13 @@ class EnvioSerializer(serializers.ModelSerializer):
         return f"ENV-{next_id:05d}"
 
     def create(self, validated_data):
-        # Generar código automáticamente si no viene desde el front
+        # Código automático si no viene
         if not validated_data.get("codigo_envio"):
             validated_data["codigo_envio"] = self._generar_codigo_envio()
+
+        # Estado por defecto
+        if not validated_data.get("estado"):
+            validated_data["estado"] = ESTADO_CREACION_ENVIO
 
         # Fecha de salida por defecto: ahora mismo si no viene
         from django.utils import timezone
@@ -173,6 +184,26 @@ class EnvioSerializer(serializers.ModelSerializer):
             validated_data["peso_total"] = 0
 
         return super().create(validated_data)
+
+    def get_ordenes_detalle(self, obj):
+        """
+        Devuelve un listado de órdenes asociadas al envío con:
+        - id_orden
+        - cliente_nombre
+        - estado_de_envio
+        """
+        qs = Orden.objects.filter(id_envio=obj).select_related("id_cliente")
+        resultado = []
+        for o in qs:
+            cliente_nombre = getattr(o.id_cliente, "nombre", None)
+            resultado.append(
+                {
+                    "id_orden": o.id_orden,
+                    "cliente_nombre": cliente_nombre,
+                    "estado_de_envio": o.estado_de_envio,
+                }
+            )
+        return resultado
 
 
 # ============================================================

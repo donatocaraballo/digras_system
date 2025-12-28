@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.db import transaction
 from django.db.models import F
+from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from base.viewsets import BaseViewSet
 from base.models import Orden, DetalleOrden, Usuario
@@ -417,6 +418,37 @@ class OrdenViewSet(BaseViewSet):
         )
 
         return Response(OrdenSerializer(orden).data, status=status.HTTP_200_OK)
+
+    #Cambiar estado de pago
+    @action(detail=True, methods=["post"], url_path="cambiar_estado_pago")
+    def cambiar_estado_pago(self, request, pk=None):
+        orden = self.get_object()
+        usuario = request.user
+
+        # Solo vendedor puede cambiar pago (igual que en el front)
+        if getattr(usuario, "tipo", None) != "VENDEDOR":
+            raise PermissionDenied(
+                "Solo un usuario de tipo VENDEDOR puede registrar pagos."
+            )
+
+        # No permitir en órdenes PENDIENTE POR APROBACION
+        estado_envio = (orden.estado_de_envio or "").upper()
+        if "PENDIENTE" in estado_envio and "APROBACION" in estado_envio:
+            raise ValidationError(
+                {
+                    "detail": "No puedes cambiar el estado de pago de una orden que está PENDIENTE POR APROBACION."
+                }
+            )
+
+        nuevo_estado = request.data.get("nuevo_estado")
+        if not nuevo_estado:
+            raise ValidationError({"detail": "Debes indicar 'nuevo_estado'."})
+
+        orden.estado_de_pago = nuevo_estado
+        orden.save(update_fields=["estado_de_pago"])
+
+        serializer = self.get_serializer(orden)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     # ==========================================================
     #   CANCELAR ORDEN (solo VENDEDOR que la creó)
