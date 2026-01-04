@@ -25,9 +25,30 @@ function Login() {
 
         try {
             await login(username, password);
-            navigate('/inventario'); 
+            navigate('/'); // Redirige al inicio
         } catch (err) {
-            setError('Credenciales incorrectas.');
+            console.error("Login Error:", err);
+            
+            // 🚨 LÓGICA DE ERRORES ACTUALIZADA 🚨
+            if (err.response) {
+                const data = err.response.data;
+                const status = err.response.status;
+
+                // 1. Caso Específico: Cuenta Desactivada (Viene del backend modificado)
+                if (data.detail === "CUENTA_DESACTIVADA") {
+                    setError('⛔ Tu cuenta está desactivada. Por favor, contacta al gerente.');
+                }
+                // 2. Caso Credenciales Incorrectas (Django devuelve "Unable to log in...")
+                else if (status === 400 || (data.non_field_errors && data.non_field_errors.length > 0)) {
+                    setError('Credenciales incorrectas. Verifica tu usuario y contraseña.');
+                }
+                // 3. Otros errores
+                else {
+                    setError('Ocurrió un error al conectar con el servidor.');
+                }
+            } else {
+                setError('No se pudo conectar al servidor. Revisa tu internet.');
+            }
         } finally {
             setLoading(false);
         }
@@ -50,7 +71,6 @@ function Login() {
                 `}
             </style>
 
-            {/* Fondo oscuro neutro (Sin degradado de color) */}
             <div style={styles.overlay}></div>
 
             <div style={styles.contentWrapper}>
@@ -63,7 +83,6 @@ function Login() {
                 {/* TARJETA DE VIDRIO BLANCO */}
                 <div style={styles.glassCard}>
                     <div style={styles.header}>
-                        {/* Título en Azul */}
                         <h2 style={styles.welcomeTitle}>Bienvenido</h2>
                         <p style={styles.welcomeText}>Ingresa a tu cuenta para gestionar el sistema.</p>
                     </div>
@@ -99,9 +118,8 @@ function Login() {
                             />
                         </div>
 
-                        {error && <div style={styles.errorBox}>⚠️ {error}</div>}
+                        {error && <div style={styles.errorBox}>{error}</div>}
 
-                        {/* Botón con degradado Azul a Rojo */}
                         <button 
                             type="submit" 
                             style={loading ? styles.buttonDisabled : styles.button}
@@ -120,7 +138,7 @@ function Login() {
     );
 }
 
-// --- ESTILOS CON PALETA AZUL Y ROJA ---
+// --- ESTILOS ---
 const styles = {
     container: {
         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -135,7 +153,7 @@ const styles = {
     },
     overlay: {
         position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)', // Fondo oscuro neutro
+        backgroundColor: 'rgba(0, 0, 0, 0.6)', 
         backdropFilter: 'blur(8px)', 
     },
     contentWrapper: {
@@ -160,7 +178,7 @@ const styles = {
         width: '380px',
         padding: '40px',
         borderRadius: '24px',
-        backgroundColor: 'rgba(255, 255, 255, 0.9)', // Blanco sólido legible
+        backgroundColor: 'rgba(255, 255, 255, 0.9)', 
         backdropFilter: 'blur(20px)', 
         boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
         border: '1px solid rgba(255, 255, 255, 0.8)',
@@ -171,7 +189,7 @@ const styles = {
     },
     welcomeTitle: {
         fontSize: '1.8rem',
-        color: '#0d47a1', // 🔵 CAMBIO: Azul Corporativo
+        color: '#0d47a1', 
         margin: '0 0 5px 0',
         fontWeight: '800',
         letterSpacing: '-0.5px',
@@ -197,15 +215,15 @@ const styles = {
         transition: 'all 0.3s ease',
     },
     inputGroupFocus: {
-        borderColor: '#0d47a1', // 🔵 CAMBIO: Borde Azul al enfocar
-        boxShadow: '0 4px 15px rgba(13, 71, 161, 0.2)', // Sombra azul suave
+        borderColor: '#0d47a1', 
+        boxShadow: '0 4px 15px rgba(13, 71, 161, 0.2)', 
         transform: 'translateY(-2px)',
     },
     icon: {
         fontSize: '1.2rem',
         marginRight: '10px',
         opacity: 0.5,
-        color: '#0d47a1', // Iconos ligeramente azules
+        color: '#0d47a1',
     },
     input: {
         width: '100%',
@@ -219,27 +237,27 @@ const styles = {
     },
     errorBox: {
         backgroundColor: '#ffebee',
-        color: '#c62828', // 🔴 Rojo para errores
-        padding: '10px',
+        color: '#c62828', 
+        padding: '12px',
         borderRadius: '8px',
-        fontSize: '0.85rem',
+        fontSize: '0.9rem',
         fontWeight: '600',
         borderLeft: '4px solid #c62828',
         textAlign: 'left',
+        lineHeight: '1.4',
     },
     button: {
         marginTop: '10px',
         padding: '15px',
         borderRadius: '12px',
         border: 'none',
-        // 🔵🔴 CAMBIO: Gradiente de Azul a Rojo
         background: 'linear-gradient(135deg, #0d47a1 0%, #d32f2f 100%)',
         color: 'white',
         fontSize: '1.1rem',
         fontWeight: 'bold',
         letterSpacing: '1px',
         cursor: 'pointer',
-        boxShadow: '0 6px 20px rgba(13, 71, 161, 0.4)', // Sombra azulada
+        boxShadow: '0 6px 20px rgba(13, 71, 161, 0.4)', 
         transition: 'transform 0.2s, box-shadow 0.2s',
         textTransform: 'uppercase',
     },

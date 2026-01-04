@@ -213,6 +213,9 @@ class ClienteViewSet(BaseViewSet):
         usuario = self.request.user
         cliente: Cliente = serializer.instance
 
+        if getattr(usuario, "tipo", None) == "VENDEDOR" and cliente.id_usuario != usuario:
+             raise PermissionDenied("No puedes editar un cliente que no te pertenece.")
+
         self._asegurar_vendedor_propietario(cliente)
 
         old_activo = getattr(cliente, "activo", True)
@@ -896,27 +899,33 @@ class UnidadViewSet(BaseViewSet):
 
 
 # ============================================================
-#   LOGIN PERSONALIZADO
+#   LOGIN PERSONALIZADO (MODIFICADO)
 # ============================================================
 
 class CustomLogin(ObtainAuthToken):
     """
-    Vista de Login que devuelve:
-    {
-        "token": "...",
-        "user": {
-            "id_usuario": 1,
-            "username": "admin",
-            "tipo": "GERENTE",
-            "first_name": "Juan",
-            "last_name": "Perez",
-            ...
-        }
-    }
+    Vista de Login modificada para detectar usuarios inactivos
+    antes de validar la contraseña.
     """
 
     def post(self, request, *args, **kwargs):
-        # Valida credenciales (username/password)
+        # 1. VERIFICACIÓN MANUAL DE ESTADO
+        # Obtenemos el username sin validar password todavía
+        username = request.data.get('username')
+        
+        # Buscamos si existe ese usuario en la BD
+        user_obj = Usuario.objects.filter(username=username).first()
+        
+        # Si existe y está desactivado (is_active = False)
+        if user_obj is not None and not user_obj.is_active:
+            # Devolvemos el error específico que espera el Frontend
+            return Response(
+                {"detail": "CUENTA_DESACTIVADA"}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 2. VALIDACIÓN ESTÁNDAR (Si está activo o no existe el user)
+        # Aquí Django valida si la contraseña es correcta
         serializer = self.serializer_class(
             data=request.data,
             context={"request": request},
@@ -924,10 +933,8 @@ class CustomLogin(ObtainAuthToken):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
 
-        # Obtiene o crea el token
+        # 3. GENERACIÓN DE RESPUESTA EXITOSA
         token, created = Token.objects.get_or_create(user=user)
-
-        # Serializa el usuario completo usando tu UsuarioSerializer
         user_data = UsuarioSerializer(user).data
 
         return Response(

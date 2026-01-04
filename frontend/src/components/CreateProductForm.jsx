@@ -9,6 +9,10 @@ const PRODUCTOS_URL = '/api/inventario/productos/';
 const MARCAS_URL = '/api/inventario/marcas/';
 const CATEGORIAS_URL = '/api/inventario/categorias/';
 
+// --- ICONOS SVG ---
+const IconClose = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
+const IconPlus = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
+
 function CreateProductForm({ isOpen, onClose, onUpdate }) {
     // Estados
     const [name, setName] = useState('');
@@ -31,7 +35,6 @@ function CreateProductForm({ isOpen, onClose, onUpdate }) {
         if (name) {
             const cleanName = name.trim().replace(/\s+/g, '').toUpperCase();
             const initials = cleanName.substring(0, 2) || 'XX';
-            // Mostramos #### para indicar que el sistema pondrá el número (ej: 0001)
             setSku(`PRD-####-${initials}`);
         } else {
             setSku('');
@@ -82,7 +85,6 @@ function CreateProductForm({ isOpen, onClose, onUpdate }) {
         try {
             const productData = {
                 nombre: name,
-                // NO enviamos SKU, el backend pone el contador (0001, 0002...)
                 precio_venta: parseFloat(price),
                 peso_unidad: 0.10,
                 id_marca: parseInt(marcaId), 
@@ -106,53 +108,108 @@ function CreateProductForm({ isOpen, onClose, onUpdate }) {
     if (!isOpen) return null;
 
     return (
-        <div style={modalOverlayStyle}>
-            <div style={modalContentStyle}>
-                <button type="button" onClick={onClose} style={closeButtonStyle}>X</button>
+        <div style={styles.modalOverlay}>
+            <div style={styles.modal}>
+                
+                {/* Header */}
+                <div style={styles.header}>
+                    <div>
+                        <h3 style={styles.title}>Nuevo Producto</h3>
+                        <p style={styles.subtitle}>Complete la información del inventario.</p>
+                    </div>
+                    <button onClick={onClose} style={styles.closeBtn}><IconClose /></button>
+                </div>
 
-                <form onSubmit={handleSubmit}>
-                    <h3 style={{ marginTop: 0 }}>⭐ Nuevo Producto (Admin)</h3>
+                <form onSubmit={handleSubmit} style={styles.formContent}>
                     
-                    <label style={labelStyle}>Nombre:</label>
-                    <input type="text" placeholder="Ej: Jamón Planchado" value={name} onChange={(e) => setName(e.target.value)} required style={inputStyle} />
+                    {/* Nombre */}
+                    <div style={styles.formGroup}>
+                        <label style={styles.label}>Nombre del Producto</label>
+                        <input 
+                            type="text" 
+                            placeholder="Ej: Jamón Planchado" 
+                            value={name} 
+                            onChange={(e) => setName(e.target.value)} 
+                            required 
+                            style={styles.input} 
+                        />
+                    </div>
                     
-                    <div style={{display: 'flex', gap: '10px'}}>
+                    {/* Grid SKU y Precio */}
+                    <div style={styles.row}>
                         <div style={{flex: 1}}>
-                            <label style={labelStyle}>SKU (Automático):</label>
+                            <label style={styles.label}>SKU (Automático)</label>
                             <input 
                                 type="text" 
                                 value={sku} 
                                 readOnly 
                                 disabled
-                                placeholder="Se genera al guardar..."
-                                style={{...inputStyle, backgroundColor: '#e9ecef', color: '#555', fontWeight: 'bold', cursor: 'not-allowed'}} 
+                                placeholder="Generado..."
+                                style={{...styles.input, backgroundColor: '#f1f5f9', color: '#64748b', cursor: 'not-allowed'}} 
                             />
                         </div>
                         <div style={{flex: 1}}>
-                            <label style={labelStyle}>Precio Venta:</label>
-                            <input type="number" value={price} onChange={(e) => setPrice(e.target.value)} required min="0.01" step="0.01" style={inputStyle} />
+                            <label style={styles.label}>Precio Venta ($)</label>
+                            <input 
+                                type="number" 
+                                value={price} 
+                                onChange={(e) => setPrice(e.target.value)} 
+                                required 
+                                min="0.01" 
+                                step="0.01" 
+                                style={styles.input} 
+                            />
                         </div>
                     </div>
 
-                    <div style={selectGroupStyle}>
-                        <select value={marcaId} onChange={(e) => setMarcaId(parseInt(e.target.value))} required style={selectStyle}>
-                            {marcas.map(m => (<option key={m.id_marca} value={m.id_marca}>{m.nombre}</option>))}
-                        </select>
-                        <button type="button" onClick={() => setIsMarcaModalOpen(true)} style={createButtonStyle}>+ Marca</button>
+                    {/* Marca con botón añadir */}
+                    <div style={styles.formGroup}>
+                        <label style={styles.label}>Marca</label>
+                        <div style={styles.inputWithAction}>
+                            <select value={marcaId} onChange={(e) => setMarcaId(parseInt(e.target.value))} required style={styles.select}>
+                                {marcas.map(m => (<option key={m.id_marca} value={m.id_marca}>{m.nombre}</option>))}
+                            </select>
+                            <button type="button" onClick={() => setIsMarcaModalOpen(true)} style={styles.btnSmallAction} title="Nueva Marca">
+                                <IconPlus />
+                            </button>
+                        </div>
                     </div>
                     
-                    <div style={selectGroupStyle}>
-                        <select value={categoriaId} onChange={(e) => setCategoriaId(parseInt(e.target.value))} required style={selectStyle}>
-                            {categorias.map(c => (<option key={c.id_categoria} value={c.id_categoria}>{c.nombre}</option>))}
-                        </select>
-                        <button type="button" onClick={() => setIsCategoriaModalOpen(true)} style={createButtonStyle}>+ Categ</button>
+                    {/* Categoria con botón añadir */}
+                    <div style={styles.formGroup}>
+                        <label style={styles.label}>Categoría</label>
+                        <div style={styles.inputWithAction}>
+                            <select value={categoriaId} onChange={(e) => setCategoriaId(parseInt(e.target.value))} required style={styles.select}>
+                                {categorias.map(c => (<option key={c.id_categoria} value={c.id_categoria}>{c.nombre}</option>))}
+                            </select>
+                            <button type="button" onClick={() => setIsCategoriaModalOpen(true)} style={styles.btnSmallAction} title="Nueva Categoría">
+                                <IconPlus />
+                            </button>
+                        </div>
                     </div>
 
-                    <button type="submit" style={submitButtonStyle} disabled={marcas.length === 0 || categorias.length === 0}>
-                        Crear Producto
-                    </button>
-                    
-                    {status && <p style={{ marginTop: '10px', color: status.includes('❌') ? 'red' : 'green', fontWeight: 'bold' }}>{status}</p>}
+                    {/* Status Message */}
+                    {status && (
+                        <div style={{
+                            marginTop: '10px', 
+                            padding: '10px', 
+                            borderRadius: '8px', 
+                            fontSize: '0.85rem',
+                            fontWeight: '600',
+                            backgroundColor: status.includes('❌') ? '#fee2e2' : '#dcfce7',
+                            color: status.includes('❌') ? '#991b1b' : '#166534'
+                        }}>
+                            {status}
+                        </div>
+                    )}
+
+                    {/* Footer Actions */}
+                    <div style={styles.footer}>
+                        <button type="button" onClick={onClose} style={styles.btnGhost}>Cancelar</button>
+                        <button type="submit" style={styles.btnPrimary} disabled={marcas.length === 0 || categorias.length === 0}>
+                            Crear Producto
+                        </button>
+                    </div>
                 </form>
             </div>
 
@@ -162,15 +219,65 @@ function CreateProductForm({ isOpen, onClose, onUpdate }) {
     );
 }
 
-// Estilos
-const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 };
-const modalContentStyle = { backgroundColor: 'white', padding: '30px', borderRadius: '8px', width: '500px', position: 'relative', maxHeight: '90vh', overflowY: 'auto', border: '1px solid #ccc', boxShadow: '0 4px 8px rgba(0,0,0,0.2)' };
-const closeButtonStyle = { position: 'absolute', top: '10px', right: '10px', background: 'none', border: 'none', fontSize: '1.2em', cursor: 'pointer', color: '#333', fontWeight: 'bold' };
-const inputStyle = { width: '100%', padding: '10px', margin: '5px 0 15px', boxSizing: 'border-box', border: '1px solid #ccc', borderRadius: '4px' };
-const labelStyle = { display: 'block', fontSize: '0.85em', fontWeight: 'bold', color: '#555', marginBottom: '3px' };
-const selectGroupStyle = { display: 'flex', alignItems: 'center', marginBottom: '15px' };
-const selectStyle = { padding: '10px', flexGrow: 1, marginRight: '10px', border: '1px solid #ccc', borderRadius: '4px' };
-const createButtonStyle = { padding: '10px 15px', backgroundColor: '#2196f3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' };
-const submitButtonStyle = { padding: '12px 15px', backgroundColor: '#009688', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', width: '100%', marginTop: '10px', fontWeight: 'bold', fontSize: '1.05em' };
+// --- ESTILOS PREMIUM UNIFICADOS ---
+const styles = {
+    modalOverlay: { 
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+        backgroundColor: 'rgba(15, 23, 42, 0.45)', 
+        backdropFilter: 'blur(4px)',
+        display: 'flex', justifyContent: 'center', alignItems: 'center', 
+        zIndex: 20000 // Z-Index alto como solicitaste
+    },
+    modal: { 
+        backgroundColor: '#ffffff', 
+        width: '100%', maxWidth: '500px', 
+        borderRadius: '16px', 
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', 
+        display: 'flex', flexDirection: 'column',
+        overflow: 'hidden',
+        border: '1px solid #e2e8f0'
+    },
+    header: { 
+        padding: '20px 24px', 
+        backgroundColor: '#f8fafc', 
+        borderBottom: '1px solid #e2e8f0', 
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' 
+    },
+    title: { margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' },
+    subtitle: { margin: '4px 0 0', fontSize: '0.875rem', color: '#64748b' },
+    closeBtn: { background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' },
+    
+    formContent: { padding: '24px' },
+    formGroup: { marginBottom: '16px' },
+    row: { display: 'flex', gap: '16px', marginBottom: '16px' },
+    
+    label: { display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#475569', marginBottom: '6px', textTransform: 'uppercase' },
+    input: { width: '100%', height: '40px', padding: '0 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', backgroundColor: '#fff', boxSizing: 'border-box' },
+    select: { width: '100%', height: '40px', padding: '0 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', backgroundColor: '#fff', boxSizing: 'border-box' },
+    
+    inputWithAction: { display: 'flex', gap: '8px' },
+    btnSmallAction: { 
+        width: '40px', height: '40px', 
+        display: 'flex', alignItems: 'center', justifyContent: 'center', 
+        backgroundColor: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', 
+        borderRadius: '8px', cursor: 'pointer' 
+    },
+    
+    footer: { 
+        marginTop: '24px', 
+        paddingTop: '20px', 
+        borderTop: '1px solid #f1f5f9', 
+        display: 'flex', justifyContent: 'flex-end', gap: '12px' 
+    },
+    
+    btnPrimary: { 
+        padding: '10px 20px', backgroundColor: '#0f172a', color: 'white', 
+        border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem' 
+    },
+    btnGhost: { 
+        padding: '10px 20px', backgroundColor: 'transparent', color: '#64748b', 
+        border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem' 
+    }
+};
 
 export default CreateProductForm;

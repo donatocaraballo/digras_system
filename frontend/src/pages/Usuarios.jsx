@@ -203,20 +203,28 @@ const styles = {
     border: `1px solid ${isActive ? "#bbf7d0" : "#fecaca"}`,
   }),
 
-  // Modales
+  // --- MODALES (CORREGIDO Z-INDEX) ---
   modalOverlay: {
-    position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.6)",
-    backdropFilter: "blur(4px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 4000,
+    position: "fixed", 
+    inset: 0, 
+    background: "rgba(15, 23, 42, 0.6)",
+    backdropFilter: "blur(4px)", 
+    display: "flex", 
+    justifyContent: "center", 
+    alignItems: "center", 
+    zIndex: 20000, // 🚨 CORRECCIÓN: Z-Index muy alto para tapar el Navbar (que es 9999)
   },
+  // Modal de Formulario (Grande)
   modal: {
     width: "100%", maxWidth: "600px", background: "#ffffff", borderRadius: "16px",
     boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", padding: "30px", boxSizing: "border-box",
-    animation: "scaleUp 0.2s ease-out",
+    animation: "scaleUp 0.2s ease-out", position: 'relative'
   },
+  // Modal de Confirmación (Pequeño)
   confirmModal: {
     width: "100%", maxWidth: "400px", background: "#ffffff", borderRadius: "16px",
     boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", padding: "25px", boxSizing: "border-box",
-    animation: "scaleUp 0.2s ease-out", textAlign: 'center'
+    animation: "scaleUp 0.2s ease-out", textAlign: 'center', position: 'relative'
   },
   modalTitle: { fontSize: "1.3rem", fontWeight: "700", color: "#0f172a", marginBottom: "5px" },
   modalSubtitle: { fontSize: "0.9rem", color: "#64748b", marginBottom: "20px" },

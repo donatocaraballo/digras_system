@@ -20,9 +20,9 @@ router = DefaultRouter()
 router.register('usuarios', UsuarioViewSet)
 router.register('registros', RegistroAccionViewSet)
 router.register('unidades', UnidadViewSet)
-router.register('envios', EnvioViewSet) 
+router.register('envios', EnvioViewSet)
 router.register('clientes', ClienteViewSet)
-router.register("transporte", TransporteViewSet, basename="transporte")
+router.register('transporte', TransporteViewSet, basename="transporte")
 
 urlpatterns = [
     # Rutas del router (usuarios/, etc.)

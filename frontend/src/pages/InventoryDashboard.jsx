@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import CreateProductForm from '../components/CreateProductForm';
 import AdvancedSearchBar from '../components/AdvancedSearchBar';
 import TableSkeleton from '../components/TableSkeleton';
+import { useAuth } from '../AuthContext'; // 1. Importar AuthContext
 
 // --- ICONOS SVG ---
 const IconBox = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>;
@@ -16,6 +17,8 @@ const PRODUCTOS_URL = '/api/inventario/productos/';
 const EXISTENCIAS_URL = '/api/inventario/existencias/';
 
 function InventoryDashboard({ refreshTrigger, onUpdate }) {
+    const { user } = useAuth(); // 2. Obtener usuario para permisos
+    
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -88,7 +91,6 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
                     <div><h2 style={styles.title}>Inventario General</h2><p style={styles.subtitle}>Cargando datos...</p></div>
                 </div>
             </div>
-            {/* Ajustado a 7 columnas para el esqueleto */}
             <TableSkeleton rows={8} columns={7} />
         </div>
     );
@@ -108,9 +110,13 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
                             <p style={styles.subtitle}>Vista consolidada de existencias y precios</p>
                         </div>
                     </div>
-                    <button onClick={() => setIsCreateModalOpen(true)} style={styles.createBtn}>
-                        <IconPlus /> Nuevo Producto
-                    </button>
+                    
+                    {/* 3. RESTRICCIÓN DEL BOTÓN: SOLO ADMINISTRADOR */}
+                    {user?.tipo === 'ADMINISTRADOR' && (
+                        <button onClick={() => setIsCreateModalOpen(true)} style={styles.createBtn}>
+                            <IconPlus /> Nuevo Producto
+                        </button>
+                    )}
                 </div>
 
                 <div style={styles.kpiGrid}>
@@ -155,7 +161,6 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
                         <thead>
                             <tr style={styles.theadRow}>
                                 <th style={styles.th}>Producto</th>
-                                {/* 🚨 AHORA SON DOS COLUMNAS SEPARADAS */}
                                 <th style={styles.th}>Marca</th>
                                 <th style={styles.th}>Categoría</th>
                                 <th style={styles.thRight}>Precio Venta</th>
@@ -172,12 +177,10 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
                                         <div style={styles.prodSku}>SKU: {p.sku}</div>
                                     </td>
                                     
-                                    {/* COLUMNA MARCA */}
                                     <td style={styles.td}>
                                         <div style={styles.brandText}>{p.marca}</div>
                                     </td>
 
-                                    {/* COLUMNA CATEGORÍA */}
                                     <td style={styles.td}>
                                         <span style={styles.categoryBadge}>{p.categoria}</span>
                                     </td>

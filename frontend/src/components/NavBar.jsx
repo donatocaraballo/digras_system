@@ -3,20 +3,42 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
+import api from '../api/api'; 
 
 // Importa tu logo
 import logoImg from '../assets/logo.png'; 
 
 function Navbar() {
-    const { logout, user } = useAuth();
+    const { logout, user: authUser } = useAuth(); 
+    const [userData, setUserData] = useState(null); 
     const location = useLocation();
     const navigate = useNavigate();
     
-    // Estado para el menú desplegable del perfil
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const profileRef = useRef(null);
 
-    // Cerrar el menú si se hace clic fuera
+    // 1. RECUPERACIÓN DE DATOS
+    useEffect(() => {
+        const fetchUserData = async () => {
+            const idToFetch = authUser?.id_usuario || authUser?.id || authUser?.user?.id;
+
+            if (idToFetch) {
+                try {
+                    const response = await api.get(`/base/usuarios/${idToFetch}/`);
+                    setUserData(response.data);
+                } catch (error) {
+                    console.error("Error actualizando perfil:", error);
+                    setUserData(authUser);
+                }
+            }
+        };
+
+        if (authUser) {
+            fetchUserData();
+        }
+    }, [authUser]);
+
+    // Cerrar menú al hacer clic fuera
     useEffect(() => {
         function handleClickOutside(event) {
             if (profileRef.current && !profileRef.current.contains(event.target)) {
@@ -29,61 +51,127 @@ function Navbar() {
         };
     }, [profileRef]);
 
-    const modules = [
-        { path: '/', name: 'Inicio', icon: '🏠', color: '#818cf8', glow: '0 0 10px #818cf8' },
+    // --- DETERMINAR ROL ---
+    const currentUser = userData || authUser;
+
+    const getUserRole = () => {
+        if (!currentUser) return 'INVITADO';
+        // 1. Si tiene rol explícito, lo usamos
+        if (currentUser.tipo) return currentUser.tipo;
         
-        // Ventas
-        { path: '/crear-orden', name: 'Vender', icon: '⚡', color: '#38bdf8', glow: '0 0 10px #38bdf8' },
-        { path: '/ordenes', name: 'Historial', icon: '📋', color: '#60a5fa', glow: '0 0 10px #60a5fa' },
-        { path: '/clientes', name: 'Clientes', icon: '👥', color: '#2dd4bf', glow: '0 0 10px #2dd4bf' },
-
-        // Gestión
-        { path: '/inventario', name: 'Stock', icon: '📦', color: '#fb923c', glow: '0 0 10px #fb923c' },
-        { path: '/compras', name: 'Compras', icon: '🛒', color: '#34d399', glow: '0 0 10px #34d399' },
-        { path: '/recepcion', name: 'Almacén', icon: '📥', color: '#facc15', glow: '0 0 10px #facc15' },
+        // 2. Si es superuser y no tiene rol asignado, asumimos que es GERENTE por defecto
+        if (currentUser.is_superuser) return 'GERENTE'; 
         
-        // Admin / Logística
-        { path: '/aprobaciones', name: 'Aprobar', icon: '✅', color: '#a3e635', glow: '0 0 10px #a3e635' },
-        { path: '/proveedores', name: 'Proveedores', icon: '🚚', color: '#94a3b8', glow: '0 0 10px #94a3b8' },
-        { path: '/preparacion', name: 'Preparacion', icon: '🚚', color: '#94a3b8', glow: '0 0 10px #94a3b8' }, // Slate
+        return 'SIN ROL';
+    };
 
-        // Transporte
-        { path: '/envios', name: 'Envios', icon: '🚚', color: '#94a3b8', glow: '0 0 10px #94a3b8' }, // Slate
+    const userRole = getUserRole(); 
 
-        // U
-        { path: '/usuarios', name: 'Usuarios', icon: '👤', color: '#6366f1', glow: '0 0 10px #6366f1' }, // Indigo
+    // --- CONFIGURACIÓN DE MÓDULOS ---
+    const allModules = [
+        // COMÚN
+        { 
+            path: '/', name: 'Inicio', icon: '🏠', color: '#818cf8', glow: '0 0 10px #818cf8',
+            allowedRoles: ['GERENTE', 'VENDEDOR', 'ADMINISTRADOR', 'ALMACENISTA', 'TRANSPORTISTA']
+        },
+        
+        // VENTAS (Solo Vendedor)
+        { 
+            path: '/crear-orden', name: 'Vender', icon: '⚡', color: '#38bdf8', glow: '0 0 10px #38bdf8',
+            allowedRoles: ['VENDEDOR']
+        },
+        // Historial y Clientes (Vendedor opera, Gerente supervisa)
+        { 
+            path: '/ordenes', name: 'Historial', icon: '📋', color: '#60a5fa', glow: '0 0 10px #60a5fa',
+            allowedRoles: ['GERENTE', 'VENDEDOR', 'ADMINISTRADOR']
+        },
+        { 
+            path: '/clientes', name: 'Clientes', icon: '👥', color: '#2dd4bf', glow: '0 0 10px #2dd4bf',
+            allowedRoles: ['GERENTE', 'VENDEDOR']
+        },
 
-        { path: '/registros', name: 'Acciones', icon: '👤', color: '#6366f1', glow: '0 0 10px #6366f1' },
+        // GESTIÓN
+        { 
+            path: '/inventario', name: 'Stock', icon: '📦', color: '#fb923c', glow: '0 0 10px #fb923c',
+            allowedRoles: ['GERENTE', 'VENDEDOR', 'ADMINISTRADOR', 'ALMACENISTA']
+        },
+        { 
+            path: '/compras', name: 'Compras', icon: '🛒', color: '#34d399', glow: '0 0 10px #34d399',
+            allowedRoles: ['GERENTE', 'ADMINISTRADOR']
+        },
+        
+        // ALMACÉN (Operativo: Solo Almacenista)
+        { 
+            path: '/recepcion', name: 'Almacén', icon: '📥', color: '#facc15', glow: '0 0 10px #facc15',
+            allowedRoles: ['ALMACENISTA']
+        },
+        { 
+            path: '/preparacion', name: 'Preparación', icon: '📦', color: '#94a3b8', glow: '0 0 10px #94a3b8',
+            allowedRoles: ['ALMACENISTA']
+        },
+        
+        // ADMIN / LOGÍSTICA
+        { 
+            path: '/aprobaciones', name: 'Aprobar', icon: '✅', color: '#a3e635', glow: '0 0 10px #a3e635',
+            allowedRoles: ['GERENTE']
+        },
+        { 
+            path: '/proveedores', name: 'Proveedores', icon: '🏭', color: '#94a3b8', glow: '0 0 10px #94a3b8',
+            allowedRoles: ['GERENTE', 'ADMINISTRADOR']
+        },
 
-        { path: '/transportistas', name: 'Transportista', icon: '👤', color: '#6366f1', glow: '0 0 10px #6366f1' },
+        // TRANSPORTE
+        { 
+            path: '/envios', name: 'Envíos', icon: '🚛', color: '#a78bfa', glow: '0 0 10px #a78bfa',
+            allowedRoles: ['GERENTE']
+        },
+        { 
+            path: '/transporte', name: 'Mi Ruta', icon: '🚚', color: '#ec4899', glow: '0 0 10px #ec4899',
+            allowedRoles: ['TRANSPORTISTA']
+        },
+
+        // SISTEMA (Solo Gerente)
+        { 
+            path: '/usuarios', name: 'Usuarios', icon: '👤', color: '#6366f1', glow: '0 0 10px #6366f1',
+            allowedRoles: ['GERENTE']
+        },
+        { 
+            path: '/registros', name: 'Acciones', icon: '🛡️', color: '#f43f5e', glow: '0 0 10px #f43f5e',
+            allowedRoles: ['GERENTE']
+        },
     ];
 
-    // Helper para obtener color según el rol
+    // 🚨 FILTRADO ESTRICTO (Sin excepciones de superusuario)
+    const visibleModules = allModules.filter(mod => {
+        return mod.allowedRoles.includes(userRole);
+    });
+
+    // Helper nombre
+    const getFullName = () => {
+        if (currentUser?.first_name || currentUser?.last_name) {
+            return `${currentUser.first_name} ${currentUser.last_name}`.trim();
+        }
+        return currentUser?.username ? currentUser.username.charAt(0).toUpperCase() + currentUser.username.slice(1) : 'Usuario';
+    };
+
+    // Estilos Badge
     const getRoleBadgeStyle = (role) => {
         const r = (role || '').toUpperCase();
-        if (r === 'GERENTE') return { bg: '#dcfce7', color: '#166534', border: '#bbf7d0' }; // Verde
-        if (r === 'ADMINISTRADOR') return { bg: '#e0f2fe', color: '#0369a1', border: '#bae6fd' }; // Azul
-        if (r === 'VENDEDOR') return { bg: '#ffedd5', color: '#9a3412', border: '#fed7aa' }; // Naranja
-        if (r === 'ALMACENISTA') return { bg: '#fef9c3', color: '#854d0e', border: '#fde047' }; // Amarillo
-        if (r === 'TRANSPORTISTA') return { bg: '#f3e8ff', color: '#6b21a8', border: '#d8b4fe' }; // Morado
-        return { bg: '#f1f5f9', color: '#475569', border: '#e2e8f0' }; // Gris
+        if (r === 'GERENTE') return { bg: '#dcfce7', color: '#166534', border: '#bbf7d0' }; 
+        if (r === 'ADMINISTRADOR') return { bg: '#e0f2fe', color: '#0369a1', border: '#bae6fd' }; 
+        if (r === 'VENDEDOR') return { bg: '#ffedd5', color: '#9a3412', border: '#fed7aa' }; 
+        if (r === 'ALMACENISTA') return { bg: '#fef9c3', color: '#854d0e', border: '#fde047' }; 
+        if (r === 'TRANSPORTISTA') return { bg: '#f3e8ff', color: '#6b21a8', border: '#d8b4fe' }; 
+        return { bg: '#f1f5f9', color: '#475569', border: '#e2e8f0' }; 
     };
 
-    const roleStyle = getRoleBadgeStyle(user?.tipo);
-
-    // Helper para nombre completo
-    const getFullName = () => {
-        if (user?.first_name || user?.last_name) {
-            return `${user.first_name} ${user.last_name}`.trim();
-        }
-        return user?.username || 'Usuario';
-    };
+    const roleStyle = getRoleBadgeStyle(userRole);
 
     return (
         <div style={styles.navWrapper}>
             <nav style={styles.island}>
                 
-                {/* 1. SECCIÓN DE MARCA (LOGO) */}
+                {/* LOGO */}
                 <div style={styles.brandSection} onClick={() => navigate('/')}>
                     <div style={styles.logoContainer}>
                         <img 
@@ -96,9 +184,9 @@ function Navbar() {
                     </div>
                 </div>
 
-                {/* 2. MENÚ DE MÓDULOS */}
+                {/* MENÚ */}
                 <div style={styles.menuItems}>
-                    {modules.map((mod) => {
+                    {visibleModules.map((mod) => {
                         const isActive = location.pathname === mod.path;
                         return (
                             <Link key={mod.name} to={mod.path} style={{ textDecoration: 'none' }}>
@@ -125,53 +213,53 @@ function Navbar() {
                     })}
                 </div>
 
-                {/* 3. PERFIL DE USUARIO (VISUALIZACIÓN DIRECTA) */}
+                {/* PERFIL */}
                 <div style={styles.profileSection} ref={profileRef}>
                     <div 
                         style={styles.userInfo} 
                         onClick={() => setShowProfileMenu(!showProfileMenu)}
                     >
-                        {/* Avatar */}
                         <div style={styles.avatarCircle}>
-                            {user?.username?.charAt(0).toUpperCase() || "U"}
+                            {currentUser?.username?.charAt(0).toUpperCase() || "U"}
                         </div>
                         
-                        {/* Info Texto (Visible siempre) */}
-                        <div style={styles.userMetaVisible}>
+                        <div className="user-meta-visible" style={styles.userMetaVisible}>
                             <span style={styles.visibleName}>{getFullName()}</span>
-                            <span style={{...styles.visibleRole, color: roleStyle.color}}>
-                                {user?.tipo || 'INVITADO'}
-                            </span>
+                            <div style={styles.subMetaRow}>
+                                <span style={styles.visibleUsername}>@{currentUser?.username}</span>
+                                <span style={styles.bulletPoint}>•</span>
+                                <span style={{...styles.visibleRole, color: roleStyle.color}}>
+                                    {userRole}
+                                </span>
+                            </div>
                         </div>
 
-                        <span style={{fontSize:'0.7rem', color:'#94a3b8', marginLeft: '5px'}}>▼</span>
+                        <span style={{fontSize:'0.7rem', color:'#94a3b8', marginLeft: '8px'}}>▼</span>
                     </div>
 
-                    {/* MENÚ FLOTANTE (DROPDOWN) */}
+                    {/* DROPDOWN */}
                     {showProfileMenu && (
                         <div style={styles.profileDropdown}>
-                            {/* Cabecera del Dropdown */}
                             <div style={styles.dropdownHeader}>
                                 <div style={styles.largeAvatar}>
-                                    {user?.username?.charAt(0).toUpperCase() || "U"}
+                                    {currentUser?.username?.charAt(0).toUpperCase() || "U"}
                                 </div>
                                 <div style={styles.dropdownMeta}>
                                     <div style={styles.ddFullname}>{getFullName()}</div>
-                                    <div style={styles.ddUsername}>@{user?.username}</div>
+                                    <div style={styles.ddUsername}>@{currentUser?.username}</div>
                                     <div style={{
                                         ...styles.roleBadge, 
                                         backgroundColor: roleStyle.bg, 
                                         color: roleStyle.color,
                                         borderColor: roleStyle.border
                                     }}>
-                                        {user?.tipo || 'Sin Rol'}
+                                        {userRole}
                                     </div>
                                 </div>
                             </div>
 
                             <div style={styles.dropdownDivider}></div>
 
-                            {/* Acciones */}
                             <button onClick={logout} style={styles.dropdownLogoutBtn}>
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                                 Cerrar Sesión
@@ -181,7 +269,6 @@ function Navbar() {
                 </div>
             </nav>
 
-            {/* ESTILOS DINÁMICOS CSS */}
             <style>{`
                 .nav-pill {
                     display: flex;
@@ -210,6 +297,10 @@ function Navbar() {
                     opacity: 1 !important;
                     margin-left: 8px;
                 }
+                .user-meta-visible { display: none; }
+                @media (min-width: 1024px) {
+                    .user-meta-visible { display: flex !important; }
+                }
                 ::-webkit-scrollbar { height: 0px; background: transparent; }
             `}</style>
         </div>
@@ -233,7 +324,7 @@ const styles = {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: 'rgba(15, 23, 42, 0.9)', // Fondo oscuro
+        backgroundColor: 'rgba(15, 23, 42, 0.9)', 
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
         border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -250,11 +341,12 @@ const styles = {
     logoImage: { height: '38px', width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 0 5px rgba(255,255,255,0.3))' },
     fallbackLogoText: { display: 'none', color: '#fff', fontWeight: '900', letterSpacing: '2px', fontSize: '1.2rem' },
 
-    // Menú Central
+    // Menú
     menuItems: { display: 'flex', gap: '6px', alignItems: 'center', overflowX: 'auto', padding: '0 10px', flex: 1, justifyContent: 'center', scrollbarWidth: 'none' },
     label: { fontSize: '0.85rem', fontWeight: '600', whiteSpace: 'nowrap' },
+    navItem: {}, 
 
-    // --- PERFIL DE USUARIO ---
+    // Perfil
     profileSection: { 
         position: 'relative', 
         paddingLeft: '20px', 
@@ -263,7 +355,7 @@ const styles = {
     userInfo: { 
         display: 'flex', 
         alignItems: 'center', 
-        gap: '10px', 
+        gap: '12px', 
         cursor: 'pointer', 
         padding: '4px 8px', 
         borderRadius: '30px', 
@@ -271,33 +363,47 @@ const styles = {
         ':hover': { backgroundColor: 'rgba(255,255,255,0.05)' }
     },
     avatarCircle: {
-        width: '38px', height: '38px', borderRadius: '50%',
+        width: '40px', height: '40px', borderRadius: '50%',
         background: 'linear-gradient(135deg, #6366f1, #a855f7)',
         color: 'white', display: 'flex', justifyContent: 'center', alignItems: 'center',
-        fontWeight: 'bold', fontSize: '0.9rem', boxShadow: '0 0 10px rgba(168, 85, 247, 0.4)',
+        fontWeight: 'bold', fontSize: '1rem', boxShadow: '0 0 10px rgba(168, 85, 247, 0.4)',
     },
+    
+    // Texto Visible
     userMetaVisible: {
-        display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
         lineHeight: '1.2',
-        display: 'none', 
-        '@media (min-width: 768px)': { display: 'flex' } // Ocultar en móvil si falta espacio
+        textAlign: 'left'
     },
     visibleName: {
         color: '#f1f5f9',
         fontSize: '0.85rem',
-        fontWeight: '600',
+        fontWeight: '700',
         whiteSpace: 'nowrap'
+    },
+    subMetaRow: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px'
+    },
+    visibleUsername: {
+        color: '#94a3b8', 
+        fontSize: '0.75rem',
+        fontWeight: '500'
+    },
+    bulletPoint: {
+        color: '#475569',
+        fontSize: '0.6rem'
     },
     visibleRole: {
         fontSize: '0.65rem',
-        fontWeight: '700',
+        fontWeight: '800',
         textTransform: 'uppercase',
         letterSpacing: '0.5px'
     },
     
-    // --- DROPDOWN DEL PERFIL ---
+    // Dropdown
     profileDropdown: {
         position: 'absolute',
         top: '65px',
@@ -339,27 +445,5 @@ const styles = {
         cursor: 'pointer', transition: 'background 0.2s'
     }
 };
-
-// Estilos globales para media queries (ya que los estilos en línea de JS no soportan @media directos bien sin librerías)
-const styleSheet = document.createElement("style");
-styleSheet.innerText = `
-  @keyframes fadeIn { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
-  .nav-pill:hover { background-color: rgba(255,255,255,0.08) !important; }
-  
-  /* Media query manual para mostrar/ocultar info de usuario en navbar */
-  @media (min-width: 1024px) {
-      .user-meta-visible { display: flex !important; }
-  }
-`;
-document.head.appendChild(styleSheet);
-
-// Pequeño hack para aplicar la clase en el render sin CSS externo
-styles.userMetaVisible = {
-    ...styles.userMetaVisible,
-    display: 'none', // Por defecto oculto en movil
-    // La clase .user-meta-visible del style tag lo activará en desktop
-};
-
-// Asignamos la clase en el JSX: className="user-meta-visible"
 
 export default Navbar;

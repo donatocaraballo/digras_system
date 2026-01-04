@@ -2,8 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import api from "../api/api";
+import { useAuth } from "../AuthContext"; // Importamos AuthContext
 
-// --- ICONOS SVG (Estilo Unificado) ---
+// --- ICONOS SVG ---
 const IconUser = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>;
 const IconSearch = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>;
 const IconPlus = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
@@ -11,60 +12,45 @@ const IconTrash = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="no
 const IconEdit = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>;
 const IconRefresh = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>;
 
-// --- ESTILOS PREMIUM DIGRAS (Copiados EXACTAMENTE de CrearOrden) ---
+// --- ESTILOS PREMIUM DIGRAS ---
 const styles = {
-  // Contenedor y Card Principal
   container: { padding: '24px 32px', maxWidth: '1400px', margin: '0 auto', fontFamily: "'Inter', sans-serif" },
   content: { backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)', overflow: 'hidden', border: '1px solid #f1f5f9', padding: '30px' },
-  
-  // Header
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' },
   titleGroup: { display: 'flex', alignItems: 'center', gap: '16px' },
   iconCircle: { width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   title: { margin: 0, fontSize: '1.5rem', color: '#0f172a', fontWeight: '700' },
   subtitle: { margin: '4px 0 0', color: '#64748b', fontSize: '0.9rem' },
-
-  // Inputs y Selects
   label: { display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#475569', marginBottom: '6px', textTransform: 'uppercase' },
   input: { width: '100%', height: '42px', padding: '0 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', outline: 'none', backgroundColor: '#fff', boxSizing:'border-box', transition: 'border 0.2s' },
-  
-  // Grid de Formulario (Usado en el Modal)
   formGrid: { display: 'grid', gridTemplateColumns: '1fr', gap: '20px', marginBottom: '30px' },
-
-  // Botones (CORREGIDO: btnPrimary ahora es color sólido #0f172a)
   btnPrimary: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px 24px', backgroundColor: '#0f172a', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', fontSize:'0.95rem', transition: 'transform 0.1s' },
   btnGhost: { display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', backgroundColor: 'transparent', color: '#64748b', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize:'0.9rem' },
   btnSecondary: { background: '#eff6ff', color: '#2563eb', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '6px' },
   btnIcon: { width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #fecaca', backgroundColor: '#fef2f2', color: '#ef4444', borderRadius: '8px', cursor: 'pointer' },
-
-  // Tabla (Adaptación del estilo de lista de productos de CrearOrden)
   tableWrapper: { borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' },
   table: { width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" },
   th: { background: "#f8fafc", textAlign: "left", padding: "15px 20px", borderBottom: "1px solid #e2e8f0", color: "#0f172a", fontWeight: "700", whiteSpace: "nowrap", textTransform: "uppercase", fontSize: '0.8rem' },
   td: { padding: "15px 20px", borderBottom: "1px solid #f1f5f9", color: "#334155", verticalAlign: "middle" },
   rowAlt: { background: "#f8fafc" },
-
-  // Search Section (Adaptado de section en CrearOrden)
   searchSection: { backgroundColor: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '25px', display: 'flex', gap: '15px', alignItems: 'center' },
-
-  // Mensajes y Badges
   statusOk: { padding: '12px', background: '#dcfce7', color: '#166534', borderRadius: '8px', marginBottom: '20px', border: '1px solid #bbf7d0', fontSize: '0.9rem' },
   statusError: { padding: '12px', background: '#fee2e2', color: '#991b1b', borderRadius: '8px', marginBottom: '20px', border: '1px solid #fecaca', fontSize: '0.9rem' },
   badge: { display: 'inline-block', padding: '4px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: '700', border: '1px solid' },
-
-  // Resumen Final (Usado para Detalle de Cliente)
   resumenCard: { marginTop: '30px', padding: '30px', backgroundColor: '#eff6ff', borderRadius: '16px', border: '1px solid #bfdbfe', boxShadow: '0 4px 15px rgba(37, 99, 235, 0.05)' },
   resumenTitle: { fontSize: '1.2rem', fontWeight: '800', marginBottom: '15px', textTransform: 'uppercase', color: '#1e40af', borderBottom: '2px solid #bfdbfe', paddingBottom: '10px' },
   resumenLine: { display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '0.95rem', color: '#334155', borderBottom: '1px dotted #bfdbfe', paddingBottom: '5px' },
-  
-  // Modal Overlay (Estilo NestedCard de CrearOrden adaptado a modal)
   modalOverlay: { position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 4000 },
   modal: { width: "100%", maxWidth: "500px", background: "#ffffff", borderRadius: "20px", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", padding: "35px", boxSizing: "border-box" },
   modalTitle: { fontSize: "1.4rem", fontWeight: "700", color: "#0f172a", marginBottom: "5px" },
 };
 
 export default function Clientes() {
+  const { user } = useAuth();
+  
   const [clientes, setClientes] = useState([]);
+  const [usuarios, setUsuarios] = useState([]); // Para mapear ID vendedor -> Nombre
+  
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
@@ -73,31 +59,68 @@ export default function Clientes() {
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
 
   const [showFormModal, setShowFormModal] = useState(false);
-  const [formMode, setFormMode] = useState("crear"); // "crear" | "editar"
+  const [formMode, setFormMode] = useState("crear"); 
   const [formError, setFormError] = useState("");
   const [formLoading, setFormLoading] = useState(false);
 
   const [formData, setFormData] = useState({ nombre: "", telefono: "", correo: "", direccion: "" });
 
-  const cargarClientes = async () => {
+  // Determinar si es Gerencia (para mostrar columna vendedor)
+  const esGerencia = user && (user.tipo === 'GERENTE' || user.tipo === 'ADMINISTRADOR' || user.is_superuser);
+
+  const cargarDatos = async () => {
     setLoading(true); setError(""); setMensaje("");
     try {
-      const res = await api.get("/base/clientes/");
-      const data = Array.isArray(res.data) ? res.data : res.data.results || [];
-      setClientes(data);
-      setMensaje(`Se encontraron ${data.length} cliente(s).`);
+      const promises = [api.get("/base/clientes/")];
+      
+      // Si es gerencia, cargamos usuarios para mostrar nombres de vendedores
+      if (esGerencia) {
+          promises.push(api.get("/base/usuarios/"));
+      }
+
+      const [resClientes, resUsuarios] = await Promise.all(promises);
+      
+      const dataClientes = Array.isArray(resClientes.data) ? resClientes.data : resClientes.data.results || [];
+      setClientes(dataClientes);
+
+      if (resUsuarios) {
+          const dataUsuarios = Array.isArray(resUsuarios.data) ? resUsuarios.data : resUsuarios.data.results || [];
+          setUsuarios(dataUsuarios);
+      }
+
+      setMensaje(`Se encontraron ${dataClientes.length} cliente(s).`);
     } catch (err) {
-      console.error("Error cargando clientes:", err);
-      setError("No se pudieron cargar los clientes.");
+      console.error("Error cargando datos:", err);
+      setError("No se pudieron cargar los datos.");
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { cargarClientes(); }, []);
+  useEffect(() => { cargarDatos(); }, [user]); // Recargar si cambia el usuario
+
+  // Helper para nombre de vendedor
+  const getNombreVendedor = (id) => {
+      if (!id) return "-";
+      const u = usuarios.find(user => user.id_usuario === id || user.id === id);
+      return u ? `@${u.username}` : `ID: ${id}`;
+  };
 
   const filtrados = clientes.filter((c) => {
     const texto = (search || "").toLowerCase();
     if (!texto) return true;
-    return (c.nombre || "").toLowerCase().includes(texto) || (c.correo || "").toLowerCase().includes(texto) || (c.telefono || "").toLowerCase().includes(texto);
+    
+    // Búsqueda extendida: incluye nombre de vendedor si es gerencia
+    let matchVendedor = false;
+    if (esGerencia && c.id_usuario) {
+        const nombreVend = getNombreVendedor(c.id_usuario).toLowerCase();
+        matchVendedor = nombreVend.includes(texto);
+    }
+
+    return (
+        (c.nombre || "").toLowerCase().includes(texto) || 
+        (c.correo || "").toLowerCase().includes(texto) || 
+        (c.telefono || "").toLowerCase().includes(texto) ||
+        matchVendedor
+    );
   });
 
   const abrirCrear = () => {
@@ -122,7 +145,7 @@ export default function Clientes() {
       if (formMode === "crear") await api.post("/base/clientes/", formData);
       else if (formMode === "editar" && clienteSeleccionado) await api.patch(`/base/clientes/${clienteSeleccionado.id_cliente}/`, formData);
 
-      setShowFormModal(false); setClienteSeleccionado(null); await cargarClientes();
+      setShowFormModal(false); setClienteSeleccionado(null); await cargarDatos();
     } catch (err) {
       setFormError("No se pudo guardar el cliente.");
     } finally { setFormLoading(false); }
@@ -133,15 +156,15 @@ export default function Clientes() {
     if (!window.confirm(`¿Seguro que deseas eliminar al cliente "${clienteSeleccionado.nombre}"?`)) return;
     try {
       await api.delete(`/base/clientes/${clienteSeleccionado.id_cliente}/`);
-      setClienteSeleccionado(null); await cargarClientes();
-    } catch (err) { alert("No se pudo eliminar el cliente."); }
+      setClienteSeleccionado(null); await cargarDatos();
+    } catch (err) { alert("No se pudo eliminar el cliente (puede tener órdenes asociadas)."); }
   };
 
   const cambiarEstadoCliente = async (activo) => {
     if (!clienteSeleccionado) return;
     try {
       await api.patch(`/base/clientes/${clienteSeleccionado.id_cliente}/`, { activo: !!activo });
-      await cargarClientes(); setClienteSeleccionado(null);
+      await cargarDatos(); setClienteSeleccionado(null);
     } catch (err) { alert("No se pudo cambiar el estado."); }
   };
 
@@ -154,11 +177,6 @@ export default function Clientes() {
     );
   };
 
-  const estadoClienteTexto = (cli) => {
-    const activo = cli.activo !== undefined && cli.activo !== null ? cli.activo : true;
-    return activo ? "Activo" : "Inactivo";
-  };
-
   return (
     <div style={styles.container}>
       {/* HEADER */}
@@ -167,7 +185,9 @@ export default function Clientes() {
             <div style={styles.iconCircle}><IconUser /></div>
             <div>
                 <h2 style={styles.title}>Clientes</h2>
-                <p style={styles.subtitle}>Consulta y administra los clientes</p>
+                <p style={styles.subtitle}>
+                    {esGerencia ? "Gestión global de cartera de clientes." : "Gestiona tu cartera de clientes."}
+                </p>
             </div>
         </div>
       </div>
@@ -183,7 +203,7 @@ export default function Clientes() {
                 <input
                     type="text"
                     style={styles.input}
-                    placeholder="Buscar por nombre, teléfono o correo..."
+                    placeholder={esGerencia ? "Buscar por nombre, correo o vendedor..." : "Buscar por nombre o correo..."}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                 />
@@ -203,6 +223,10 @@ export default function Clientes() {
               <tr>
                 <th style={styles.th}>ID</th>
                 <th style={styles.th}>Nombre</th>
+                
+                {/* 🚨 COLUMNA VENDEDOR (SOLO GERENCIA) */}
+                {esGerencia && <th style={styles.th}>Vendedor</th>}
+                
                 <th style={styles.th}>Teléfono</th>
                 <th style={styles.th}>Correo</th>
                 <th style={{...styles.th, textAlign:'center'}}>Estado</th>
@@ -211,7 +235,7 @@ export default function Clientes() {
             <tbody>
               {filtrados.length === 0 && !loading && (
                 <tr>
-                  <td style={{...styles.td, textAlign:'center', color:'#94a3b8', padding: '30px'}} colSpan={5}>
+                  <td style={{...styles.td, textAlign:'center', color:'#94a3b8', padding: '30px'}} colSpan={esGerencia ? 6 : 5}>
                     No hay clientes que coincidan con la búsqueda.
                   </td>
                 </tr>
@@ -238,6 +262,14 @@ export default function Clientes() {
                   >
                     <td style={{...rowBase, color: isSelected ? '#0d47a1' : '#334155'}}>#{c.id_cliente}</td>
                     <td style={rowBase}>{c.nombre}</td>
+                    
+                    {/* 🚨 CELDA VENDEDOR (SOLO GERENCIA) */}
+                    {esGerencia && (
+                        <td style={{...rowBase, fontWeight:'700', color:'#475569'}}>
+                            {getNombreVendedor(c.id_usuario)}
+                        </td>
+                    )}
+
                     <td style={rowBase}>{c.telefono || "-"}</td>
                     <td style={rowBase}>{c.correo || "-"}</td>
                     <td style={{...rowBase, textAlign:'center'}}>{badgeActivo(c)}</td>
@@ -248,13 +280,7 @@ export default function Clientes() {
           </table>
         </div>
 
-        {filtrados.length > 0 && (
-          <div style={styles.resumenResultados}>
-            Mostrando {filtrados.length} cliente(s). Haz clic para ver opciones.
-          </div>
-        )}
-
-        {/* DETALLE DE CLIENTE (Estilo Resumen Orden) */}
+        {/* DETALLE DE CLIENTE */}
         {clienteSeleccionado && (
           <div id="detalle-cliente" style={styles.resumenCard}>
             <div style={styles.resumenTitle}>
@@ -263,6 +289,12 @@ export default function Clientes() {
 
             <div style={{display:'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap:'30px'}}>
                 <div>
+                    {esGerencia && (
+                        <div style={styles.resumenLine}>
+                            <span style={{fontWeight:'600', color:'#64748b'}}>Vendedor Asignado</span> 
+                            <span style={{fontWeight:'bold'}}>{getNombreVendedor(clienteSeleccionado.id_usuario)}</span>
+                        </div>
+                    )}
                     <div style={styles.resumenLine}>
                         <span style={{fontWeight:'600', color:'#64748b'}}>Teléfono</span> 
                         <span>{clienteSeleccionado.telefono || "No registrado"}</span>
@@ -279,12 +311,12 @@ export default function Clientes() {
                     </div>
                     <div style={styles.resumenLine}>
                         <span style={{fontWeight:'600', color:'#64748b'}}>Estado</span> 
-                        <span>{estadoClienteTexto(clienteSeleccionado)}</span>
+                        <span>{clienteSeleccionado.activo ? "Activo" : "Inactivo"}</span>
                     </div>
                 </div>
             </div>
 
-            <div style={styles.detalleActionsRow}>
+            <div style={{display:'flex', gap:'10px', marginTop:'20px', justifyContent:'flex-end'}}>
               <button type="button" style={styles.btnSecondary} onClick={() => abrirEditar(clienteSeleccionado)}>
                 <IconEdit /> Editar
               </button>
@@ -300,7 +332,7 @@ export default function Clientes() {
           </div>
         )}
 
-        {loading && <div style={{ marginTop: "20px", fontSize: "14px", color: "#64748b", textAlign:'center' }}>Cargando clientes...</div>}
+        {loading && <div style={{ marginTop: "20px", fontSize: "14px", color: "#64748b", textAlign:'center' }}>Cargando datos...</div>}
       </div>
 
       {/* MODAL */}

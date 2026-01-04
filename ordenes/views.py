@@ -18,7 +18,8 @@ Vista principal para gestionar órdenes: creación, edición, cancelación, apro
 rechazo, filtros, reportes, preparación y consumo FIFO de lotes.
 """
 class OrdenViewSet(BaseViewSet):
-    queryset = Orden.objects.all()
+    # queryset = Orden.objects.all()  <-- LO QUITAMOS para usar get_queryset dinámico
+    
     # Búsqueda básica
     search_fields = [
         'id_cliente__nombre',
@@ -34,6 +35,33 @@ class OrdenViewSet(BaseViewSet):
         if self.action in ['create', 'update', 'partial_update']:
             return OrdenCreateSerializer
         return OrdenSerializer
+
+    # ==========================================================
+    #   NUEVA LÓGICA DE FILTRADO POR ROL
+    # ==========================================================
+    def get_queryset(self):
+        """
+        Sobreescribimos la consulta base para filtrar qué órdenes ve cada usuario.
+        """
+        user = self.request.user
+        
+        # 1. Base: Ordenar por fecha descendente
+        qs = Orden.objects.all().order_by('-fecha_orden')
+
+        # 2. Si no está autenticado, no ve nada
+        if not user.is_authenticated:
+            return Orden.objects.none()
+
+        # 3. REGLA: Si es VENDEDOR, solo ve sus propias órdenes.
+        if getattr(user, 'tipo', None) == 'VENDEDOR':
+            qs = qs.filter(id_usuario=user)
+
+        # 4. (Opcional) Si quisieras restringir al Almacenista:
+        # if getattr(user, 'tipo', None) == 'ALMACENISTA':
+        #     qs = qs.filter(estado_de_envio__in=['APROBADA', 'PREPARADA', 'ENTREGADA'])
+
+        # GERENTE y ADMINISTRADOR ven todo el queryset original.
+        return qs
 
     # ==========================================================
     #   HELPERS PRIVADOS PARA FIFO DE LOTES
@@ -148,7 +176,6 @@ class OrdenViewSet(BaseViewSet):
                 nuevo_estado = 'BAJA_EXISTENCIA'
             
             # Actualizamos DIRECTAMENTE en la BD (Atomico y Estado)
-            # Usamos update para velocidad, pero seteamos el estado explícitamente
             Existencia.objects.filter(pk=ex.pk).update(
                 cantidad=nueva_cantidad,
                 estado=nuevo_estado
@@ -162,16 +189,14 @@ class OrdenViewSet(BaseViewSet):
             return Response({"detail": str(e)}, status=500)
 
         # 4. Crear orden
-        # (Nota: Asegúrate de usar los nombres de campo correctos de tu modelo Orden)
         precio_final = 0
         peso_total = 0
         
-        # Mapeo de id_cliente (asegúrate de que tu Serializer espera 'id_cliente')
         cliente_id = datos.get("id_cliente") 
         
         orden = Orden.objects.create(
             metodo_pago=datos.get("metodo_pago", "EFECTIVO"),
-            id_cliente_id=cliente_id, # Ajusta si tu modelo usa FK directa
+            id_cliente_id=cliente_id, 
             estado_de_envio="PENDIENTE POR APROBACIÓN",
             estado_de_pago="PENDIENTE POR PAGO",
             precio_final=0,
@@ -185,7 +210,6 @@ class OrdenViewSet(BaseViewSet):
             prod = item["id_producto"]
             cantidad = item["cantidad"]
             
-            # Acceso seguro a propiedades del producto
             p_obj = prod if hasattr(prod, 'precio_venta') else Producto.objects.get(pk=prod)
             
             precio_unitario = p_obj.precio_venta

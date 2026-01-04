@@ -115,7 +115,7 @@ function App() {
           <Route path="/usuarios" element={<RutasProtegidas><Usuarios /></RutasProtegidas>} />
           <Route path="/registros" element={<RutasProtegidas><RegistroAcciones /></RutasProtegidas>} />
 
-          <Route path="/transportistas" element={<RutasProtegidas><Transportistas /></RutasProtegidas>} />
+          <Route path="/transporte" element={<RutasProtegidas><Transportistas /></RutasProtegidas>} />
 
           <Route path="*" element={<h2 style={{textAlign:'center', marginTop: 100, color:'#64748b'}}>404 | Página no encontrada</h2>} />
         </Routes>
