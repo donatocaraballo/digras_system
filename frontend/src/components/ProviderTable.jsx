@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import toast from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast'; // Importamos Toaster
 import AdvancedSearchBar from './AdvancedSearchBar';
 
 const PROVEEDORES_URL = '/api/compras/proveedores/';
@@ -15,14 +15,11 @@ const IconBuilding = () => <svg width="20" height="20" viewBox="0 0 24 24" fill=
 function ProviderTable({ refreshTrigger, onEditClick, filterText }) {
     const [proveedores, setProveedores] = useState([]);
     const [loading, setLoading] = useState(true);
-    
-    // Estado interno para búsqueda (si no se usa filterText desde el padre)
     const [internalSearch, setInternalSearch] = useState('');
 
     const fetchProveedores = useCallback(async () => {
         try {
             const response = await axios.get(PROVEEDORES_URL);
-            // Ordenar por ID descendente (más nuevos primero)
             setProveedores(response.data.sort((a, b) => b.id_proveedor - a.id_proveedor));
         } catch (err) {
             console.error("Error cargando proveedores:", err);
@@ -40,12 +37,16 @@ function ProviderTable({ refreshTrigger, onEditClick, filterText }) {
         toast((t) => (
             <div style={{textAlign:'center'}}>
                 <p>¿Eliminar al proveedor <b>{nombre}</b>?</p>
-                <div style={{display:'flex', gap:'10px', justifyContent:'center'}}>
+                <div style={{display:'flex', gap:'10px', justifyContent:'center', marginTop: '8px'}}>
                     <button onClick={() => toast.dismiss(t.id)} style={styles.toastBtnCancel}>Cancelar</button>
                     <button onClick={() => { toast.dismiss(t.id); executeDelete(id); }} style={styles.toastBtnConfirm}>Eliminar</button>
                 </div>
             </div>
-        ));
+        ), {
+            duration: 5000, // Dar tiempo para decidir
+            position: 'top-center',
+            style: { border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }
+        });
     };
 
     const executeDelete = async (id) => {
@@ -61,7 +62,6 @@ function ProviderTable({ refreshTrigger, onEditClick, filterText }) {
         }
     };
 
-    // Determinar qué término de búsqueda usar (prop del padre o estado local)
     const activeSearchTerm = filterText !== undefined ? filterText : internalSearch;
 
     const filteredProviders = proveedores.filter(p => {
@@ -75,9 +75,17 @@ function ProviderTable({ refreshTrigger, onEditClick, filterText }) {
 
     return (
         <div style={styles.card}>
-            
-            {/* 🚨 INTEGRACIÓN: AdvancedSearchBar */}
-            {/* Solo mostramos la barra interna si el padre NO está controlando el filtro */}
+            {/* 🚨 TOASTER CON Z-INDEX MÁXIMO PARA GARANTIZAR VISIBILIDAD */}
+            <Toaster 
+                containerStyle={{
+                    top: 20,
+                    left: 20,
+                    bottom: 20,
+                    right: 20,
+                    zIndex: 999999 // Muy alto para superar cualquier navbar o modal
+                }} 
+            />
+
             {filterText === undefined && (
                 <div style={styles.searchContainer}>
                     <AdvancedSearchBar 
@@ -87,7 +95,6 @@ function ProviderTable({ refreshTrigger, onEditClick, filterText }) {
                         onFilterChange={(key, value) => { if(key === 'CLEAR') setInternalSearch('') }}
                         config={{
                             searchPlaceholder: "🔍 Buscar por Nombre, RIF o Contacto...",
-                            // Desactivamos filtros complejos, solo texto
                             showDateRange: false, 
                             showPriceRange: false,
                             statusOptions: null
@@ -150,53 +157,32 @@ function ProviderTable({ refreshTrigger, onEditClick, filterText }) {
     );
 }
 
-// --- ESTILOS PREMIUM ---
+// --- ESTILOS ---
 const styles = {
     card: {
         backgroundColor: '#ffffff', borderRadius: '16px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
         overflow: 'hidden', border: '1px solid #f1f5f9'
     },
     searchContainer: { padding: '20px', borderBottom: '1px solid #f1f5f9', backgroundColor: '#f8fafc' },
-    
-    // Tabla
     table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' },
     theadRow: { backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' },
     th: { padding: '16px 24px', textAlign: 'left', fontWeight: '600', color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '0.05em' },
     thAction: { padding: '16px 24px', textAlign: 'center', fontWeight: '600', color: '#64748b', textTransform: 'uppercase', fontSize: '0.75rem' },
-    
     tr: { borderBottom: '1px solid #f1f5f9', transition: 'background 0.1s' },
     td: { padding: '16px 24px', verticalAlign: 'middle', color: '#334155' },
     tdAction: { padding: '16px 24px', verticalAlign: 'middle', textAlign: 'center' },
-
-    // Elementos Visuales
-    avatar: {
-        width: '40px', height: '40px', borderRadius: '10px',
-        backgroundColor: '#f3e8ff', color: '#9333ea', // Violeta suave
-        display: 'flex', alignItems: 'center', justifyContent: 'center'
-    },
+    avatar: { width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#f3e8ff', color: '#9333ea', display: 'flex', alignItems: 'center', justifyContent: 'center' },
     nameText: { fontWeight: '600', color: '#1e293b', fontSize: '0.95rem' },
     idText: { fontSize: '0.75rem', color: '#94a3b8', marginTop: '2px' },
-    
     contactItem: { fontSize: '0.85rem', color: '#475569', marginBottom: '2px' },
     addressText: { fontSize: '0.85rem', color: '#64748b', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' },
-
-    // Botones Acción
     actionGroup: { display: 'flex', justifyContent: 'center', gap: '8px' },
-    iconBtnEdit: { 
-        background: '#eff6ff', border: 'none', cursor: 'pointer', padding: '8px', borderRadius: '8px', 
-        color: '#3b82f6', transition: 'background 0.2s' 
-    },
-    iconBtnDelete: { 
-        background: '#fef2f2', border: 'none', cursor: 'pointer', padding: '8px', borderRadius: '8px', 
-        color: '#ef4444', transition: 'background 0.2s' 
-    },
-    
+    iconBtnEdit: { background: '#eff6ff', border: 'none', cursor: 'pointer', padding: '8px', borderRadius: '8px', color: '#3b82f6' },
+    iconBtnDelete: { background: '#fef2f2', border: 'none', cursor: 'pointer', padding: '8px', borderRadius: '8px', color: '#ef4444' },
     empty: { padding: '40px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' },
-
-    // Toast Buttons
-    toastBtnConfirm: { background: '#ef4444', color:'white', border:'none', padding:'6px 12px', borderRadius:'6px', cursor:'pointer', fontWeight: 600 },
-    toastBtnCancel: { background: '#e2e8f0', color:'#333', border:'none', padding:'6px 12px', borderRadius:'6px', cursor:'pointer' }
+    toastBtnConfirm: { background: '#ef4444', color:'white', border:'none', padding:'8px 16px', borderRadius:'6px', cursor:'pointer', fontWeight: 600, fontSize: '0.85rem' },
+    toastBtnCancel: { background: '#e2e8f0', color:'#333', border:'none', padding:'8px 16px', borderRadius:'6px', cursor:'pointer', fontWeight: 600, fontSize: '0.85rem' }
 };
 
 export default ProviderTable;

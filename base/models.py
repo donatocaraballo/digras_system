@@ -19,6 +19,9 @@ class Usuario(AbstractUser):
     telefono = models.CharField(max_length=20, blank=True, null=True)
     direccion = models.CharField(max_length=255, blank=True, null=True)
 
+    codigo_recuperacion = models.CharField(max_length=6, blank=True, null=True)
+    fecha_recuperacion = models.DateTimeField(blank=True, null=True)
+
     groups = models.ManyToManyField(
         'auth.Group',
         verbose_name='groups',

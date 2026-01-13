@@ -1,7 +1,13 @@
 # base/views.py
+
+import random
+import string
+from django.utils import timezone
+from django.core.mail import send_mail
+from django.conf import settings
 from django.db.models import F, Sum
 from django.db import transaction
-from rest_framework import status, permissions
+from rest_framework import status, permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
@@ -47,12 +53,82 @@ class UsuarioViewSet(BaseViewSet):
     """
     CRUD de usuarios del sistema.
     Usado típicamente por Gerente / Administrador.
+    Incluye lógica de recuperación de contraseña PÚBLICA.
     """
 
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
     search_fields = ["username", "first_name", "last_name", "tipo"]
     ordering_fields = ["id_usuario", "username"]
+
+    # ------------------------------------------------------------------
+    # 1. SOLICITAR CÓDIGO (Recuperación de Contraseña)
+    # 🚨 FIX: permission_classes=[permissions.AllowAny] para acceso público
+    # ------------------------------------------------------------------
+    @action(detail=False, methods=['post'], url_path='solicitar-reset', permission_classes=[permissions.AllowAny])
+    def solicitar_reset(self, request):
+        email = request.data.get('email')
+        if not email:
+            return Response({"error": "Debes proporcionar un correo electrónico."}, status=400)
+
+        usuario = Usuario.objects.filter(email=email).first()
+        
+        # Por seguridad, si el usuario no existe, simulamos éxito para no revelar correos.
+        if not usuario:
+            return Response({"mensaje": "Si el correo existe, se ha enviado un código."}, status=200)
+
+        # Generar código de 6 dígitos
+        codigo = ''.join(random.choices(string.digits, k=6))
+        usuario.codigo_recuperacion = codigo
+        usuario.fecha_recuperacion = timezone.now()
+        usuario.save()
+
+        # Enviar correo (O imprimir en consola si no tienes SMTP configurado)
+        print(f"========================================")
+        print(f"🔐 CÓDIGO DE RECUPERACIÓN PARA {email}: {codigo}")
+        print(f"========================================")
+        
+        # Descomentar esto cuando tengas el SMTP real en settings.py
+        # try:
+        #     send_mail(
+        #         'Código de recuperación - DIGRAS',
+        #         f'Tu código de seguridad es: {codigo}',
+        #         settings.EMAIL_HOST_USER,
+        #         [email],
+        #         fail_silently=False,
+        #     )
+        # except Exception as e:
+        #     print(f"Error SMTP: {e}")
+
+        return Response({"mensaje": "Código enviado a tu correo."}, status=200)
+
+    # ------------------------------------------------------------------
+    # 2. CONFIRMAR CAMBIO (Recuperación de Contraseña)
+    # 🚨 FIX: permission_classes=[permissions.AllowAny] para acceso público
+    # ------------------------------------------------------------------
+    @action(detail=False, methods=['post'], url_path='confirmar-reset', permission_classes=[permissions.AllowAny])
+    def confirmar_reset(self, request):
+        email = request.data.get('email')
+        codigo = request.data.get('codigo')
+        nueva_password = request.data.get('nueva_password')
+
+        if not email or not codigo or not nueva_password:
+            return Response({"error": "Faltan datos requeridos."}, status=400)
+
+        usuario = Usuario.objects.filter(email=email).first()
+
+        if not usuario:
+            return Response({"error": "Usuario no encontrado."}, status=404)
+
+        if usuario.codigo_recuperacion != codigo:
+            return Response({"error": "El código es incorrecto."}, status=400)
+
+        # Cambiar la contraseña y limpiar el código
+        usuario.set_password(nueva_password)
+        usuario.codigo_recuperacion = None
+        usuario.save()
+
+        return Response({"mensaje": "Contraseña actualizada correctamente. Ya puedes iniciar sesión."}, status=200)
 
 
 # ============================================================

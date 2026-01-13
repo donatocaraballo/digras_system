@@ -48,9 +48,7 @@ function Home() {
                 const token = localStorage.getItem('auth_token');
                 const config = { headers: { Authorization: `Token ${token}` } };
                 
-                // =============================================================
                 // 1. ROL VENDEDOR
-                // =============================================================
                 if (user.tipo === 'VENDEDOR') {
                     const [resOrdenes, resClientes] = await Promise.all([
                         axios.get(`http://127.0.0.1:8000${API_ORDENES}`, config),
@@ -88,9 +86,7 @@ function Home() {
                     setChartData(dataGrafico.length ? dataGrafico : [{name:'Hoy', valor:0}]);
                     setChartTitle("Tendencia de Mis Ventas");
                 
-                // =============================================================
-                // 2. ROL ALMACENISTA (CORREGIDO FILTRO)
-                // =============================================================
+                // 2. ROL ALMACENISTA
                 } else if (user.tipo === 'ALMACENISTA') {
                     const [resOrdenes, resExistencias, resCompras] = await Promise.all([
                         axios.get(`http://127.0.0.1:8000${API_ORDENES}`, config),
@@ -102,22 +98,12 @@ function Home() {
                     const existencias = Array.isArray(resExistencias.data) ? resExistencias.data : resExistencias.data.results || [];
                     const compras = Array.isArray(resCompras.data) ? resCompras.data : resCompras.data.results || [];
 
-                    // KPI 1: Salidas (Ventas Aprobadas para preparar)
                     const porPreparar = ordenes.filter(o => o.estado_de_envio === 'APROBADA').length;
+                    const porRecibir = compras.filter(c => ['APROBADA', 'RECIBIDA_PARCIAL'].includes((c.estado_de_envio || c.estado || "").toUpperCase())).length;
                     
-                    // 🚨 CORRECCIÓN AQUÍ: 
-                    // Solo contamos 'APROBADA' o 'RECIBIDA_PARCIAL'.
-                    // Excluimos 'PENDIENTE' y 'PENDIENTE_APROBACION' porque esas aún las tiene el Gerente.
-                    const porRecibir = compras.filter(c => {
-                        const est = (c.estado_de_envio || c.estado || "").toUpperCase();
-                        return est === 'APROBADA';
-                    }).length;
-                    
-                    // KPI 3: Stock Crítico
                     let criticos = 0;
                     existencias.forEach(e => { if(e.cantidad < 10) criticos++; });
 
-                    // KPI 4: Listos (Ya preparadas)
                     const listasParaEntrega = ordenes.filter(o => o.estado_de_envio === 'PREPARADA').length;
 
                     setMetrics({
@@ -127,7 +113,6 @@ function Home() {
                         card4: { title: "Listos Entrega", value: listasParaEntrega, icon: "✅", color: "#2e7d32" }
                     });
 
-                    // Gráfico de Carga de Trabajo
                     setChartData([
                         {name: 'Preparar', valor: porPreparar}, 
                         {name: 'Recibir', valor: porRecibir}, 
@@ -136,9 +121,7 @@ function Home() {
                     ]); 
                     setChartTitle("Carga de Trabajo en Almacén");
 
-                // =============================================================
                 // 3. ROL TRANSPORTISTA
-                // =============================================================
                 } else if (user.tipo === 'TRANSPORTISTA') {
                     const resEnvios = await axios.get(`http://127.0.0.1:8000${API_ENVIOS}`, config);
                     const misEnvios = Array.isArray(resEnvios.data) ? resEnvios.data : resEnvios.data.results || [];
@@ -156,9 +139,7 @@ function Home() {
                     setChartData([{name:'Activos', valor: enviosActivos}, {name:'Fin', valor: entregadosHoy}]);
                     setChartTitle("Estado de Mis Envíos");
 
-                // =============================================================
                 // 4. ROL GERENTE / ADMIN (GLOBAL)
-                // =============================================================
                 } else {
                     const [resOrdenes, resProd, resExist] = await Promise.all([
                         axios.get(`http://127.0.0.1:8000${API_ORDENES}`, config),
@@ -232,11 +213,11 @@ function Home() {
     if (loading) return <div style={{padding: 40, textAlign:'center', color:'#64748b'}}>Cargando Dashboard...</div>;
 
     return (
-        <div style={styles.container} className="print-container">
+        <div style={styles.container} className="print-container responsive-container">
             {/* HEADER */}
-            <div style={styles.header}>
+            <div style={styles.header} className="responsive-header">
                 <div>
-                    <h1 style={styles.gradientTitle}>
+                    <h1 style={styles.gradientTitle} className="responsive-title">
                         {getGreetingTime()}, {getFormattedName()}.
                     </h1>
                     <p style={styles.subtitle}>
@@ -246,20 +227,20 @@ function Home() {
                          "Visión global del negocio y alertas."}
                     </p>
                 </div>
-                <div style={styles.dateBadge} className="no-print">
+                <div style={styles.dateBadge} className="no-print responsive-badge">
                     📅 {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
                 </div>
             </div>
 
             {/* SECCIÓN 1: KPIs DINÁMICOS */}
-            <div style={styles.kpiGrid}>
+            <div style={styles.kpiGrid} className="responsive-grid">
                 <KpiCard {...metrics.card1} onClick={() => {
                     if(user.tipo==='ALMACENISTA') navigate('/preparacion');
                     if(user.tipo==='TRANSPORTISTA') navigate('/transporte');
                 }} />
                 
                 <KpiCard {...metrics.card2} onClick={() => {
-                    if(user.tipo==='ALMACENISTA') navigate('/recepcion'); // Ir a Compras/Recepción
+                    if(user.tipo==='ALMACENISTA') navigate('/recepcion');
                     if(user.tipo==='VENDEDOR') navigate('/clientes');
                     if(user.tipo==='GERENTE') navigate('/inventario');
                 }} />
@@ -275,11 +256,11 @@ function Home() {
             </div>
 
             {/* SECCIÓN 2: GRÁFICOS Y ACCIONES */}
-            <div style={styles.chartsGrid}>
+            <div style={styles.chartsGrid} className="responsive-chart-grid">
                 {/* Gráfico */}
-                <div style={styles.chartCard}>
+                <div style={styles.chartCard} className="responsive-card">
                     <h3 style={styles.cardTitle}>{chartTitle}</h3>
-                    <div style={{ width: '100%', height: 320 }}>
+                    <div style={{ width: '100%', height: 320 }} className="responsive-chart-height">
                         <ResponsiveContainer>
                             <AreaChart data={chartData}>
                                 <defs>
@@ -303,9 +284,9 @@ function Home() {
                 </div>
 
                 {/* Acciones Rápidas */}
-                <div style={styles.actionsCard} className="no-print">
+                <div style={styles.actionsCard} className="no-print responsive-card">
                     <h3 style={styles.cardTitle}>Acciones Rápidas</h3>
-                    <div style={styles.actionButtonsGrid}>
+                    <div style={styles.actionButtonsGrid} className="responsive-actions-grid">
                         
                         {/* VENDEDOR */}
                         {user.tipo === 'VENDEDOR' && (
@@ -331,21 +312,12 @@ function Home() {
                             </>
                         )}
 
-                        {/* GERENTE */}
-                        {(user.tipo === 'GERENTE') && (
+                        {/* GERENTE / ADMIN */}
+                        {(user.tipo === 'GERENTE' || user.tipo === 'ADMINISTRADOR' || user.is_superuser) && (
                             <>
                                 <ActionButton icon="📊" label="Reportes" onClick={() => navigate('/ordenes')} color="#3b82f6" />
                                 <ActionButton icon="🛒" label="Compras" onClick={() => navigate('/compras')} color="#f59e0b" />
                                 <ActionButton icon="👥" label="Usuarios" onClick={() => navigate('/usuarios')} color="#64748b" />
-                            </>
-                        )}
-
-                        {/* ADMIN */}
-                        {(user.tipo === 'ADMINISTRADOR') && (
-                            <>
-                                <ActionButton icon="📊" label="Reportes" onClick={() => navigate('/ordenes')} color="#3b82f6" />
-                                <ActionButton icon="🛒" label="Compras" onClick={() => navigate('/compras')} color="#f59e0b" />
-                                <ActionButton icon="👥" label="Proveedores" onClick={() => navigate('/proveedores')} color="#64748b" />
                             </>
                         )}
                         
@@ -439,6 +411,7 @@ const styles = {
     }
 };
 
+// --- ESTILOS INYECTADOS (Animaciones + Media Queries) ---
 const styleSheet = document.createElement("style");
 styleSheet.innerText = `
     @keyframes pulse {
@@ -452,6 +425,37 @@ styleSheet.innerText = `
     @media (max-width: 1024px) {
         .chartCard { grid-column: span 1; }
     }
+
+    /* --- ESTILOS RESPONSIVE (MÓVIL) --- */
+    @media (max-width: 768px) {
+        /* Container: Reducir padding */
+        .responsive-container { padding: 16px !important; }
+
+        /* Header: Vertical y alineado */
+        .responsive-header { 
+            flex-direction: column; 
+            align-items: flex-start; 
+            gap: 15px; 
+            margin-bottom: 25px !important; 
+        }
+        .responsive-title { font-size: 1.8rem !important; }
+        .responsive-badge { align-self: flex-start; margin-top: 5px; }
+
+        /* Grillas: 1 columna en móvil */
+        .responsive-grid { grid-template-columns: 1fr !important; gap: 16px !important; }
+        .responsive-chart-grid { grid-template-columns: 1fr !important; gap: 20px !important; }
+        .responsive-actions-grid { grid-template-columns: 1fr 1fr !important; } /* Botones 2 col en móvil */
+
+        /* Tarjetas */
+        .responsive-card { 
+            padding: 20px !important; 
+            grid-column: span 1 !important; 
+        }
+        
+        /* Gráfico altura */
+        .responsive-chart-height { height: 250px !important; }
+    }
+
     @media print {
         body * { visibility: hidden; }
         .print-container, .print-container * { visibility: visible; }

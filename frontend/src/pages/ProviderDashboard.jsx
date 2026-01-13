@@ -6,7 +6,7 @@ import CreateProveedorModal from '../components/CreateProveedorModal';
 import EditProviderModal from '../components/EditProviderModal';
 
 // --- ICONOS SVG ---
-const IconTruck = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>;
+const IconTruck = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>;
 const IconPlus = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
 
 function ProviderDashboard() {
@@ -52,23 +52,25 @@ function ProviderDashboard() {
                 />
             </div>
 
-            {/* MODALES */}
-            <CreateProveedorModal 
-                isOpen={isCreateModalOpen} 
-                onClose={() => setIsCreateModalOpen(false)} 
-                onProveedorCreated={handleCreateSuccess} 
-            />
-
-            {providerToEdit && (
-                <EditProviderModal 
-                    provider={providerToEdit}
-                    onClose={() => setProviderToEdit(null)}
-                    onSave={() => {
-                        setProviderToEdit(null);
-                        handleRefresh();
-                    }}
+            {/* MODALES CON Z-INDEX CORREGIDO */}
+            <div style={{ position: 'relative', zIndex: 20000 }}>
+                <CreateProveedorModal 
+                    isOpen={isCreateModalOpen} 
+                    onClose={() => setIsCreateModalOpen(false)} 
+                    onProveedorCreated={handleCreateSuccess} 
                 />
-            )}
+
+                {providerToEdit && (
+                    <EditProviderModal 
+                        provider={providerToEdit}
+                        onClose={() => setProviderToEdit(null)}
+                        onSave={() => {
+                            setProviderToEdit(null);
+                            handleRefresh();
+                        }}
+                    />
+                )}
+            </div>
         </div>
     );
 }
@@ -88,7 +90,9 @@ const styles = {
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center', 
-        marginBottom: '32px' 
+        marginBottom: '32px',
+        flexWrap: 'wrap', 
+        gap: '20px'
     },
     titleGroup: { 
         display: 'flex', 
@@ -99,12 +103,12 @@ const styles = {
         width: '52px', 
         height: '52px', 
         borderRadius: '14px', 
-        backgroundColor: '#f3e8ff', // Lila suave
-        color: '#7e22ce', // Púrpura fuerte
+        backgroundColor: '#e0f2fe', // Azul muy suave
+        color: '#0284c7', // Azul fuerte
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'center',
-        boxShadow: '0 4px 10px rgba(126, 34, 206, 0.15)'
+        boxShadow: '0 4px 10px rgba(2, 132, 199, 0.15)'
     },
     title: { 
         margin: 0, 
@@ -122,7 +126,7 @@ const styles = {
     
     // Botón de Acción
     createBtn: {
-        backgroundColor: '#7e22ce', // Púrpura vibrante
+        backgroundColor: '#0f172a', 
         color: 'white', 
         border: 'none',
         padding: '12px 24px', 
@@ -133,7 +137,7 @@ const styles = {
         display: 'flex', 
         alignItems: 'center', 
         gap: '8px',
-        boxShadow: '0 4px 12px rgba(126, 34, 206, 0.25)',
+        boxShadow: '0 4px 12px rgba(15, 23, 42, 0.2)',
         transition: 'transform 0.2s ease, box-shadow 0.2s ease',
     },
 
@@ -144,11 +148,11 @@ const styles = {
         boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)', 
         overflow: 'hidden', 
         border: '1px solid #f1f5f9',
-        padding: '24px' // Espacio interno para la tabla
+        padding: '24px' 
     }
 };
 
-// Inyectamos animación simple para suavidad
+// Inyectamos animación simple y media queries
 const styleSheet = document.createElement("style");
 styleSheet.innerText = `
     @keyframes fadeIn {
@@ -156,6 +160,12 @@ styleSheet.innerText = `
         to { opacity: 1; transform: translateY(0); }
     }
     button:active { transform: scale(0.98); }
+
+    @media (max-width: 768px) {
+        .header { flex-direction: column; align-items: flex-start; }
+        .createBtn { width: 100%; justify-content: center; }
+        .content { padding: 16px; }
+    }
 `;
 document.head.appendChild(styleSheet);
 
