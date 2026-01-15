@@ -69,12 +69,18 @@ class RegistroAccionSerializer(serializers.ModelSerializer):
 #   CLIENTE
 # ============================================================
 
+# base/serializers.py
+
 class ClienteSerializer(serializers.ModelSerializer):
     """
     Cliente asociado a un vendedor (id_usuario).
 
     - id_usuario se maneja en el backend según el usuario autenticado.
+    - total_ordenes y ordenes_activas vienen de las anotaciones en el queryset.
     """
+
+    total_ordenes = serializers.IntegerField(read_only=True)
+    ordenes_activas = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Cliente
@@ -86,8 +92,15 @@ class ClienteSerializer(serializers.ModelSerializer):
             "telefono",
             "activo",
             "id_usuario",
+            "total_ordenes",
+            "ordenes_activas",
         ]
-        read_only_fields = ["id_cliente", "id_usuario"]
+        read_only_fields = [
+            "id_cliente",
+            "id_usuario",
+            "total_ordenes",
+            "ordenes_activas",
+        ]
 
 
 # ============================================================
@@ -186,23 +199,17 @@ class EnvioSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
     def get_ordenes_detalle(self, obj):
-        """
-        Devuelve un listado de órdenes asociadas al envío con:
-        - id_orden
-        - cliente_nombre
-        - estado_de_envio
-        """
         qs = Orden.objects.filter(id_envio=obj).select_related("id_cliente")
         resultado = []
         for o in qs:
             cliente_nombre = getattr(o.id_cliente, "nombre", None)
-            resultado.append(
-                {
-                    "id_orden": o.id_orden,
-                    "cliente_nombre": cliente_nombre,
-                    "estado_de_envio": o.estado_de_envio,
-                }
-            )
+            resultado.append({
+                "id_orden": o.id_orden,
+                "cliente_nombre": cliente_nombre,
+                "estado_de_envio": o.estado_de_envio,
+                "peso_total": o.peso_total,      # 👈 agregado
+                "precio_final": o.precio_final,  # 👈 opcional (también ayuda)
+            })
         return resultado
 
 
@@ -213,7 +220,20 @@ class EnvioSerializer(serializers.ModelSerializer):
 class OrdenSerializer(serializers.ModelSerializer):
     """
     Serializador base para Orden.
+    Incluye el username del usuario que creó la orden
+    para poder filtrar/mostrar en el frontend.
     """
+    id_usuario_username = serializers.CharField(
+        source="id_usuario.username",
+        read_only=True
+    )
+    id_cliente_nombre = serializers.CharField(
+        source="id_cliente.nombre",
+        read_only=True
+    )
+
+    peso_total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True, coerce_to_string=False)
+    precio_final = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True, coerce_to_string=False)
 
     class Meta:
         model = Orden
@@ -227,15 +247,30 @@ class OrdenSerializer(serializers.ModelSerializer):
 
 class DetalleOrdenSerializer(serializers.ModelSerializer):
     """
-    Detalle de una orden. Usado para consultas puntuales desde base.
+    Detalle de una orden.
+
+    Problema típico:
+    - Si solo serializas `id_producto` como FK (entero), el frontend no puede mostrar el nombre.
+
+    Solución:
+    - Exponemos `id_producto_nombre` para TransporteEnvios.jsx
+    - Exponemos `producto` como alias para ListadoOrdenes.jsx (compatibilidad)
     """
+
+    # Para TransporteEnvios.jsx (usa d.id_producto_nombre || d.id_producto?.nombre)
+    id_producto_nombre = serializers.CharField(source="id_producto.nombre", read_only=True)
+
+    # Para ListadoOrdenes.jsx (usa d.id_producto?.nombre || d.producto || '-')
+    producto = serializers.CharField(source="id_producto.nombre", read_only=True)
 
     class Meta:
         model = DetalleOrden
         fields = [
             "id_detalleo",
             "id_orden",
-            "id_producto",
+            "id_producto",          # se mantiene como ID para NO romper creates/updates
+            "id_producto_nombre",   # nombre del producto
+            "producto",             # alias del nombre (compatibilidad)
             "cantidad",
             "precio_unitario",
             "subtotal",
@@ -245,4 +280,10 @@ class DetalleOrdenSerializer(serializers.ModelSerializer):
             "cantidad_devolvida",
             "nota",
         ]
-        read_only_fields = ("id_detalleo", "subtotal", "peso_subtotal")
+        read_only_fields = (
+            "id_detalleo",
+            "subtotal",
+            "peso_subtotal",
+            "id_producto_nombre",
+            "producto",
+        )

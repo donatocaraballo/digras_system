@@ -412,6 +412,9 @@ export default function CrearOrden() {
     { producto_id: "", cantidad: 1, filtro: "" },
   ]);
 
+  // 🔎 Buscador de clientes
+  const [filtroCliente, setFiltroCliente] = useState("");
+
   // Mensajes
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
@@ -609,7 +612,7 @@ export default function CrearOrden() {
       const nuevo = res.data;
 
       setClientes((prev) => [...prev, nuevo]);
-      setClienteSeleccionado(nuevo.id_cliente);
+      setClienteSeleccionado(String(nuevo.id_cliente));
 
       setMostrarNuevoCliente(false);
       setNuevoClienteMensaje("Cliente creado correctamente.");
@@ -783,6 +786,7 @@ export default function CrearOrden() {
     setNuevoClienteTelefono("");
     setNuevoClienteMensaje("");
     setNuevoClienteError("");
+    setFiltroCliente("");
     setTieneCambios(false);
   };
 
@@ -802,6 +806,32 @@ export default function CrearOrden() {
 
   const formularioDeshabilitado =
     !esVendedor || !!permisoError || loadingDatos || loadingSubmit;
+
+  // 🔎 Lógica de filtrado de clientes
+  const clientesFiltrados = filtroCliente
+    ? clientes.filter((c) => {
+        const term = filtroCliente.toLowerCase();
+        const nombre = (c.nombre || "").toLowerCase();
+        const correo = (c.correo || "").toLowerCase();
+        const telefono = (c.telefono || "").toLowerCase();
+        return (
+          nombre.includes(term) ||
+          correo.includes(term) ||
+          telefono.includes(term)
+        );
+      })
+    : clientes;
+
+  const manejarEnterBuscarCliente = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (clientesFiltrados.length > 0) {
+        const primero = clientesFiltrados[0];
+        marcarCambio();
+        setClienteSeleccionado(String(primero.id_cliente));
+      }
+    }
+  };
 
   return (
     <div style={styles.container}>
@@ -847,7 +877,20 @@ export default function CrearOrden() {
                 <div style={styles.sectionTitle}>1. Datos del Cliente</div>
 
                 <div style={{ marginBottom: "15px" }}>
-                  <label style={styles.label}>Seleccionar Cliente</label>
+                  {/* 🔎 Buscador de cliente */}
+                  <label style={styles.label}>Buscar Cliente</label>
+                  <input
+                    style={styles.inputSmall}
+                    placeholder="Buscar por nombre, correo o teléfono..."
+                    value={filtroCliente}
+                    onChange={(e) => setFiltroCliente(e.target.value)}
+                    onKeyDown={manejarEnterBuscarCliente}
+                    disabled={loadingDatos}
+                  />
+
+                  <label style={{ ...styles.label, marginTop: "8px" }}>
+                    Seleccionar Cliente
+                  </label>
                   <select
                     style={styles.select}
                     value={clienteSeleccionado}
@@ -859,7 +902,7 @@ export default function CrearOrden() {
                     disabled={loadingDatos}
                   >
                     <option value="">-- Selecciona un Cliente --</option>
-                    {clientes.map((c) => (
+                    {clientesFiltrados.map((c) => (
                       <option key={c.id_cliente} value={c.id_cliente}>
                         {c.nombre}
                       </option>

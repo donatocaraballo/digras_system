@@ -42,6 +42,7 @@ export default function ListadoOrdenes() {
 
   const [usuarioActual, setUsuarioActual] = useState(null);
   const [clienteBusqueda, setClienteBusqueda] = useState("");
+  const [vendedorBusqueda, setVendedorBusqueda] = useState("");
   const [idOrdenPagoLoading, setIdOrdenPagoLoading] = useState(null);
   const [paginaActual, setPaginaActual] = useState(1);
   const pageSize = 10;
@@ -343,7 +344,51 @@ export default function ListadoOrdenes() {
     }, 0);
   };
 
-  const clientesFiltrados = clientes.filter((c) => c.nombre.toLowerCase().includes(clienteBusqueda.toLowerCase()));
+  const clientesFiltrados = clientes.filter((c) => {
+    const term = clienteBusqueda.toLowerCase();
+    const nombre = (c.nombre || "").toLowerCase();
+    const correo = (c.correo || "").toLowerCase();
+    const telefono = (c.telefono || "").toLowerCase();
+    return (
+      nombre.includes(term) ||
+      correo.includes(term) ||
+      telefono.includes(term)
+    );
+  });
+
+  const vendedoresSolo = vendedores.filter((v) => v.tipo === "VENDEDOR");
+
+  const vendedoresFiltrados = vendedoresSolo.filter((v) => {
+    const term = vendedorBusqueda.toLowerCase();
+    const username = (v.username || "").toLowerCase();
+    const nombre = (v.first_name || "").toLowerCase();
+    const apellido = (v.last_name || "").toLowerCase();
+    const correo = (v.email || "").toLowerCase();
+    return (
+      username.includes(term) ||
+      nombre.includes(term) ||
+      apellido.includes(term) ||
+      correo.includes(term)
+    );
+  });
+
+  const manejarEnterClienteBusqueda = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (clientesFiltrados.length > 0) {
+        onChangeFiltro("cliente", clientesFiltrados[0].nombre);
+      }
+    }
+  };
+
+  const manejarEnterVendedorBusqueda = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (vendedoresFiltrados.length > 0) {
+        onChangeFiltro("vendedor", vendedoresFiltrados[0].id_usuario);
+      }
+    }
+  };
 
   const sortOrdenes = (lista, ordering) => {
     if (!ordering) return lista;
@@ -460,20 +505,41 @@ export default function ListadoOrdenes() {
             </div>
             
             {esGerencia && (
-                <div>
-                    <label style={styles.label}>Vendedor</label>
-                    <select style={styles.select} value={filtros.vendedor} onChange={(e) => onChangeFiltro("vendedor", e.target.value)}>
-                        <option value="">Todos</option>
-                        {vendedores.filter(v => v.tipo === 'VENDEDOR').map(v => (
-                            <option key={v.id_usuario} value={v.id_usuario}>{v.username}</option>
-                        ))}
-                    </select>
-                </div>
+              <div>
+                <label style={styles.label}>Vendedor</label>
+                <input
+                  type="text"
+                  style={{ ...styles.input, marginBottom: 6 }}
+                  placeholder="Buscar vendedor..."
+                  value={vendedorBusqueda}
+                  onChange={(e) => setVendedorBusqueda(e.target.value)}
+                  onKeyDown={manejarEnterVendedorBusqueda}
+                />
+                <select
+                  style={styles.select}
+                  value={filtros.vendedor}
+                  onChange={(e) => onChangeFiltro("vendedor", e.target.value)}
+                >
+                  <option value="">Todos</option>
+                  {vendedoresFiltrados.map((v) => (
+                    <option key={v.id_usuario} value={v.id_usuario}>
+                      {v.username}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
 
             <div>
               <label style={styles.label}>Cliente</label>
-              <input type="text" style={{...styles.input, marginBottom:6}} placeholder="Buscar..." value={clienteBusqueda} onChange={(e) => setClienteBusqueda(e.target.value)} />
+              <input
+                type="text"
+                style={{ ...styles.input, marginBottom: 6 }}
+                placeholder="Buscar..."
+                value={clienteBusqueda}
+                onChange={(e) => setClienteBusqueda(e.target.value)}
+                onKeyDown={manejarEnterClienteBusqueda}
+              />
               <select style={styles.select} value={filtros.cliente} onChange={(e) => onChangeFiltro("cliente", e.target.value)}>
                 <option value="">Todos</option>
                 {clientesFiltrados.map((c) => <option key={c.id_cliente} value={c.nombre}>{c.nombre}</option>)}
@@ -482,12 +548,20 @@ export default function ListadoOrdenes() {
 
             <div>
               <label style={styles.label}>Estado Envío</label>
-              <select style={styles.select} value={filtros.estadoEnvio} onChange={(e) => onChangeFiltro("estadoEnvio", e.target.value)}>
+              <select
+                style={styles.select}
+                value={filtros.estadoEnvio}
+                onChange={(e) => onChangeFiltro("estadoEnvio", e.target.value)}
+              >
                 <option value="">Todos</option>
-                <option value="PENDIENTE POR APROBACIÓN">Pendiente</option>
+                <option value="PENDIENTE POR APROBACIÓN">Pendiente por aprobación</option>
                 <option value="APROBADA">Aprobada</option>
                 <option value="PREPARADA">Preparada</option>
-                <option value="RECHAZADA">Rechazada</option>
+                <option value="ASIGNADA A ENVÍO">Asignada a envío</option>
+                <option value="EN CURSO">En curso</option>
+                <option value="ENTREGADA">Entregada</option>
+                <option value="CANCELADA">Cancelada</option>
+                <option value="DEVUELTA">Devuelta</option>
               </select>
             </div>
             <div>

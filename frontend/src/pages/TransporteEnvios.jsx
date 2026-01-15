@@ -1,22 +1,17 @@
 // frontend/src/pages/TransporteEnvios.jsx
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import api from "../api/api";
+import { toast } from "react-hot-toast";
 
+// Debe coincidir con backend/UI
 const ESTADO_CREACION_ENVIO = "PENDIENTE POR ASIGNACION";
 
-// --- ICONOS SVG ---
+// -----------------------------
+// ICONOS
+// -----------------------------
 const IconTruck = () => (
-  <svg
-    width="28"
-    height="28"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="1" y="3" width="15" height="13" />
     <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
     <circle cx="5.5" cy="18.5" r="2.5" />
@@ -25,32 +20,14 @@ const IconTruck = () => (
 );
 
 const IconSearch = () => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="11" cy="11" r="8" />
     <line x1="21" y1="21" x2="16.65" y2="16.65" />
   </svg>
 );
 
 const IconRefresh = () => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="23 4 23 10 17 10" />
     <polyline points="1 20 1 14 7 14" />
     <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
@@ -58,32 +35,14 @@ const IconRefresh = () => (
 );
 
 const IconPlus = () => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <line x1="12" y1="5" x2="12" y2="19" />
     <line x1="5" y1="12" x2="19" y2="12" />
   </svg>
 );
 
 const IconTrash = () => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="3 6 5 6 21 6" />
     <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     <path d="M19 6l-1 14H6L5 6" />
@@ -92,421 +51,272 @@ const IconTrash = () => (
   </svg>
 );
 
-// --- ESTILOS ---
+const IconDots = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="5" r="1.2" />
+    <circle cx="12" cy="12" r="1.2" />
+    <circle cx="12" cy="19" r="1.2" />
+  </svg>
+);
+
+const IconX = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18"></line>
+    <line x1="6" y1="6" x2="18" y2="18"></line>
+  </svg>
+);
+
+// -----------------------------
+// ESTILOS
+// -----------------------------
 const styles = {
-  // Layout Principal
-  page: {
-    paddingTop: "40px",
-    paddingBottom: "40px",
-    fontFamily: "'Segoe UI', 'Roboto', sans-serif",
-    maxWidth: "1400px",
-    margin: "0 auto",
+  page: { paddingTop: "40px", paddingBottom: "40px", fontFamily: "'Segoe UI', 'Roboto', sans-serif", maxWidth: "1400px", margin: "0 auto" },
+  headerRow: { display: "flex", alignItems: "center", gap: "15px", marginBottom: "20px", paddingLeft: "10px" },
+  titleGroup: { display: "flex", alignItems: "center", gap: "15px" },
+  iconCircle: { width: "56px", height: "56px", borderRadius: "14px", backgroundColor: "#e0f2fe", color: "#0284c7", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)" },
+  title: { fontSize: "1.8rem", fontWeight: "800", color: "#0f172a", margin: 0, letterSpacing: "-0.5px" },
+  subtitle: { fontSize: "1rem", color: "#64748b", marginTop: "4px" },
+
+  statusOk: { marginBottom: "10px", padding: "10px 14px", borderRadius: "10px", background: "#dcfce7", color: "#166534", fontSize: "0.85rem", fontWeight: "700", border: "1px solid #bbf7d0" },
+  statusError: { marginBottom: "10px", padding: "10px 14px", borderRadius: "10px", background: "#fee2e2", color: "#b91c1c", fontSize: "0.85rem", fontWeight: "700", border: "1px solid #fecaca" },
+
+  card: { background: "#ffffff", borderRadius: "20px", boxShadow: "0 10px 30px rgba(0,0,0,0.05)", padding: "24px 30px 30px", border: "1px solid #f0f0f0", display: "flex", flexDirection: "column", gap: "18px" },
+  colLayout: { display: "grid", gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)", gap: "24px", alignItems: "flex-start" },
+
+  sectionCard: { borderRadius: "16px", border: "1px solid #e2e8f0", padding: "18px 18px 20px", background: "#f8fafc", display: "flex", flexDirection: "column", gap: "12px", minHeight: 0 },
+  sectionHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "10px" },
+  sectionTitle: { fontSize: "1.1rem", fontWeight: "800", color: "#0f172a", margin: "0 0 4px 0" },
+  smallText: { fontSize: "0.85rem", color: "#64748b", lineHeight: "1.4" },
+
+  buttonPrimary: { border: "none", borderRadius: "10px", padding: "0 16px", height: "36px", background: "#0f172a", color: "#ffffff", cursor: "pointer", fontSize: "0.85rem", fontWeight: "700", display: "flex", alignItems: "center", gap: "6px", boxShadow: "0 4px 12px rgba(15, 23, 42, 0.2)", whiteSpace: "nowrap" },
+  buttonGhost: { borderRadius: "10px", padding: "0 12px", height: "32px", background: "#ffffff", border: "1px solid #cbd5e1", color: "#64748b", cursor: "pointer", fontSize: "0.8rem", fontWeight: "700", whiteSpace: "nowrap" },
+  buttonDanger: { borderRadius: "10px", padding: "0 12px", height: "32px", background: "#fee2e2", border: "1px solid #fecaca", color: "#991b1b", cursor: "pointer", fontSize: "0.8rem", fontWeight: "800", whiteSpace: "nowrap" },
+  buttonDisabled: { opacity: 0.55, cursor: "not-allowed" },
+
+  searchRow: { display: "flex", gap: "10px", marginBottom: "10px", alignItems: "center", flexWrap: "wrap" },
+  searchInput: { flex: 1, height: "36px", borderRadius: "8px", border: "1px solid #cbd5e1", padding: "0 12px", fontSize: "0.9rem", outline: "none", width: "100%", boxSizing: "border-box", backgroundColor: "#fff", minWidth: "220px" },
+  selectSmall: { height: "36px", borderRadius: "8px", border: "1px solid #cbd5e1", padding: "0 10px", fontSize: "0.85rem", outline: "none", background: "#fff", color: "#334155" },
+  inputSmall: { height: "36px", borderRadius: "8px", border: "1px solid #cbd5e1", padding: "0 10px", fontSize: "0.85rem", outline: "none", background: "#fff", color: "#334155" },
+
+  tableWrapper: { borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden", background: "#ffffff", boxShadow: "0 2px 5px rgba(0,0,0,0.02)" },
+  table: { width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" },
+  th: { background: "#f1f5f9", textAlign: "left", padding: "8px 10px", borderBottom: "1px solid #e2e8f0", color: "#475569", fontWeight: "900", whiteSpace: "nowrap", textTransform: "uppercase", fontSize: "0.70rem" },
+  td: { padding: "8px 10px", borderBottom: "1px solid #f1f5f9", color: "#334155", verticalAlign: "middle" },
+  rowAlt: { background: "#f8fafc" },
+  hintSmall: {
+    marginTop: 4,
+    fontSize: "0.70rem",
+    color: "#94a3b8",
+    lineHeight: 1.15,
+    maxWidth: 220,
+    whiteSpace: "normal",
+    overflowWrap: "anywhere",
   },
 
-  headerRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: "15px",
-    marginBottom: "20px",
-    paddingLeft: "10px",
-  },
-  titleGroup: {
-    display: "flex",
-    alignItems: "center",
-    gap: "15px",
-  },
-  iconCircle: {
-    width: "56px",
-    height: "56px",
-    borderRadius: "14px",
-    backgroundColor: "#e0f2fe",
-    color: "#0284c7",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-  },
-  title: {
-    fontSize: "1.8rem",
-    fontWeight: "800",
-    color: "#0f172a",
-    margin: 0,
-    letterSpacing: "-0.5px",
-  },
-  subtitle: {
-    fontSize: "1rem",
-    color: "#64748b",
-    marginTop: "4px",
-  },
-
-  // Mensajes de estado
-  statusOk: {
-    marginBottom: "10px",
-    padding: "10px 14px",
-    borderRadius: "10px",
-    background: "#dcfce7",
-    color: "#166534",
-    fontSize: "0.85rem",
-    fontWeight: "600",
-    border: "1px solid #bbf7d0",
-  },
-  statusError: {
-    marginBottom: "10px",
-    padding: "10px 14px",
-    borderRadius: "10px",
-    background: "#fee2e2",
-    color: "#b91c1c",
-    fontSize: "0.85rem",
-    fontWeight: "600",
-    border: "1px solid #fecaca",
-  },
-
-  // Tarjeta principal
-  card: {
-    background: "#ffffff",
-    borderRadius: "20px",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.05)",
-    padding: "24px 30px 30px",
-    border: "1px solid #f0f0f0",
-    display: "flex",
-    flexDirection: "column",
-    gap: "18px",
-  },
-
-  // Layout columnas
-  colLayout: {
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)",
-    gap: "24px",
-    alignItems: "flex-start",
-  },
-
-  // Tarjetas de sección
-  sectionCard: {
-    borderRadius: "16px",
-    border: "1px solid #e2e8f0",
-    padding: "18px 18px 20px",
-    background: "#f8fafc",
-    display: "flex",
-    flexDirection: "column",
-    gap: "12px",
-    minHeight: 0,
-  },
-  sectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: "10px",
-  },
-  sectionTitle: {
-    fontSize: "1.1rem",
-    fontWeight: "700",
-    color: "#0f172a",
-    margin: "0 0 4px 0",
-  },
-  smallText: {
-    fontSize: "0.85rem",
-    color: "#64748b",
-    lineHeight: "1.4",
-  },
-
-  // Botones
-  buttonPrimary: {
-    border: "none",
-    borderRadius: "10px",
-    padding: "0 16px",
-    height: "36px",
-    background: "#0f172a",
-    color: "#ffffff",
-    cursor: "pointer",
-    fontSize: "0.85rem",
-    fontWeight: "600",
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-    boxShadow: "0 4px 12px rgba(15, 23, 42, 0.2)",
-    transition: "transform 0.1s",
-    whiteSpace: "nowrap",
-  },
-  buttonGhost: {
-    borderRadius: "10px",
-    padding: "0 12px",
-    height: "32px",
-    background: "#ffffff",
-    border: "1px solid #cbd5e1",
-    color: "#64748b",
-    cursor: "pointer",
-    fontSize: "0.8rem",
-    fontWeight: "600",
-    transition: "background 0.2s",
-    whiteSpace: "nowrap",
-  },
-  buttonDanger: {
-    borderRadius: "10px",
-    padding: "0 12px",
-    height: "32px",
-    background: "#fee2e2",
-    border: "1px solid #fecaca",
-    color: "#991b1b",
-    cursor: "pointer",
-    fontSize: "0.8rem",
-    fontWeight: "600",
-    whiteSpace: "nowrap",
-  },
-
-  // Buscador
-  searchRow: {
-    display: "flex",
-    gap: "10px",
-    marginBottom: "10px",
-    alignItems: "center",
-  },
-  searchInput: {
-    flex: 1,
-    height: "36px",
-    borderRadius: "8px",
-    border: "1px solid #cbd5e1",
-    padding: "0 12px",
-    fontSize: "0.9rem",
-    outline: "none",
-    width: "100%",
-    boxSizing: "border-box",
-    backgroundColor: "#fff",
-  },
-
-  // Tabla
-  tableWrapper: {
-    borderRadius: "12px",
-    border: "1px solid #e2e8f0",
-    overflow: "hidden",
-    background: "#ffffff",
-    boxShadow: "0 2px 5px rgba(0,0,0,0.02)",
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    fontSize: "0.85rem",
-  },
-  th: {
-    background: "#f1f5f9",
-    textAlign: "left",
-    padding: "8px 10px",
-    borderBottom: "1px solid #e2e8f0",
-    color: "#475569",
-    fontWeight: "700",
-    whiteSpace: "nowrap",
-    textTransform: "uppercase",
-    fontSize: "0.75rem",
-  },
-  td: {
-    padding: "8px 10px",
-    borderBottom: "1px solid #f1f5f9",
-    color: "#334155",
-    verticalAlign: "middle",
-  },
-  rowAlt: {
-    background: "#f8fafc",
-  },
-
-  // Badges
   badgeEstadoUnidad: (estado) => {
-    const norm = (estado || "").toUpperCase();
+    const norm = normEstado(estado);
     const activo = norm === "ACTIVA" || norm === "DISPONIBLE";
-    return {
-      display: "inline-block",
-      padding: "2px 8px",
-      borderRadius: "20px",
-      fontSize: "0.7rem",
-      fontWeight: "700",
-      background: activo ? "#dcfce7" : "#fee2e2",
-      color: activo ? "#166534" : "#991b1b",
-      border: `1px solid ${activo ? "#bbf7d0" : "#fecaca"}`,
-    };
+    const reserv = norm === "RESERVADA";
+    const transit = norm.includes("TRANSITO");
+
+    let bg = "#f1f5f9", color = "#475569", border = "#e2e8f0";
+    if (activo) { bg = "#dcfce7"; color = "#166534"; border = "#bbf7d0"; }
+    else if (reserv) { bg = "#ffedd5"; color = "#9a3412"; border = "#fed7aa"; }
+    else if (transit) { bg = "#dbeafe"; color = "#1e40af"; border = "#bfdbfe"; }
+    else if (norm === "INACTIVA") { bg = "#fee2e2"; color = "#991b1b"; border = "#fecaca"; }
+
+    return { display: "inline-block", padding: "2px 8px", borderRadius: "20px", fontSize: "0.7rem", fontWeight: "900", background: bg, color, border: `1px solid ${border}`, whiteSpace: "nowrap" };
   },
+
   badgeEstadoEnvio: (estado) => {
-    const norm = (estado || "").toUpperCase();
-    let bg = "#f1f5f9",
-      color = "#475569",
-      border = "#e2e8f0";
+    const norm = normEstado(estado);
+    let bg = "#f1f5f9", color = "#475569", border = "#e2e8f0";
 
-    if (norm.includes("LISTO") || norm.includes("APROB")) {
-      bg = "#dcfce7";
-      color = "#166534";
-      border = "#bbf7d0";
-    } else if (
-      norm.includes("RUTA") ||
-      norm.includes("TRANSITO") ||
-      norm.includes("PENDIENTE")
-    ) {
-      bg = "#ffedd5";
-      color = "#9a3412";
-      border = "#fed7aa";
-    } else if (norm.includes("CANCEL")) {
-      bg = "#fee2e2";
-      color = "#991b1b";
-      border = "#fecaca";
-    }
+    if (norm.includes("TERMIN")) { bg = "#dcfce7"; color = "#166534"; border = "#bbf7d0"; }
+    else if (norm.includes("PENDIENTE")) { bg = "#ffedd5"; color = "#9a3412"; border = "#fed7aa"; }
+    else if (norm.includes("ASIGNAD")) { bg = "#e0f2fe"; color = "#0369a1"; border = "#bae6fd"; }
+    else if (norm.includes("LISTO")) { bg = "#dbeafe"; color = "#1e40af"; border = "#bfdbfe"; }
+    else if (norm.includes("CURSO") || norm.includes("TRANSITO") || norm.includes("RUTA")) { bg = "#ede9fe"; color = "#5b21b6"; border = "#ddd6fe"; }
+    else if (norm.includes("CANCEL")) { bg = "#fee2e2"; color = "#991b1b"; border = "#fecaca"; }
 
-    return {
-      display: "inline-block",
-      padding: "2px 8px",
-      borderRadius: "20px",
-      fontSize: "0.7rem",
-      fontWeight: "700",
-      background: bg,
-      color: color,
-      border: `1px solid ${border}`,
-    };
-  },
-  pillSmall: {
-    fontSize: "0.75rem",
-    padding: "2px 8px",
-    borderRadius: "6px",
-    background: "#e0f2fe",
-    color: "#0369a1",
-    fontWeight: "600",
+    return { display: "inline-block", padding: "2px 8px", borderRadius: "20px", fontSize: "0.7rem", fontWeight: "900", background: bg, color, border: `1px solid ${border}`, whiteSpace: "nowrap" };
   },
 
-  // Modal
-  modalOverlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(15, 23, 42, 0.6)",
-    backdropFilter: "blur(4px)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 4000,
-  },
-  modal: {
-    width: "100%",
-    maxWidth: "520px",
-    background: "#ffffff",
-    borderRadius: "16px",
-    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-    padding: "30px",
-    boxSizing: "border-box",
-    animation: "scaleUp 0.2s ease-out",
-  },
-  modalTitle: {
-    fontSize: "1.3rem",
-    fontWeight: "700",
-    color: "#0f172a",
-    marginBottom: "5px",
-  },
-  modalSubtitle: {
-    fontSize: "0.9rem",
-    color: "#64748b",
-    marginBottom: "20px",
-  },
-  formGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr",
-    gap: "15px",
-    marginTop: "10px",
-  },
-  label: {
-    fontSize: "0.8rem",
-    fontWeight: "700",
-    color: "#475569",
-    marginBottom: "5px",
-    textTransform: "uppercase",
-  },
-  input: {
-    height: "40px",
-    borderRadius: "8px",
-    border: "1px solid #cbd5e1",
-    padding: "0 12px",
-    fontSize: "0.9rem",
-    outline: "none",
-    width: "100%",
-    boxSizing: "border-box",
-  },
-  select: {
-    height: "40px",
-    borderRadius: "8px",
-    border: "1px solid #cbd5e1",
-    padding: "0 12px",
-    fontSize: "0.9rem",
-    outline: "none",
-    width: "100%",
-    boxSizing: "border-box",
-    backgroundColor: "#fff",
-  },
-  modalActions: {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: "10px",
-    marginTop: "25px",
-    borderTop: "1px solid #f1f5f9",
-    paddingTop: "20px",
-  },
-  errorText: {
-    marginTop: "10px",
-    fontSize: "0.85rem",
-    color: "#b91c1c",
-    fontWeight: "600",
-    padding: "8px",
-    background: "#fee2e2",
-    borderRadius: "6px",
-  },
-  okText: {
-    marginTop: "10px",
-    fontSize: "0.85rem",
-    color: "#166534",
-    fontWeight: "600",
-    padding: "8px",
-    background: "#dcfce7",
-    borderRadius: "6px",
-  },
-  chipOrd: {
-    display: "inline-block",
-    fontSize: "0.75rem",
-    padding: "2px 8px",
-    borderRadius: "12px",
-    background: "#f1f5f9",
-    color: "#334155",
-    border: "1px solid #e2e8f0",
-    marginRight: "4px",
-    marginBottom: "4px",
+  pillSmall: { fontSize: "0.75rem", padding: "2px 8px", borderRadius: "8px", background: "#e0f2fe", color: "#0369a1", fontWeight: "800" },
+  resumenResultados: { fontSize: "0.78rem", color: "#64748b", marginTop: "8px" },
+
+  detalleCard: { marginTop: "12px", padding: "12px 14px", borderRadius: "12px", border: "1px solid #e2e8f0", background: "#ffffff", fontSize: "0.85rem" },
+  detalleTitle: { fontSize: "0.95rem", fontWeight: "900", color: "#0f172a", marginBottom: "6px" },
+  detalleLine: { marginBottom: "6px", color: "#475569" },
+  detalleLabel: { fontWeight: "900" },
+
+  linkPill: { display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid #bae6fd", background: "#f0f9ff", color: "#0369a1", padding: "2px 8px", borderRadius: "10px", cursor: "pointer", fontWeight: 900, fontSize: "0.8rem" },
+
+  modalOverlay: { position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 4000, padding: "18px" },
+  modal: { width: "100%", maxWidth: "760px", background: "#ffffff", borderRadius: "16px", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", padding: "18px", boxSizing: "border-box", animation: "scaleUp 0.2s ease-out", border: "1px solid #e2e8f0", position: "relative", maxHeight: "82vh", overflow: "auto" },
+  modalCloseX: { position: "absolute", top: 10, right: 10, border: "1px solid #e2e8f0", background: "#fff", borderRadius: "10px", width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b" },
+  modalTitle: { margin: 0, fontSize: "1.15rem", fontWeight: 900, color: "#0f172a", paddingRight: "44px" },
+  modalSubtitle: { marginTop: 6, marginBottom: 12, fontSize: "0.9rem", color: "#64748b" },
+
+  formGrid: { display: "grid", gridTemplateColumns: "1fr", gap: "14px", marginTop: 10 },
+  label: { fontSize: "0.8rem", fontWeight: "900", color: "#475569", marginBottom: 6, textTransform: "uppercase" },
+  input: { height: "40px", borderRadius: "10px", border: "1px solid #cbd5e1", padding: "0 12px", fontSize: "0.9rem", outline: "none", width: "100%", boxSizing: "border-box" },
+  select: { height: "40px", borderRadius: "10px", border: "1px solid #cbd5e1", padding: "0 12px", fontSize: "0.9rem", outline: "none", width: "100%", boxSizing: "border-box", backgroundColor: "#fff" },
+  modalActions: { display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: 16, borderTop: "1px solid #f1f5f9", paddingTop: 14 },
+  errorText: { marginTop: 10, fontSize: "0.85rem", color: "#b91c1c", fontWeight: "800", padding: "8px", background: "#fee2e2", borderRadius: "10px" },
+
+  chipOrd: { display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "0.75rem", padding: "2px 8px", borderRadius: "12px", background: "#f1f5f9", color: "#334155", border: "1px solid #e2e8f0", marginRight: "4px", marginBottom: "4px", cursor: "pointer" },
+
+  barOuter: { height: 10, borderRadius: 999, background: "#e2e8f0", overflow: "hidden", border: "1px solid #e2e8f0" },
+  barInner: (pct, mode) => {
+    const clamped = Math.max(0, Math.min(100, pct));
+    const bg = mode === "bad" ? "#ef4444" : mode === "warn" ? "#f59e0b" : "#22c55e";
+    return { width: `${clamped}%`, height: "100%", background: bg };
   },
 
-  resumenResultados: {
-    fontSize: "0.78rem",
-    color: "#64748b",
-    marginTop: "8px",
-  },
-  detalleCard: {
-    marginTop: "12px",
-    padding: "12px 14px",
-    borderRadius: "12px",
-    border: "1px solid #e2e8f0",
-    background: "#ffffff",
-    fontSize: "0.85rem",
-  },
-  detalleTitle: {
-    fontSize: "0.95rem",
-    fontWeight: "700",
-    color: "#0f172a",
-    marginBottom: "6px",
-  },
-  detalleLine: {
-    marginBottom: "4px",
-    color: "#475569",
-  },
-  detalleLabel: {
-    fontWeight: "600",
-  },
+  menuBtn: { width: 34, height: 34, borderRadius: 10, border: "1px solid #cbd5e1", background: "#fff", color: "#64748b", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" },
+  menu: { position: "absolute", right: 0, top: 40, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 12, boxShadow: "0 12px 30px rgba(0,0,0,0.12)", minWidth: 220, overflow: "hidden", zIndex: 50 },
+  menuItem: { padding: "10px 12px", fontSize: "0.85rem", fontWeight: 800, color: "#334155", cursor: "pointer", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", gap: 10 },
+  menuItemDisabled: { opacity: 0.55, cursor: "not-allowed" },
+  menuHint: { fontSize: "0.72rem", fontWeight: 700, color: "#94a3b8" },
 };
 
-// Inyectar animación keyframes
-const styleSheet = document.createElement("style");
-styleSheet.innerText =
-  "@keyframes scaleUp { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }";
-document.head.appendChild(styleSheet);
+// -----------------------------
+// Keyframes (una sola vez)
+// -----------------------------
+(function ensureKeyframes() {
+  if (typeof document === "undefined") return;
+  const id = "digras-transporte-scaleup";
+  if (document.getElementById(id)) return;
+  const style = document.createElement("style");
+  style.id = id;
+  style.innerText = "@keyframes scaleUp { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }";
+  document.head.appendChild(style);
+})();
 
+// -----------------------------
+// Helpers
+// -----------------------------
+const UNIDAD_ESTADOS = ["ACTIVA", "INACTIVA", "DISPONIBLE", "RESERVADA", "EN TRANSITO"];
+const ENVIO_ESTADOS_FILTER = [
+  { label: "Terminado", value: "TERMINADO" },
+  { label: "Pendiente por asignación", value: "PENDIENTE POR ASIGNACION" },
+  { label: "Asignado", value: "ASIGNADO" },
+  { label: "LISTO_PARA_SALIR", value: "LISTO_PARA_SALIR" },
+  { label: "En curso", value: "EN CURSO" },
+];
+
+function todayISO() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+function normEstado(v) { return (v ?? "").toString().toUpperCase().replace(/_/g, " ").trim(); }
+function normalizeText(v) { return (v ?? "").toString().trim().toLowerCase(); }
+function toNumber(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+function isFinalEnvioEstado(estado) { const s = normEstado(estado); return ["TERMINADO", "CERRADO", "FINALIZADO", "ENTREGADO"].includes(s); }
+function isEnvioEditable(estado) { return normEstado(estado) === normEstado(ESTADO_CREACION_ENVIO); }
+function getBackendMessage(err) {
+  const data = err?.response?.data;
+  if (!data) return "Error inesperado.";
+  if (typeof data === "string") return data;
+  if (data.detail) return String(data.detail);
+  if (data.error) return String(data.error);
+  if (data.message) return String(data.message);
+  try { return JSON.stringify(data); } catch { return "Error inesperado."; }
+}
+function getPesoFromObj(obj) {
+  if (!obj) return null;
+  const candidates = [obj.peso_total, obj.peso, obj.peso_orden, obj.peso_total_orden, obj.peso_total_kg];
+  for (const c of candidates) {
+    if (c === 0) return 0;
+    if (c !== undefined && c !== null && String(c).trim() !== "") {
+      const n = Number(c);
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return null;
+}
+async function fetchPesoOrden(apiClient, idOrden) {
+  try {
+    const r = await apiClient.get(`/ordenes/${idOrden}/`);
+    const p = getPesoFromObj(r.data);
+    if (p !== null) return p;
+  } catch {}
+  try {
+    const r = await apiClient.get(`/ordenes/${idOrden}/detalles/`);
+    const detalles = Array.isArray(r.data) ? r.data : r.data.results || [];
+    let sum = 0, hadAnyPeso = false;
+    for (const d of detalles) {
+      const cantidad = toNumber(d.cantidad ?? 0);
+      const p1 = d.peso_total ?? d.peso ?? d.peso_item ?? d.peso_subtotal;
+      const p2 = d.peso_unitario;
+      if (p1 !== undefined && p1 !== null && String(p1).trim() !== "") {
+        const n = Number(p1);
+        if (Number.isFinite(n)) { sum += n; hadAnyPeso = true; continue; }
+      }
+      if (p2 !== undefined && p2 !== null && String(p2).trim() !== "") {
+        const n = Number(p2);
+        if (Number.isFinite(n)) { sum += n * (cantidad || 1); hadAnyPeso = true; }
+      }
+    }
+    if (hadAnyPeso) return sum;
+  } catch {}
+  return null;
+}
+
+function formatFechaCorta(iso) { if (!iso) return "-"; if (typeof iso !== "string") return String(iso); return iso.slice(0, 10); }
+function formatKg(n) { const x = toNumber(n); return `${x.toFixed(2)} Kg`; }
+function getUtilPct(peso, capacidad) { if (!capacidad || capacidad <= 0) return 0; return (peso / capacidad) * 100; }
+function getBarMode(pct) { if (pct >= 100) return "bad"; if (pct >= 85) return "warn"; return "ok"; }
+
+// -----------------------------
+// Modal genérico
+// -----------------------------
+function ModalShell({ open, title, subtitle, onClose, children, maxWidth }) {
+  if (!open) return null;
+  return (
+    <div style={styles.modalOverlay} onMouseDown={onClose}>
+      <div style={{ ...styles.modal, maxWidth: maxWidth || styles.modal.maxWidth }} onMouseDown={(e) => e.stopPropagation()}>
+        <button type="button" style={styles.modalCloseX} onClick={onClose}><IconX /></button>
+        <h4 style={styles.modalTitle}>{title}</h4>
+        {subtitle ? <div style={styles.modalSubtitle}>{subtitle}</div> : null}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ConfirmModal({ open, title, children, confirmText = "Confirmar", confirmTone = "primary", busy, onClose, onConfirm }) {
+  if (!open) return null;
+  const btnStyle = confirmTone === "danger"
+    ? { ...styles.buttonDanger, height: 36, padding: "0 14px" }
+    : { ...styles.buttonPrimary, height: 36, padding: "0 14px" };
+
+  return (
+    <div style={styles.modalOverlay} onMouseDown={busy ? undefined : onClose}>
+      <div style={{ ...styles.modal, maxWidth: "560px" }} onMouseDown={(e) => e.stopPropagation()}>
+        <button type="button" style={styles.modalCloseX} onClick={busy ? undefined : onClose}><IconX /></button>
+        <h4 style={styles.modalTitle}>{title}</h4>
+        <div style={{ marginTop: 10, color: "#334155", fontSize: "0.92rem" }}>{children}</div>
+
+        <div style={styles.modalActions}>
+          <button type="button" style={styles.buttonGhost} disabled={busy} onClick={onClose}>Cancelar</button>
+          <button type="button" style={{ ...btnStyle, ...(busy ? styles.buttonDisabled : {}) }} disabled={busy} onClick={onConfirm}>
+            {busy ? "Procesando..." : confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------
+// COMPONENTE
+// -----------------------------
 export default function TransporteEnvios() {
-  // ESTADO GENERAL
   const [unidades, setUnidades] = useState([]);
   const [envios, setEnvios] = useState([]);
   const [transportistas, setTransportistas] = useState([]);
@@ -518,72 +328,74 @@ export default function TransporteEnvios() {
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
 
-  const [searchUnidad, setSearchUnidad] = useState("");
-  const [searchEnvio, setSearchEnvio] = useState("");
-  const [filtroEstadoUnidad, setFiltroEstadoUnidad] = useState("TODOS");
-  const [filtroEstadoEnvio, setFiltroEstadoEnvio] = useState("TODOS");
-
   const [unidadSeleccionada, setUnidadSeleccionada] = useState(null);
   const [envioSeleccionado, setEnvioSeleccionado] = useState(null);
 
-  // Modales unidad
+  const [searchUnidad, setSearchUnidad] = useState("");
+  const [filtroEstadoUnidad, setFiltroEstadoUnidad] = useState("TODOS");
+  const [filtroTransportistaUnidad, setFiltroTransportistaUnidad] = useState("TODOS");
+  const [sortUnidad, setSortUnidad] = useState("nombre");
+
+  const [searchEnvio, setSearchEnvio] = useState("");
+  const [filtroEstadoEnvio, setFiltroEstadoEnvio] = useState("TODOS");
+  const [filtroUnidadEnvio, setFiltroUnidadEnvio] = useState("TODOS");
+  const [filtroTransportistaEnvio, setFiltroTransportistaEnvio] = useState("TODOS");
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
+  const [pesoMin, setPesoMin] = useState("");
+  const [pesoMax, setPesoMax] = useState("");
+  const [sortEnvio, setSortEnvio] = useState("recientes");
+
+  const [menuEnvioOpenId, setMenuEnvioOpenId] = useState(null);
+  const [busyKey, setBusyKey] = useState(null);
+
   const [showUnidadModal, setShowUnidadModal] = useState(false);
-  const [unidadMode, setUnidadMode] = useState("crear"); // "crear" | "editar"
-  const [unidadForm, setUnidadForm] = useState({
-    codigo_unidad: "",
-    id_usuario: "",
-    capacidad_carga: "",
-    placa: "",
-    estado: "ACTIVA",
-  });
+  const [unidadMode, setUnidadMode] = useState("crear");
+  const [unidadForm, setUnidadForm] = useState({ nombre_unidad: "", id_usuario: "", capacidad_carga: "", placa: "", estado: "ACTIVA" });
   const [unidadFormError, setUnidadFormError] = useState("");
-  const [unidadFormLoading, setUnidadFormLoading] = useState(false);
 
-  // Modal nuevo transportista
   const [showTransportistaModal, setShowTransportistaModal] = useState(false);
-  const [transportistaForm, setTransportistaForm] = useState({
-    username: "",
-    first_name: "",
-    last_name: "",
-    telefono: "",
-    password: "",
-  });
+  const [transportistaForm, setTransportistaForm] = useState({ username: "", first_name: "", last_name: "", telefono: "", password: "" });
   const [transportistaFormError, setTransportistaFormError] = useState("");
-  const [transportistaFormLoading, setTransportistaFormLoading] =
-    useState(false);
 
-  // Modales envío
   const [showEnvioModal, setShowEnvioModal] = useState(false);
-  const [envioMode, setEnvioMode] = useState("crear"); // "crear" | "editar"
-  const [envioForm, setEnvioForm] = useState({
-    codigo_envio: "",
-    id_unidad: "",
-    fecha_salida: "",
-  });
+  const [envioMode, setEnvioMode] = useState("crear");
+  const [envioForm, setEnvioForm] = useState({ codigo_envio: "", id_unidad: "", fecha_salida: todayISO() });
   const [envioFormError, setEnvioFormError] = useState("");
-  const [envioFormLoading, setEnvioFormLoading] = useState(false);
 
-  // Modal asignar órdenes
   const [showAsignarModal, setShowAsignarModal] = useState(false);
   const [ordenesDisponibles, setOrdenesDisponibles] = useState([]);
   const [ordenesSeleccionadas, setOrdenesSeleccionadas] = useState([]);
   const [asignarError, setAsignarError] = useState("");
-  const [asignarLoading, setAsignarLoading] = useState(false);
   const [searchOrden, setSearchOrden] = useState("");
 
-  // CARGA DE DATOS
+  const [showUnidadInfo, setShowUnidadInfo] = useState(false);
+  const [unidadInfo, setUnidadInfo] = useState(null);
+
+  const [showOrdenInfo, setShowOrdenInfo] = useState(false);
+  const [ordenInfo, setOrdenInfo] = useState({ loading: false, error: "", orden: null, detalles: [], peso: null, cliente: null });
+
+  const [confirm, setConfirm] = useState({ open: false, title: "", tone: "primary", text: null, onConfirm: null });
+
+  const syncGuardRef = useRef(false);
+
+  // Auditoría
+  const logAccion = async (accion, descripcion, idReferencia = null, modulo = "Transporte") => {
+    try {
+      await api.post("/base/registros/", { modulo, accion, descripcion, id_referencia: idReferencia });
+    } catch {}
+  };
+
   const cargarUnidades = async () => {
     setLoadingUnidades(true);
     try {
       const res = await api.get("/base/unidades/");
       const data = Array.isArray(res.data) ? res.data : res.data.results || [];
       setUnidades(data);
+      return data;
     } catch (err) {
-      console.error("Error cargando unidades:", err);
-      const msg = err.response?.data?.detail || err.response?.data?.error;
-      setError(
-        msg || "No se pudieron cargar las unidades. Verifique permisos o servidor."
-      );
+      setError(getBackendMessage(err) || "No se pudieron cargar las unidades.");
+      return [];
     } finally {
       setLoadingUnidades(false);
     }
@@ -595,12 +407,10 @@ export default function TransporteEnvios() {
       const res = await api.get("/base/envios/");
       const data = Array.isArray(res.data) ? res.data : res.data.results || [];
       setEnvios(data);
+      return data;
     } catch (err) {
-      console.error("Error cargando envíos:", err);
-      const msg = err.response?.data?.detail || err.response?.data?.error;
-      setError(
-        msg || "No se pudieron cargar los envíos. Verifique permisos o servidor."
-      );
+      setError(getBackendMessage(err) || "No se pudieron cargar los envíos.");
+      return [];
     } finally {
       setLoadingEnvios(false);
     }
@@ -611,333 +421,423 @@ export default function TransporteEnvios() {
     try {
       const res = await api.get("/base/usuarios/");
       const data = Array.isArray(res.data) ? res.data : res.data.results || [];
-      const soloTransportistas = data.filter(
-        (u) => (u.tipo || "").toUpperCase() === "TRANSPORTISTA"
-      );
-      setTransportistas(soloTransportistas);
-    } catch (err) {
-      console.error("Error cargando transportistas:", err);
+      const solo = data.filter((u) => (u.tipo || "").toUpperCase() === "TRANSPORTISTA");
+      setTransportistas(solo);
+      return solo;
+    } catch {
+      return [];
     } finally {
       setLoadingTransportistas(false);
     }
   };
 
+  const syncEstadosUnidadesConEnvios = async (enviosListOpt) => {
+    if (syncGuardRef.current) return;
+    syncGuardRef.current = true;
+
+    try {
+      const enviosList = Array.isArray(enviosListOpt) ? enviosListOpt : envios;
+      if (!Array.isArray(enviosList) || enviosList.length === 0) return;
+
+      const updates = [];
+      for (const u of unidades) {
+        const estadoUnidad = normEstado(u.estado);
+        if (estadoUnidad === "INACTIVA") continue;
+
+        const rel = enviosList.filter((e) => String(e.id_unidad) === String(u.id_unidad));
+        if (rel.length === 0) continue;
+
+        const anyNoFinal = rel.some((e) => !isFinalEnvioEstado(e.estado));
+        if (!anyNoFinal) {
+          if (estadoUnidad !== "ACTIVA" && estadoUnidad !== "DISPONIBLE") updates.push({ id_unidad: u.id_unidad, estado: "ACTIVA" });
+          continue;
+        }
+
+        const anyPendiente = rel.some((e) => normEstado(e.estado) === normEstado(ESTADO_CREACION_ENVIO));
+        if (anyPendiente) {
+          if (estadoUnidad !== "RESERVADA") updates.push({ id_unidad: u.id_unidad, estado: "RESERVADA" });
+          continue;
+        }
+
+        if (!estadoUnidad.includes("TRANSITO")) updates.push({ id_unidad: u.id_unidad, estado: "EN TRANSITO" });
+      }
+
+      for (const up of updates) {
+        try { await api.patch(`/base/unidades/${up.id_unidad}/`, { estado: up.estado }); } catch {}
+      }
+      if (updates.length) await cargarUnidades();
+    } finally {
+      syncGuardRef.current = false;
+    }
+  };
+
   useEffect(() => {
-    setMensaje("");
-    setError("");
-    cargarUnidades();
-    cargarEnvios();
-    cargarTransportistas();
+    setMensaje(""); setError("");
+    (async () => {
+      await cargarUnidades();
+      const enviosData = await cargarEnvios();
+      await cargarTransportistas();
+      await syncEstadosUnidadesConEnvios(enviosData);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // HELPERS
-  const formatFechaCorta = (iso) => {
-    if (!iso) return "-";
-    if (typeof iso !== "string") return String(iso);
-    return iso.slice(0, 10);
-  };
+  useEffect(() => {
+    const onDocClick = () => setMenuEnvioOpenId(null);
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, []);
 
-  const getUnidadLabel = (unidadId) => {
-    const u = unidades.find((x) => String(x.id_unidad) === String(unidadId));
-    if (!u) return "Sin unidad";
-    const placa = u.placa ? ` · ${u.placa}` : "";
-    return `${u.codigo_unidad}${placa}`;
-  };
+  const transportistaById = useMemo(() => {
+    const m = new Map();
+    for (const t of transportistas) m.set(String(t.id_usuario ?? t.id), t);
+    return m;
+  }, [transportistas]);
+
+  const unidadById = useMemo(() => {
+    const m = new Map();
+    for (const u of unidades) m.set(String(u.id_unidad), u);
+    return m;
+  }, [unidades]);
+
+  const getUnidadById = (unidadId) => unidadById.get(String(unidadId)) || null;
 
   const getTransportistaLabel = (userId) => {
     if (!userId) return "-";
-    const match = transportistas.find(
-      (t) => String(t.id_usuario ?? t.id) === String(userId)
-    );
-    if (!match) return "-";
-    const nombre = `${match.first_name || ""} ${match.last_name || ""}`.trim();
-    return nombre || match.username || "-";
+    const t = transportistaById.get(String(userId));
+    if (!t) return "-";
+    const nombre = `${t.first_name || ""} ${t.last_name || ""}`.trim();
+    return nombre || t.username || "-";
   };
 
-  const getTransportistaTelefono = (userId) => {
-    if (!userId) return "";
-    const match = transportistas.find(
-      (t) => String(t.id_usuario ?? t.id) === String(userId)
-    );
-    return match?.telefono || "";
+  const getTransportistaTelefono = (userId) => transportistaById.get(String(userId))?.telefono || "";
+
+  const getUnidadLabel = (unidadId) => {
+    const u = getUnidadById(unidadId);
+    if (!u) return "Sin unidad";
+    const placa = u.placa ? ` · ${u.placa}` : "";
+    return `${u.codigo_unidad || "Unidad"}${placa}`;
   };
 
   const getOrdenesResumen = (envio) => {
     if (!envio) return [];
+    if (Array.isArray(envio.ordenes_detalle)) return envio.ordenes_detalle;
     if (Array.isArray(envio.ordenes_resumen)) return envio.ordenes_resumen;
     if (Array.isArray(envio.ordenes)) return envio.ordenes;
     if (Array.isArray(envio.ordenes_ids)) return envio.ordenes_ids;
-    if (Array.isArray(envio.ordenes_detalle)) return envio.ordenes_detalle;
     return [];
   };
 
-  // Helper: ¿El estado de envío está considerado activo?
-  const envioEstaActivo = (estado) => {
-    const s = (estado || "").toUpperCase().trim();
-    // Estados que NO bloquean la unidad (históricos / cerrados)
-    const estadosFinalizados = ["TERMINADO", "CERRADO", "ENTREGADO", "CANCELADO"];
-    // Retorna true solo si el envío sigue activo
-    return !estadosFinalizados.includes(s);
+  const getPesoEnvio = (envio) => {
+    if (!envio) return { sum: 0, missing: true };
+    const listado = getOrdenesResumen(envio);
+    let sum = 0, missing = false;
+
+    if (Array.isArray(listado) && listado.length > 0) {
+      for (const o of listado) {
+        if (typeof o === "object" && o !== null) {
+          const p = getPesoFromObj(o);
+          if (p === null) missing = true;
+          else sum += toNumber(p);
+        } else missing = true;
+      }
+    } else {
+      const p = getPesoFromObj(envio);
+      if (p === null) missing = true;
+      else sum = toNumber(p);
+    }
+
+    return { sum, missing };
   };
 
-  // ¿Unidad tiene envío activo?
-  const unidadTieneEnvioActivo = (unidadId, ignoreEnvioId = null) => {
-    return envios.some((e) => {
-      if (String(e.id_unidad) !== String(unidadId)) return false;
-      if (ignoreEnvioId && e.id_envio === ignoreEnvioId) return false;
-      // Activo solo si el estado NO está en la lista de finalizados
-      return envioEstaActivo(e.estado);
-    });
-  };
+  const getCapUnidad = (unidadId) => toNumber(getUnidadById(unidadId)?.capacidad_carga ?? 0);
 
-  // Para desactivar: ¿tiene envíos activos?
-  const unidadTieneEnvioAsignadoActivo = (unidadId) => {
-    return envios.some((e) => {
-      if (String(e.id_unidad) !== String(unidadId)) return false;
-      // Activo solo si el estado del envío no está finalizado/cerrado
-      return envioEstaActivo(e.estado);
-    });
-  };
-
-  // ¿Transportista ya está ocupado en otra unidad?
   const transportistaOcupadoEnOtraUnidad = (userId, currentUnidadId = null) => {
     if (!userId) return false;
     return unidades.some((u) => {
       if (String(u.id_usuario) !== String(userId)) return false;
-      if (currentUnidadId && u.id_unidad === currentUnidadId) return false;
+      if (currentUnidadId && String(u.id_unidad) === String(currentUnidadId)) return false;
       return true;
     });
   };
 
-  // Listas filtradas
-  const unidadesFiltradas = unidades.filter((u) => {
-    const t = (searchUnidad || "").toLowerCase();
-    const matchTexto =
-      !t ||
-      (u.codigo_unidad || "").toLowerCase().includes(t) ||
-      (u.placa || "").toLowerCase().includes(t);
+  const unidadTodosEnviosFinalizados = (unidadId) => {
+    const relacionados = envios.filter((e) => String(e.id_unidad) === String(unidadId));
+    if (relacionados.length === 0) return true;
+    return relacionados.every((e) => isFinalEnvioEstado(e.estado));
+  };
 
-    const matchEstado =
-      filtroEstadoUnidad === "TODOS" ||
-      (u.estado || "").toUpperCase() === filtroEstadoUnidad;
+  const unidadPuedeGestionarse = (unidadId) => unidadTodosEnviosFinalizados(unidadId);
 
-    return matchTexto && matchEstado;
-  });
+  const unidadBloquearActivarDesactivarPorTransito = (unidadId) =>
+    envios.some((e) => String(e.id_unidad) === String(unidadId) && !isFinalEnvioEstado(e.estado));
 
-  const enviosFiltrados = envios.filter((e) => {
-    const t = (searchEnvio || "").toLowerCase();
-    const matchTexto =
-      !t ||
-      (e.codigo_envio || "").toLowerCase().includes(t) ||
-      (e.estado || "").toLowerCase().includes(t);
+  const envioActionCaps = (estado) => {
+    const s = normEstado(estado);
 
-    const estadoUpper = (e.estado || "").toUpperCase();
-    const matchEstado =
-      filtroEstadoEnvio === "TODOS" || estadoUpper === filtroEstadoEnvio;
+    if (s === normEstado(ESTADO_CREACION_ENVIO)) {
+      return {
+        canEdit: true,
+        canAssign: true,
+        canClose: true,
+        canDelete: true,
+        reasonShort: "Editable",
+        reasonFull: "Pendiente por asignación: puedes editar, asignar, cerrar y eliminar.",
+      };
+    }
 
-    return matchTexto && matchEstado;
-  });
+    if (s.includes("TERMIN")) {
+      return {
+        canEdit: false,
+        canAssign: false,
+        canClose: false,
+        canDelete: false,
+        reasonShort: "Terminado",
+        reasonFull: "Envío terminado: solo lectura.",
+      };
+    }
 
-  const estadosEnvioDisponibles = Array.from(
-    new Set(envios.map((e) => e.estado).filter(Boolean))
-  );
+    if (s.includes("CURSO") || s.includes("TRANSITO") || s.includes("RUTA")) {
+      return {
+        canEdit: false,
+        canAssign: false,
+        canClose: false,
+        canDelete: false,
+        reasonShort: "En curso",
+        reasonFull: "En curso / en tránsito: solo lectura.",
+      };
+    }
 
-  // GESTIÓN UNIDADES
+    return {
+      canEdit: false,
+      canAssign: false,
+      canClose: false,
+      canDelete: false,
+      reasonShort: "Asignado",
+      reasonFull: "Envío asignado: solo lectura.",
+    };
+  };
+
+  const unidadesFiltradas = useMemo(() => {
+    const t = normalizeText(searchUnidad);
+    let list = unidades.filter((u) => {
+      const matchTexto = !t || (u.codigo_unidad || "").toLowerCase().includes(t) || (u.placa || "").toLowerCase().includes(t);
+      const matchEstado = filtroEstadoUnidad === "TODOS" || normEstado(u.estado) === normEstado(filtroEstadoUnidad);
+      const matchTrans = filtroTransportistaUnidad === "TODOS" || String(u.id_usuario) === String(filtroTransportistaUnidad);
+      return matchTexto && matchEstado && matchTrans;
+    });
+
+    list = list.slice().sort((a, b) => {
+      if (sortUnidad === "capacidad") return toNumber(b.capacidad_carga) - toNumber(a.capacidad_carga);
+      return (a.codigo_unidad || "").toLowerCase().localeCompare((b.codigo_unidad || "").toLowerCase());
+    });
+
+    return list;
+  }, [unidades, searchUnidad, filtroEstadoUnidad, filtroTransportistaUnidad, sortUnidad]);
+
+  const enviosFiltrados = useMemo(() => {
+    const t = normalizeText(searchEnvio);
+    let list = envios.filter((e) => {
+      const matchTexto = !t || (e.codigo_envio || "").toLowerCase().includes(t) || (e.estado || "").toLowerCase().includes(t);
+      const est = normEstado(e.estado);
+      const matchEstado = filtroEstadoEnvio === "TODOS" || est === normEstado(filtroEstadoEnvio);
+      const matchUnidad = filtroUnidadEnvio === "TODOS" || String(e.id_unidad) === String(filtroUnidadEnvio);
+
+      const u = getUnidadById(e.id_unidad);
+      const matchTrans = filtroTransportistaEnvio === "TODOS" || String(u?.id_usuario || "") === String(filtroTransportistaEnvio);
+
+      const d = e.fecha_salida ? formatFechaCorta(e.fecha_salida) : "";
+      const matchDesde = !fechaDesde || (d && d >= fechaDesde);
+      const matchHasta = !fechaHasta || (d && d <= fechaHasta);
+
+      const { sum, missing } = getPesoEnvio(e);
+      const peso = missing ? null : sum;
+      const min = pesoMin !== "" ? toNumber(pesoMin) : null;
+      const max = pesoMax !== "" ? toNumber(pesoMax) : null;
+      const matchPesoMin = min === null || (peso !== null && peso >= min);
+      const matchPesoMax = max === null || (peso !== null && peso <= max);
+
+      return matchTexto && matchEstado && matchUnidad && matchTrans && matchDesde && matchHasta && matchPesoMin && matchPesoMax;
+    });
+
+    list = list.slice().sort((a, b) => {
+      const da = a.fecha_salida ? new Date(a.fecha_salida) : new Date(0);
+      const db = b.fecha_salida ? new Date(b.fecha_salida) : new Date(0);
+      if (sortEnvio === "antiguos") return da - db;
+      return db - da;
+    });
+
+    return list;
+  }, [envios, searchEnvio, filtroEstadoEnvio, filtroUnidadEnvio, filtroTransportistaEnvio, fechaDesde, fechaHasta, pesoMin, pesoMax, sortEnvio, unidades, unidadById]);
+
+  const openConfirm = ({ title, tone = "primary", text, onConfirm }) => setConfirm({ open: true, title, tone, text, onConfirm });
+  const closeConfirm = () => { if (busyKey) return; setConfirm({ open: false, title: "", tone: "primary", text: null, onConfirm: null }); };
+
+  // -------- UNIDADES
   const abrirCrearUnidad = () => {
     setUnidadMode("crear");
-    setUnidadForm({
-      codigo_unidad: "",
-      id_usuario: "",
-      capacidad_carga: "",
-      placa: "",
-      estado: "ACTIVA",
-    });
+    setUnidadForm({ nombre_unidad: "", id_usuario: "", capacidad_carga: "", placa: "", estado: "ACTIVA" });
     setUnidadFormError("");
     setUnidadSeleccionada(null);
     setShowUnidadModal(true);
   };
 
   const abrirEditarUnidad = (unidad) => {
+    if (!unidad) return;
+    if (!unidadPuedeGestionarse(unidad.id_unidad)) return toast.error("Solo puedes editar unidades sin envíos o con todos los envíos terminados.");
     setUnidadMode("editar");
     setUnidadSeleccionada(unidad);
-    setUnidadForm({
-      codigo_unidad: unidad.codigo_unidad || "",
-      id_usuario: unidad.id_usuario || "",
-      capacidad_carga: unidad.capacidad_carga || "",
-      placa: unidad.placa || "",
-      estado: unidad.estado || "ACTIVA",
-    });
+    setUnidadForm({ nombre_unidad: unidad.codigo_unidad || "", id_usuario: unidad.id_usuario || "", capacidad_carga: unidad.capacidad_carga ?? "", placa: unidad.placa || "", estado: unidad.estado || "ACTIVA" });
     setUnidadFormError("");
     setShowUnidadModal(true);
   };
 
-  const handleUnidadChange = (campo, valor) => {
-    setUnidadForm((prev) => ({ ...prev, [campo]: valor }));
-  };
-
   const guardarUnidad = async (e) => {
     e.preventDefault();
+    if (busyKey) return;
+
     setUnidadFormError("");
-    setUnidadFormLoading(true);
     setMensaje("");
 
     try {
-      if (!unidadForm.codigo_unidad) {
-        setUnidadFormError("El código de unidad es obligatorio.");
-        return;
-      }
-      if (!unidadForm.id_usuario) {
-        setUnidadFormError("Debes seleccionar un transportista.");
-        return;
-      }
+      if (!unidadForm.nombre_unidad) return setUnidadFormError("El nombre de unidad es obligatorio.");
+      if ((unidadForm.nombre_unidad || "").length > 15) return setUnidadFormError("Máximo 15 caracteres para nombre de unidad.");
+      if ((unidadForm.placa || "").length > 10) return setUnidadFormError("Máximo 10 caracteres para placa.");
+      if (!unidadForm.id_usuario) return setUnidadFormError("Debes seleccionar un transportista.");
 
-      // Validar que el transportista no esté ya asignado a otra unidad
-      const yaAsignado = transportistaOcupadoEnOtraUnidad(
-        unidadForm.id_usuario,
-        unidadMode === "editar" && unidadSeleccionada
-          ? unidadSeleccionada.id_unidad
-          : null
-      );
-      if (yaAsignado) {
-        setUnidadFormError(
-          "Este transportista ya está asignado a otra unidad. Selecciona un chofer diferente."
-        );
-        return;
-      }
+      const yaAsignado = transportistaOcupadoEnOtraUnidad(unidadForm.id_usuario, unidadMode === "editar" && unidadSeleccionada ? unidadSeleccionada.id_unidad : null);
+      if (yaAsignado) return setUnidadFormError("Este transportista ya está asignado a otra unidad.");
 
-      // El teléfono de la unidad será siempre el teléfono del transportista
       const telefonoAsociado = getTransportistaTelefono(unidadForm.id_usuario);
 
       const payload = {
-        codigo_unidad: unidadForm.codigo_unidad,
+        codigo_unidad: unidadForm.nombre_unidad,
         id_usuario: unidadForm.id_usuario,
         telefono: telefonoAsociado,
         placa: unidadForm.placa,
         estado: unidadForm.estado,
-        capacidad_carga:
-          unidadForm.capacidad_carga === "" ||
-          unidadForm.capacidad_carga === null
-            ? 0
-            : Number(unidadForm.capacidad_carga),
+        capacidad_carga: unidadForm.capacidad_carga === "" || unidadForm.capacidad_carga === null ? 0 : Number(unidadForm.capacidad_carga),
       };
 
+      setBusyKey("unidad:save");
       if (unidadMode === "crear") {
-        await api.post("/base/unidades/", payload);
+        const r = await api.post("/base/unidades/", payload);
+        toast.success("Unidad creada.");
         setMensaje("Unidad creada correctamente.");
+        await logAccion("Crear unidad", `Se creó la unidad ${payload.codigo_unidad}.`, r.data?.id_unidad ?? null, "Unidades");
       } else if (unidadMode === "editar" && unidadSeleccionada) {
         await api.patch(`/base/unidades/${unidadSeleccionada.id_unidad}/`, payload);
+        toast.success("Unidad actualizada.");
         setMensaje("Unidad actualizada correctamente.");
+        await logAccion("Editar unidad", `Se editó la unidad ${payload.codigo_unidad}.`, unidadSeleccionada.id_unidad, "Unidades");
       }
 
       setShowUnidadModal(false);
       setUnidadSeleccionada(null);
       await cargarUnidades();
     } catch (err) {
-      console.error("Error guardando unidad:", err);
-      const msg = err.response?.data?.detail || err.response?.data?.error;
-      setUnidadFormError(
-        msg || "No se pudo guardar la unidad. Verifica los datos o permisos."
-      );
+      const msg = getBackendMessage(err);
+      setUnidadFormError(msg || "No se pudo guardar la unidad.");
+      toast.error(msg || "No se pudo guardar la unidad.");
     } finally {
-      setUnidadFormLoading(false);
+      setBusyKey(null);
     }
   };
 
-  const desactivarUnidad = async (unidad) => {
+  const toggleUnidadEstado = (unidad, targetEstado) => {
     if (!unidad) return;
-    const confirmar = window.confirm(
-      `¿Desactivar la unidad "${unidad.codigo_unidad}"?`
-    );
-    if (!confirmar) return;
 
-    if (unidadTieneEnvioAsignadoActivo(unidad.id_unidad)) {
-      alert(
-        "No puedes desactivar esta unidad porque tiene envíos asignados activos."
-      );
+    if (unidadBloquearActivarDesactivarPorTransito(unidad.id_unidad)) {
+      toast.error("No puedes activar/desactivar: esta unidad tiene envíos activos (en tránsito/en curso/asignados).");
       return;
     }
 
-    try {
-      await api.patch(`/base/unidades/${unidad.id_unidad}/`, {
-        estado: "INACTIVA",
-      });
-      setMensaje(`Unidad ${unidad.codigo_unidad} desactivada.`);
-      await cargarUnidades();
-    } catch (err) {
-      console.error("Error desactivando unidad:", err);
-      const msg = err.response?.data?.detail || err.response?.data?.error;
-      alert(
-        msg ||
-          "No se pudo desactivar la unidad. Es posible que tenga envíos asociados."
-      );
-    }
-  };
-
-  const activarUnidad = async (unidad) => {
-    if (!unidad) return;
-
-    try {
-      await api.patch(`/base/unidades/${unidad.id_unidad}/`, {
-        estado: "ACTIVA",
-      });
-      setMensaje(`Unidad ${unidad.codigo_unidad} activada.`);
-      await cargarUnidades();
-    } catch (err) {
-      console.error("Error activando unidad:", err);
-      const msg = err.response?.data?.detail || err.response?.data?.error;
-      alert(msg || "No se pudo activar la unidad.");
-    }
-  };
-
-  const eliminarUnidad = async (unidad) => {
-    if (!unidad) return;
-    const confirmar = window.confirm(
-      `¿Eliminar la unidad "${unidad.codigo_unidad}"?`
-    );
-    if (!confirmar) return;
-
-    try {
-      await api.delete(`/base/unidades/${unidad.id_unidad}/`);
-      setMensaje(`Unidad ${unidad.codigo_unidad} eliminada.`);
-      await cargarUnidades();
-      setUnidadSeleccionada(null);
-    } catch (err) {
-      console.error("Error eliminando unidad:", err);
-      const msg = err.response?.data?.detail || err.response?.data?.error;
-      alert(
-        msg ||
-          "No se pudo eliminar la unidad. Es posible que tenga envíos asociados."
-      );
-    }
-  };
-
-  // NUEVO TRANSPORTISTA
-  const abrirNuevoTransportista = () => {
-    setTransportistaForm({
-      username: "",
-      first_name: "",
-      last_name: "",
-      telefono: "",
-      password: "",
+    openConfirm({
+      title: `${targetEstado === "INACTIVA" ? "Desactivar" : "Activar"} unidad`,
+      tone: targetEstado === "INACTIVA" ? "danger" : "primary",
+      text: (
+        <div>
+          <div style={{ marginBottom: 8 }}>
+            Unidad: <b>{unidad.codigo_unidad}</b> · Placa: <b>{unidad.placa || "-"}</b>
+          </div>
+          <div style={{ color: "#64748b" }}>
+            {targetEstado === "INACTIVA"
+              ? "La unidad quedará fuera de uso hasta que la actives nuevamente."
+              : "La unidad volverá a estar disponible para asignaciones."}
+          </div>
+        </div>
+      ),
+      onConfirm: async () => {
+        if (busyKey) return;
+        setBusyKey(`unidad:toggle:${unidad.id_unidad}`);
+        try {
+          await api.patch(`/base/unidades/${unidad.id_unidad}/`, { estado: targetEstado });
+          toast.success(`Unidad ${unidad.codigo_unidad} actualizada.`);
+          setMensaje(`Unidad ${unidad.codigo_unidad} actualizada.`);
+          await logAccion(targetEstado === "INACTIVA" ? "Desactivar unidad" : "Activar unidad", `Unidad ${unidad.codigo_unidad} => ${targetEstado}.`, unidad.id_unidad, "Unidades");
+          await cargarUnidades();
+          closeConfirm();
+        } catch (err) {
+          toast.error(getBackendMessage(err) || "No se pudo actualizar la unidad.");
+        } finally {
+          setBusyKey(null);
+        }
+      },
     });
+  };
+
+  const eliminarUnidad = (unidad) => {
+    if (!unidad) return;
+    if (!unidadPuedeGestionarse(unidad.id_unidad)) return toast.error("Solo puedes eliminar unidades sin envíos o con todos los envíos terminados.");
+
+    openConfirm({
+      title: "Eliminar unidad",
+      tone: "danger",
+      text: (
+        <div>
+          <div style={{ marginBottom: 8 }}>
+            ¿Seguro que deseas eliminar la unidad <b>{unidad.codigo_unidad}</b>?
+          </div>
+          <div style={{ color: "#64748b" }}>
+            Esta acción no se puede deshacer. Solo es posible si no tiene envíos activos.
+          </div>
+        </div>
+      ),
+      onConfirm: async () => {
+        if (busyKey) return;
+        setBusyKey(`unidad:delete:${unidad.id_unidad}`);
+        try {
+          await api.delete(`/base/unidades/${unidad.id_unidad}/`);
+          toast.success("Unidad eliminada.");
+          setMensaje(`Unidad ${unidad.codigo_unidad} eliminada.`);
+          await logAccion("Eliminar unidad", `Se eliminó la unidad ${unidad.codigo_unidad}.`, unidad.id_unidad, "Unidades");
+          await cargarUnidades();
+          setUnidadSeleccionada(null);
+          closeConfirm();
+        } catch (err) {
+          toast.error(getBackendMessage(err) || "No se pudo eliminar la unidad.");
+        } finally {
+          setBusyKey(null);
+        }
+      },
+    });
+  };
+
+  // -------- TRANSPORTISTA
+  const abrirNuevoTransportista = () => {
+    setTransportistaForm({ username: "", first_name: "", last_name: "", telefono: "", password: "" });
     setTransportistaFormError("");
     setShowTransportistaModal(true);
   };
 
-  const handleTransportistaChange = (campo, valor) => {
-    setTransportistaForm((prev) => ({ ...prev, [campo]: valor }));
-  };
-
   const guardarTransportista = async (e) => {
     e.preventDefault();
+    if (busyKey) return;
+
     setTransportistaFormError("");
-    setTransportistaFormLoading(true);
 
     try {
-      if (!transportistaForm.username) {
-        setTransportistaFormError("El usuario es obligatorio.");
-        return;
-      }
+      if (!transportistaForm.username) return setTransportistaFormError("El usuario es obligatorio.");
 
       const payload = {
         username: transportistaForm.username,
@@ -948,291 +848,473 @@ export default function TransporteEnvios() {
         tipo: "TRANSPORTISTA",
       };
 
+      setBusyKey("transportista:create");
       const res = await api.post("/base/usuarios/", payload);
-      const nuevo = res.data;
+      toast.success("Transportista creado.");
+      await logAccion("Crear transportista", `Se creó el transportista ${payload.username}.`, res.data?.id_usuario ?? null, "Usuarios");
 
       await cargarTransportistas();
-
-      const idNuevo = nuevo.id_usuario ?? nuevo.id;
-      if (idNuevo) {
-        setUnidadForm((prev) => ({ ...prev, id_usuario: idNuevo }));
-      }
-
+      const idNuevo = res.data?.id_usuario ?? res.data?.id;
+      if (idNuevo) setUnidadForm((prev) => ({ ...prev, id_usuario: idNuevo }));
       setShowTransportistaModal(false);
     } catch (err) {
-      console.error("Error creando transportista:", err);
-      const msg = err.response?.data?.detail || err.response?.data?.error;
-      setTransportistaFormError(
-        msg || "No se pudo crear el transportista. Revisa datos o permisos."
-      );
+      const msg = getBackendMessage(err);
+      setTransportistaFormError(msg || "No se pudo crear el transportista.");
+      toast.error(msg || "No se pudo crear el transportista.");
     } finally {
-      setTransportistaFormLoading(false);
+      setBusyKey(null);
     }
   };
 
-  // GESTIÓN ENVÍOS
+  // -------- ENVÍOS
   const abrirCrearEnvio = () => {
     setEnvioMode("crear");
     setEnvioSeleccionado(null);
-    setEnvioForm({
-      codigo_envio: "Se generará automáticamente",
-      id_unidad: "",
-      fecha_salida: "",
-    });
+    setEnvioForm({ codigo_envio: "Se generará automáticamente", id_unidad: "", fecha_salida: todayISO() });
     setEnvioFormError("");
     setShowEnvioModal(true);
   };
 
   const abrirEditarEnvio = (envio) => {
-    const estadoUpper = (envio.estado || "").toUpperCase();
-    if (estadoUpper.includes("LISTO_PARA_SALIR")) {
-      alert(
-        "Este envío ya fue marcado como LISTO PARA SALIR y no puede ser editado."
-      );
-      return;
-    }
-
+    if (!envio) return;
+    if (!isEnvioEditable(envio.estado)) return toast.error("Solo puedes editar envíos en estado PENDIENTE POR ASIGNACION.");
     setEnvioMode("editar");
     setEnvioSeleccionado(envio);
-    setEnvioForm({
-      codigo_envio: envio.codigo_envio || "",
-      id_unidad: envio.id_unidad || "",
-      fecha_salida: envio.fecha_salida ? envio.fecha_salida.slice(0, 10) : "",
-    });
+    setEnvioForm({ codigo_envio: envio.codigo_envio || "", id_unidad: envio.id_unidad || "", fecha_salida: envio.fecha_salida ? formatFechaCorta(envio.fecha_salida) : todayISO() });
     setEnvioFormError("");
     setShowEnvioModal(true);
   };
 
-  const handleEnvioChange = (campo, valor) => {
-    setEnvioForm((prev) => ({ ...prev, [campo]: valor }));
-  };
-
   const guardarEnvio = async (e) => {
     e.preventDefault();
+    if (busyKey) return;
+
     setEnvioFormError("");
-    setEnvioFormLoading(true);
     setMensaje("");
 
     try {
-      if (!envioForm.id_unidad) {
-        setEnvioFormError("Debes seleccionar una unidad de transporte.");
-        return;
+      if (!envioForm.id_unidad) return setEnvioFormError("Debes seleccionar una unidad de transporte.");
+      const fecha = envioForm.fecha_salida || todayISO();
+      if (fecha < todayISO()) return setEnvioFormError("La fecha de salida no puede ser anterior a hoy.");
+
+      const ignoreEnvioId = envioMode === "editar" && envioSeleccionado ? envioSeleccionado.id_envio : null;
+      const unidadEnUso = envios.some((ev) => {
+        if (String(ev.id_unidad) !== String(envioForm.id_unidad)) return false;
+        if (ignoreEnvioId && String(ev.id_envio) === String(ignoreEnvioId)) return false;
+        return !isFinalEnvioEstado(ev.estado);
+      });
+      if (unidadEnUso) return setEnvioFormError("Esta unidad ya tiene un envío activo asignado. Selecciona otra.");
+
+      if (envioMode === "editar" && envioSeleccionado) {
+        const capacidad = getCapUnidad(envioForm.id_unidad);
+        const ordenesIds = getOrdenesResumen(envioSeleccionado).map((o) => (typeof o === "object" ? o.id_orden : o));
+        if (capacidad > 0 && ordenesIds.length) {
+          let sumPeso = 0;
+          for (const id of ordenesIds) {
+            const p = await fetchPesoOrden(api, id);
+            if (p === null) return setEnvioFormError(`No se pudo obtener el peso de la orden #${id}.`);
+            sumPeso += p;
+          }
+          if (sumPeso >= capacidad) return setEnvioFormError(`No permitido: peso total (${sumPeso}) >= capacidad (${capacidad}).`);
+        }
       }
 
-      if (!envioForm.fecha_salida) {
-        setEnvioFormError("La fecha de salida es obligatoria.");
-        return;
-      }
+      const payload = { id_unidad: envioForm.id_unidad, estado: ESTADO_CREACION_ENVIO, fecha_salida: `${fecha}T00:00:00` };
 
-      const ignoreEnvioId =
-        envioMode === "editar" && envioSeleccionado
-          ? envioSeleccionado.id_envio
-          : null;
-
-      if (unidadTieneEnvioActivo(envioForm.id_unidad, ignoreEnvioId)) {
-        setEnvioFormError(
-          "Esta unidad ya tiene un envío activo asignado. Selecciona otra unidad."
-        );
-        return;
-      }
-
-      const payload = {
-        id_unidad: envioForm.id_unidad,
-        estado: ESTADO_CREACION_ENVIO,
-        fecha_salida: `${envioForm.fecha_salida}T00:00:00`,
-      };
-
+      setBusyKey("envio:save");
       if (envioMode === "crear") {
         const res = await api.post("/base/envios/", payload);
         const creado = res.data;
 
+        try { await api.patch(`/base/unidades/${envioForm.id_unidad}/`, { estado: "RESERVADA" }); } catch {}
+
+        toast.success("Envío creado. Ahora asigna las órdenes.");
         setMensaje("Envío creado correctamente. Ahora asigna las órdenes.");
+        await logAccion("Crear envío", `Se creó el envío ${creado.codigo_envio}.`, creado.id_envio, "Envíos");
+
         setShowEnvioModal(false);
-        await cargarEnvios();
+
+        const enviosData = await cargarEnvios();
+        await cargarUnidades();
+        await syncEstadosUnidadesConEnvios(enviosData);
+
         await abrirAsignarOrdenes(creado);
       } else if (envioMode === "editar" && envioSeleccionado) {
         await api.patch(`/base/envios/${envioSeleccionado.id_envio}/`, payload);
+        try { await api.patch(`/base/unidades/${envioForm.id_unidad}/`, { estado: "RESERVADA" }); } catch {}
+
+        toast.success("Envío actualizado.");
         setMensaje("Envío actualizado correctamente.");
+        await logAccion("Editar envío", `Se editó el envío ${envioSeleccionado.codigo_envio}.`, envioSeleccionado.id_envio, "Envíos");
+
         setShowEnvioModal(false);
         setEnvioSeleccionado(null);
-        await cargarEnvios();
+
+        const enviosData = await cargarEnvios();
+        await cargarUnidades();
+        await syncEstadosUnidadesConEnvios(enviosData);
       }
     } catch (err) {
-      console.error("Error guardando envío:", err);
-      const msg = err.response?.data?.detail || err.response?.data?.error;
-      setEnvioFormError(
-        msg || "No se pudo guardar el envío. Verifica datos o permisos."
-      );
+      const msg = getBackendMessage(err);
+      setEnvioFormError(msg || "No se pudo guardar el envío.");
+      toast.error(msg || "No se pudo guardar el envío.");
     } finally {
-      setEnvioFormLoading(false);
+      setBusyKey(null);
     }
   };
 
-  const cerrarEnvio = async (envio) => {
+  const cerrarEnvio = (envio) => {
     if (!envio) return;
-    const confirmar = window.confirm(
-      `Al cerrar el envío "${envio.codigo_envio}" ya no podrás agregar más órdenes. ¿Confirmas?`
-    );
-    if (!confirmar) return;
+    if (normEstado(envio.estado) !== normEstado(ESTADO_CREACION_ENVIO)) return toast.error("Solo puedes cerrar envíos en PENDIENTE POR ASIGNACION.");
 
-    try {
-      await api.patch(`/base/envios/${envio.id_envio}/`, {
-        estado: "ASIGNADO",
-      });
-      setMensaje(
-        `Envío ${envio.codigo_envio} cerrado y marcado como ASIGNADO.`
-      );
-      await cargarEnvios();
-    } catch (err) {
-      console.error("Error cerrando envío:", err);
-      const msg = err.response?.data?.detail || err.response?.data?.error;
-      alert(msg || "No se pudo cerrar el envío.");
-    }
+    const u = getUnidadById(envio.id_unidad);
+    const capacidad = getCapUnidad(envio.id_unidad);
+    const { sum, missing } = getPesoEnvio(envio);
+    const pct = getUtilPct(sum, capacidad);
+
+    openConfirm({
+      title: "Cerrar envío",
+      tone: "primary",
+      text: (
+        <div>
+          <div style={{ marginBottom: 8 }}>Envío: <b>{envio.codigo_envio}</b></div>
+          <div style={{ marginBottom: 8, color: "#334155" }}>Unidad: <b>{u?.codigo_unidad || "-"}</b> · Capacidad: <b>{capacidad ? formatKg(capacidad) : "-"}</b></div>
+          <div style={{ marginBottom: 8, color: "#334155" }}>Peso del envío: <b>{missing ? "No disponible" : formatKg(sum)}</b></div>
+          {capacidad ? (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ ...styles.barOuter, marginBottom: 6 }}><div style={styles.barInner(pct, getBarMode(pct))} /></div>
+              <div style={{ fontSize: "0.78rem", color: "#64748b" }}>Utilización: {pct.toFixed(1)}%</div>
+            </div>
+          ) : null}
+          <div style={{ color: "#64748b" }}>Al cerrar, ya no podrás agregar más órdenes.</div>
+        </div>
+      ),
+      onConfirm: async () => {
+        if (busyKey) return;
+
+        if (!capacidad || capacidad <= 0) return toast.error("No se pudo validar la capacidad de la unidad.");
+
+        const ordenesIds = getOrdenesResumen(envio).map((o) => (typeof o === "object" ? o.id_orden : o));
+        let sumPeso = 0;
+        for (const id of ordenesIds) {
+          const p = await fetchPesoOrden(api, id);
+          if (p === null) return toast.error(`No se pudo obtener el peso de la orden #${id}.`);
+          sumPeso += p;
+        }
+        if (sumPeso >= capacidad) return toast.error(`No permitido: peso total (${sumPeso}) >= capacidad (${capacidad}).`);
+
+        setBusyKey(`envio:close:${envio.id_envio}`);
+        try {
+          await api.patch(`/base/envios/${envio.id_envio}/`, { estado: "ASIGNADO" });
+          try { await api.patch(`/base/unidades/${envio.id_unidad}/`, { estado: "EN TRANSITO" }); } catch {}
+
+          toast.success("Envío cerrado y marcado como ASIGNADO.");
+          setMensaje(`Envío ${envio.codigo_envio} cerrado.`);
+          await logAccion("Cerrar envío", `Se cerró el envío ${envio.codigo_envio} (ASIGNADO).`, envio.id_envio, "Envíos");
+
+          const enviosData = await cargarEnvios();
+          await cargarUnidades();
+          await syncEstadosUnidadesConEnvios(enviosData);
+          closeConfirm();
+        } catch (err) {
+          toast.error(getBackendMessage(err) || "No se pudo cerrar el envío.");
+        } finally {
+          setBusyKey(null);
+        }
+      },
+    });
   };
 
-  // ASIGNACIÓN DE ÓRDENES
-  const abrirAsignarOrdenes = async (envio) => {
-    const estadoUpper = (envio.estado || "").toUpperCase();
-    if (estadoUpper !== ESTADO_CREACION_ENVIO.toUpperCase()) {
-      alert(
-        "Solo puedes asignar órdenes a envíos en estado PENDIENTE POR ASIGNACION."
-      );
+  const eliminarEnvio = (envio) => {
+    if (!envio) return;
+
+    if (normEstado(envio.estado) !== normEstado(ESTADO_CREACION_ENVIO)) {
+      toast.error("Solo puedes eliminar envíos en PENDIENTE POR ASIGNACION.");
       return;
     }
+
+    openConfirm({
+      title: "Eliminar envío",
+      tone: "danger",
+      text: (
+        <div>
+          <div style={{ marginBottom: 8 }}>
+            ¿Seguro que deseas eliminar el envío <b>{envio.codigo_envio}</b>?
+          </div>
+          <div style={{ color: "#64748b" }}>
+            Se liberarán las órdenes y la unidad quedará activa.
+          </div>
+        </div>
+      ),
+      onConfirm: async () => {
+        if (busyKey) return;
+        setBusyKey(`envio:delete:${envio.id_envio}`);
+
+        try {
+          // 1) Liberar órdenes (si hay)
+          const resumen = getOrdenesResumen(envio) || [];
+          const idsOrdenes = resumen
+            .map((o) => (typeof o === "object" ? o.id_orden : o))
+            .filter(Boolean);
+
+          if (idsOrdenes.length) {
+            await api.post(`/base/envios/${envio.id_envio}/remover_ordenes/`, { ordenes: idsOrdenes });
+          }
+
+          // 2) Eliminar envío
+          await api.delete(`/base/envios/${envio.id_envio}/`);
+
+          // 3) Reactivar unidad (fallback)
+          try {
+            await api.patch(`/base/unidades/${envio.id_unidad}/`, { estado: "ACTIVA" });
+          } catch {}
+
+          toast.success(`Envío ${envio.codigo_envio} eliminado.`);
+
+          setEnvioSeleccionado((prev) =>
+            prev && String(prev.id_envio) === String(envio.id_envio) ? null : prev
+          );
+
+          const enviosData = await cargarEnvios();
+          await cargarUnidades();
+          await syncEstadosUnidadesConEnvios(enviosData);
+
+          closeConfirm();
+        } catch (err) {
+          toast.error(getBackendMessage(err) || "No se pudo eliminar el envío.");
+        } finally {
+          setBusyKey(null);
+        }
+      },
+    });
+  };
+
+  // ASIGNAR ÓRDENES
+  const abrirAsignarOrdenes = async (envio) => {
+    if (normEstado(envio.estado) !== normEstado(ESTADO_CREACION_ENVIO)) return toast.error("Solo puedes asignar órdenes a envíos en PENDIENTE POR ASIGNACION.");
 
     setEnvioSeleccionado(envio);
     setShowAsignarModal(true);
     setAsignarError("");
     setOrdenesSeleccionadas([]);
-    setAsignarLoading(true);
+    setSearchOrden("");
 
+    setBusyKey("asignar:load");
     try {
       const res = await api.get("/ordenes/");
       const raw = Array.isArray(res.data) ? res.data : res.data.results || [];
-
-      const ESTADOS_PERMITIDOS = ["PREPARADA"]; // Solo órdenes PREPARADA
-
-      const filtradas = raw.filter((o) => {
-        const estado = (o.estado_de_envio || "").toUpperCase();
-        const sinEnvio = !o.id_envio;
-        return ESTADOS_PERMITIDOS.includes(estado) && sinEnvio;
-      });
-
-      setOrdenesDisponibles(filtradas);
+      const ESTADOS_PERMITIDOS = ["PREPARADA"];
+      setOrdenesDisponibles(raw.filter((o) => ESTADOS_PERMITIDOS.includes(normEstado(o.estado_de_envio)) && !o.id_envio));
     } catch (err) {
-      console.error("Error cargando órdenes para asignar:", err);
-      const msg = err.response?.data?.detail || err.response?.data?.error;
-      setAsignarError(
-        msg || "No se pudieron cargar las órdenes disponibles."
-      );
+      setAsignarError(getBackendMessage(err) || "No se pudieron cargar las órdenes disponibles.");
     } finally {
-      setAsignarLoading(false);
+      setBusyKey(null);
     }
   };
+
+  const pesoSeleccionado = useMemo(() => {
+    if (!envioSeleccionado) return { sum: 0, missing: true };
+    const selected = ordenesDisponibles.filter((o) => ordenesSeleccionadas.includes(o.id_orden));
+    let sum = 0, missing = false;
+    for (const o of selected) {
+      const p = getPesoFromObj(o);
+      if (p === null) missing = true;
+      else sum += toNumber(p);
+    }
+    return { sum, missing };
+  }, [ordenesDisponibles, ordenesSeleccionadas, envioSeleccionado]);
 
   const confirmarAsignacion = async () => {
     if (!envioSeleccionado) return;
-    if (ordenesSeleccionadas.length === 0) {
-      setAsignarError("Selecciona al menos una orden para asignar.");
-      return;
+    if (ordenesSeleccionadas.length === 0) return setAsignarError("Selecciona al menos una orden para asignar.");
+
+    const capacidad = getCapUnidad(envioSeleccionado.id_unidad);
+    if (!capacidad || capacidad <= 0) return setAsignarError("La unidad debe tener una capacidad de carga > 0.");
+
+    let sumPeso = 0;
+    for (const id of ordenesSeleccionadas) {
+      const o = ordenesDisponibles.find((x) => String(x.id_orden) === String(id));
+      let p = getPesoFromObj(o);
+      if (p === null) p = await fetchPesoOrden(api, id);
+      if (p === null) return setAsignarError(`No se pudo obtener el peso de la orden #${id}.`);
+      sumPeso += p;
     }
+    if (sumPeso >= capacidad) return setAsignarError(`No permitido: peso total (${sumPeso}) >= capacidad (${capacidad}).`);
 
     setAsignarError("");
-    setAsignarLoading(true);
-
+    setBusyKey("asignar:confirm");
     try {
-      await api.post(
-        `/base/envios/${envioSeleccionado.id_envio}/asignar_ordenes/`,
-        {
-          ordenes: ordenesSeleccionadas,
-        }
-      );
-      setMensaje(
-        `Órdenes asignadas correctamente al envío ${envioSeleccionado.codigo_envio}.`
-      );
+      await api.post(`/base/envios/${envioSeleccionado.id_envio}/asignar_ordenes/`, { ordenes: ordenesSeleccionadas });
+      toast.success("Órdenes asignadas.");
+      setMensaje(`Órdenes asignadas al envío ${envioSeleccionado.codigo_envio}. (Peso: ${sumPeso} / Cap: ${capacidad})`);
+      await logAccion("Asignar órdenes", `Se asignaron ${ordenesSeleccionadas.length} orden(es) al envío ${envioSeleccionado.codigo_envio}.`, envioSeleccionado.id_envio, "Envíos");
+
+      try { await api.patch(`/base/unidades/${envioSeleccionado.id_unidad}/`, { estado: "RESERVADA" }); } catch {}
+
       setShowAsignarModal(false);
       setEnvioSeleccionado(null);
-      await cargarEnvios();
+
+      const enviosData = await cargarEnvios();
+      await cargarUnidades();
+      await syncEstadosUnidadesConEnvios(enviosData);
     } catch (err) {
-      console.error("Error asignando órdenes:", err);
-      const msg = err.response?.data?.detail || err.response?.data?.error;
+      const msg = getBackendMessage(err);
       setAsignarError(msg || "No se pudieron asignar las órdenes.");
+      toast.error(msg || "No se pudieron asignar las órdenes.");
     } finally {
-      setAsignarLoading(false);
+      setBusyKey(null);
     }
   };
 
-  // RENDER
+  const quitarOrdenDeEnvio = (envio, idOrden) => {
+    if (!envio || !idOrden) return;
+    if (normEstado(envio.estado) !== normEstado(ESTADO_CREACION_ENVIO)) return toast.error("Solo puedes quitar órdenes si el envío está PENDIENTE POR ASIGNACION.");
+
+    openConfirm({
+      title: "Quitar orden del envío",
+      tone: "danger",
+      text: (
+        <div>
+          <div style={{ marginBottom: 8 }}>
+            ¿Quitar la orden <b>#{idOrden}</b> del envío <b>{envio.codigo_envio}</b>?
+          </div>
+          <div style={{ color: "#64748b" }}>La orden quedará libre para asignarse a otro envío.</div>
+        </div>
+      ),
+      onConfirm: async () => {
+        if (busyKey) return;
+        setBusyKey(`orden:remove:${idOrden}`);
+        try {
+          await api.post(`/base/envios/${envio.id_envio}/remover_ordenes/`, { ordenes: [idOrden] });
+          // Nota: remover_ordenes actualiza en backend: Orden.id_envio, Orden.estado_de_envio, Envio.peso_total y Unidad.estado.
+          toast.success(`Orden #${idOrden} removida del envío.`);
+          await logAccion("Quitar orden", `Se quitó la orden #${idOrden} del envío ${envio.codigo_envio}.`, envio.id_envio, "Envíos");
+
+          const enviosData = await cargarEnvios();
+          await cargarUnidades();
+          await syncEstadosUnidadesConEnvios(enviosData);
+
+          const refreshed = enviosData.find((x) => String(x.id_envio) === String(envio.id_envio));
+          setEnvioSeleccionado(refreshed || null);
+
+          closeConfirm();
+        } catch (err) {
+          toast.error(getBackendMessage(err) || "No se pudo quitar la orden.");
+        } finally {
+          setBusyKey(null);
+        }
+      },
+    });
+  };
+
+  // MODALES INFO
+  const abrirModalUnidadInfo = (unidadId) => {
+    const u = getUnidadById(unidadId);
+    if (!u) return toast.error("No se encontró la unidad.");
+    setUnidadInfo(u);
+    setShowUnidadInfo(true);
+  };
+
+  const abrirModalOrdenInfo = async (idOrden) => {
+    setOrdenInfo({ loading: true, error: "", orden: null, detalles: [], peso: null, cliente: null });
+    setShowOrdenInfo(true);
+
+    try {
+      const r = await api.get(`/ordenes/${idOrden}/`);
+      const orden = r.data;
+
+      let detalles = [];
+      try {
+        const r2 = await api.get(`/ordenes/${idOrden}/detalles/`);
+        detalles = Array.isArray(r2.data) ? r2.data : r2.data.results || [];
+      } catch {}
+
+      let cliente = null;
+      const idCliente = orden?.id_cliente;
+      if (idCliente) {
+        try {
+          const rc = await api.get(`/base/clientes/${idCliente}/`);
+          cliente = rc.data;
+        } catch {}
+      }
+
+      const peso = (await fetchPesoOrden(api, idOrden)) ?? getPesoFromObj(orden);
+      setOrdenInfo({ loading: false, error: "", orden, detalles, peso, cliente });
+    } catch (err) {
+      setOrdenInfo({ loading: false, error: getBackendMessage(err) || "Error al cargar orden.", orden: null, detalles: [], peso: null, cliente: null });
+    }
+  };
+
+  const renderCapBar = (peso, capacidad) => {
+    if (!capacidad || capacidad <= 0) return <div style={{ fontSize: "0.78rem", color: "#94a3b8" }}>Capacidad no definida.</div>;
+    const pct = getUtilPct(peso, capacidad);
+    const mode = getBarMode(pct);
+    return (
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 6 }}>
+          <div style={{ fontSize: "0.82rem", color: "#334155", fontWeight: 800 }}>{formatKg(peso)} / {formatKg(capacidad)}</div>
+          <div style={{ fontSize: "0.82rem", color: mode === "bad" ? "#991b1b" : mode === "warn" ? "#9a3412" : "#166534", fontWeight: 900 }}>{pct.toFixed(1)}%</div>
+        </div>
+        <div style={styles.barOuter}><div style={styles.barInner(pct, mode)} /></div>
+        {pct >= 85 && pct < 100 ? <div style={{ marginTop: 6, fontSize: "0.78rem", color: "#9a3412", fontWeight: 800 }}>Cerca del límite: revisa capacidad.</div> : null}
+        {pct >= 100 ? <div style={{ marginTop: 6, fontSize: "0.78rem", color: "#991b1b", fontWeight: 900 }}>Excede capacidad: no se permitirá confirmar.</div> : null}
+      </div>
+    );
+  };
+
+  // UI
   return (
     <div style={styles.page}>
-      {/* HEADER */}
       <div style={styles.headerRow}>
         <div style={styles.titleGroup}>
-          <div style={styles.iconCircle}>
-            <IconTruck />
-          </div>
+          <div style={styles.iconCircle}><IconTruck /></div>
           <div>
             <h2 style={styles.title}>Transporte y Envíos</h2>
-            <p style={styles.subtitle}>
-              Gestión de flota, asignación de órdenes y seguimiento.
-            </p>
+            <p style={styles.subtitle}>Gestión de flota, asignación de órdenes y seguimiento.</p>
           </div>
         </div>
       </div>
 
-      {/* TARJETA PRINCIPAL */}
       <div style={styles.card}>
         {mensaje && <div style={styles.statusOk}>{mensaje}</div>}
         {error && <div style={styles.statusError}>{error}</div>}
 
         <div style={styles.colLayout}>
-          {/* COLUMNA 1: UNIDADES */}
+          {/* ==================== UNIDADES ==================== */}
           <div style={styles.sectionCard}>
             <div style={styles.sectionHeader}>
               <div>
                 <h3 style={styles.sectionTitle}>Unidades de Transporte</h3>
-                <div style={styles.smallText}>
-                  Gestiona camiones, choferes y capacidad de carga.
-                </div>
+                <div style={styles.smallText}>Gestiona unidades, choferes y capacidad de carga.</div>
               </div>
-              <button
-                type="button"
-                style={styles.buttonPrimary}
-                onClick={abrirCrearUnidad}
-              >
-                <IconPlus /> Nueva Unidad
-              </button>
+              <button type="button" style={styles.buttonPrimary} onClick={abrirCrearUnidad}><IconPlus /> Nueva Unidad</button>
             </div>
 
             <div style={styles.searchRow}>
-              <div
-                style={{ flex: 1, display: "flex", alignItems: "center", gap: 6 }}
-              >
+              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6 }}>
                 <IconSearch />
-                <input
-                  style={styles.searchInput}
-                  placeholder="Buscar por código o placa..."
-                  value={searchUnidad}
-                  onChange={(e) => setSearchUnidad(e.target.value)}
-                />
+                <input style={styles.searchInput} placeholder="Buscar por nombre o placa..." value={searchUnidad} onChange={(e) => setSearchUnidad(e.target.value)} />
               </div>
-              <select
-                style={{ ...styles.select, maxWidth: "150px", height: "36px" }}
-                value={filtroEstadoUnidad}
-                onChange={(e) => setFiltroEstadoUnidad(e.target.value)}
-              >
-                <option value="TODOS">Todas</option>
-                <option value="ACTIVA">Activa</option>
-                <option value="INACTIVA">Inactiva</option>
+
+              <select style={styles.selectSmall} value={filtroEstadoUnidad} onChange={(e) => setFiltroEstadoUnidad(e.target.value)}>
+                <option value="TODOS">Estado: todos</option>
+                {UNIDAD_ESTADOS.map((s) => <option key={s} value={s}>{s === "EN TRANSITO" ? "EN TRÁNSITO" : s}</option>)}
               </select>
-              <button
-                type="button"
-                style={styles.buttonGhost}
-                onClick={() => {
-                  setSearchUnidad("");
-                  setFiltroEstadoUnidad("TODOS");
-                }}
-              >
+
+              <select style={styles.selectSmall} value={filtroTransportistaUnidad} onChange={(e) => setFiltroTransportistaUnidad(e.target.value)}>
+                <option value="TODOS">Chofer: todos</option>
+                {transportistas.map((t) => {
+                  const id = t.id_usuario ?? t.id;
+                  return <option key={id} value={id}>{t.username}</option>;
+                })}
+              </select>
+
+              <select style={styles.selectSmall} value={sortUnidad} onChange={(e) => setSortUnidad(e.target.value)}>
+                <option value="nombre">Orden: nombre</option>
+                <option value="capacidad">Orden: capacidad</option>
+              </select>
+
+              <button type="button" style={styles.buttonGhost} onClick={() => { setSearchUnidad(""); setFiltroEstadoUnidad("TODOS"); setFiltroTransportistaUnidad("TODOS"); setSortUnidad("nombre"); }}>
                 <IconRefresh /> Limpiar
               </button>
             </div>
@@ -1249,145 +1331,48 @@ export default function TransporteEnvios() {
                   </tr>
                 </thead>
                 <tbody>
-                  {unidadesFiltradas.length === 0 && !loadingUnidades && (
-                    <tr>
-                      <td
-                        style={{
-                          ...styles.td,
-                          textAlign: "center",
-                          color: "#94a3b8",
-                          padding: "20px",
-                        }}
-                        colSpan={5}
-                      >
-                        No hay unidades registradas.
-                      </td>
-                    </tr>
-                  )}
+                  {unidadesFiltradas.length === 0 && !loadingUnidades ? (
+                    <tr><td colSpan={5} style={{ ...styles.td, textAlign: "center", color: "#94a3b8", padding: "20px" }}>No hay unidades registradas.</td></tr>
+                  ) : null}
 
                   {unidadesFiltradas.map((u, idx) => {
-                    const seleccionado =
-                      unidadSeleccionada &&
-                      unidadSeleccionada.id_unidad === u.id_unidad;
-                    const rowBase = {
-                      ...styles.td,
-                      ...(idx % 2 === 1 ? styles.rowAlt : {}),
-                      backgroundColor: seleccionado ? "#e0f2fe" : undefined,
-                    };
-                    const estadoNorm = (u.estado || "").toUpperCase();
-                    const esActiva =
-                      estadoNorm === "ACTIVA" || estadoNorm === "DISPONIBLE";
+                    const seleccionado = unidadSeleccionada?.id_unidad === u.id_unidad;
+                    const rowBase = { ...styles.td, ...(idx % 2 === 1 ? styles.rowAlt : {}), backgroundColor: seleccionado ? "#e0f2fe" : undefined };
+
+                    const puedeGestionar = unidadPuedeGestionarse(u.id_unidad);
+                    const bloqueActDes = unidadBloquearActivarDesactivarPorTransito(u.id_unidad);
+                    const estadoNorm = normEstado(u.estado);
+                    const esActiva = estadoNorm === "ACTIVA" || estadoNorm === "DISPONIBLE";
 
                     return (
-                      <tr
-                        key={u.id_unidad}
-                        style={{ cursor: "pointer" }}
-                        onClick={() => setUnidadSeleccionada(u)}
-                      >
+                      <tr key={u.id_unidad} style={{ cursor: "pointer" }} onClick={() => setUnidadSeleccionada(u)}>
                         <td style={rowBase}>
-                          <div
-                            style={{
-                              fontWeight: "600",
-                              color: "#0d47a1",
-                              marginBottom: "2px",
-                            }}
-                          >
-                            {u.codigo_unidad}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "0.75rem",
-                              color: "#64748b",
-                            }}
-                          >
-                            Placa: {u.placa || "-"}
-                          </div>
+                          <div style={{ fontWeight: 900, color: "#0d47a1", marginBottom: 2 }}>{u.codigo_unidad}</div>
+                          <div style={{ fontSize: "0.75rem", color: "#64748b" }}>Placa: {u.placa || "-"}</div>
                         </td>
                         <td style={rowBase}>
-                          <div
-                            style={{
-                              fontWeight: "500",
-                              marginBottom: "2px",
-                            }}
-                          >
-                            {getTransportistaLabel(u.id_usuario)}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "0.75rem",
-                              color: "#94a3b8",
-                            }}
-                          >
-                            ID usuario: {u.id_usuario || "-"}
-                          </div>
+                          <div style={{ fontWeight: 800, marginBottom: 2 }}>{getTransportistaLabel(u.id_usuario)}</div>
+                          <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Tel: {u.telefono || getTransportistaTelefono(u.id_usuario) || "-"}</div>
                         </td>
-                        <td style={rowBase}>
-                          {u.capacidad_carga || "-"}
-                          <div
-                            style={{
-                              fontSize: "0.75rem",
-                              color: "#94a3b8",
-                              marginTop: "2px",
-                            }}
-                          >
-                            Kg de carga máxima
-                          </div>
-                        </td>
-                        <td style={rowBase}>
-                          <span style={styles.badgeEstadoUnidad(u.estado)}>
-                            {u.estado || "N/A"}
-                          </span>
-                        </td>
+                        <td style={rowBase}>{toNumber(u.capacidad_carga).toFixed(2)}</td>
+                        <td style={rowBase}><span style={styles.badgeEstadoUnidad(u.estado)}>{u.estado || "N/A"}</span></td>
                         <td style={{ ...rowBase, textAlign: "center" }}>
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: "6px",
-                              justifyContent: "center",
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            <button
-                              type="button"
-                              style={styles.buttonGhost}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                abrirEditarUnidad(u);
-                              }}
-                            >
-                              Editar
+                          <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
+                            <button type="button" style={{ ...styles.buttonGhost, ...(!puedeGestionar ? styles.buttonDisabled : {}) }} disabled={!puedeGestionar || !!busyKey} onClick={(e) => { e.stopPropagation(); abrirEditarUnidad(u); }}>
+                              {busyKey === "unidad:save" ? "Guardando..." : "Editar"}
                             </button>
+
                             {esActiva ? (
-                              <button
-                                type="button"
-                                style={styles.buttonGhost}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  desactivarUnidad(u);
-                                }}
-                              >
+                              <button type="button" style={{ ...styles.buttonGhost, ...(bloqueActDes || !puedeGestionar ? styles.buttonDisabled : {}) }} disabled={bloqueActDes || !puedeGestionar || !!busyKey} onClick={(e) => { e.stopPropagation(); toggleUnidadEstado(u, "INACTIVA"); }}>
                                 Desactivar
                               </button>
                             ) : (
-                              <button
-                                type="button"
-                                style={styles.buttonGhost}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  activarUnidad(u);
-                                }}
-                              >
+                              <button type="button" style={{ ...styles.buttonGhost, ...(bloqueActDes ? styles.buttonDisabled : {}) }} disabled={bloqueActDes || !!busyKey} onClick={(e) => { e.stopPropagation(); toggleUnidadEstado(u, "ACTIVA"); }}>
                                 Activar
                               </button>
                             )}
-                            <button
-                              type="button"
-                              style={styles.buttonDanger}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                eliminarUnidad(u);
-                              }}
-                            >
+
+                            <button type="button" style={{ ...styles.buttonDanger, ...(!puedeGestionar ? styles.buttonDisabled : {}) }} disabled={!puedeGestionar || !!busyKey} onClick={(e) => { e.stopPropagation(); eliminarUnidad(u); }}>
                               <IconTrash />
                             </button>
                           </div>
@@ -1399,104 +1384,71 @@ export default function TransporteEnvios() {
               </table>
             </div>
 
-            {unidadesFiltradas.length > 0 && (
-              <div style={styles.resumenResultados}>
-                Mostrando {unidadesFiltradas.length} unidad(es). Haz clic en una
-                fila para ver más detalles.
-              </div>
-            )}
+            {unidadesFiltradas.length > 0 ? <div style={styles.resumenResultados}>Mostrando {unidadesFiltradas.length} unidad(es).</div> : null}
 
-            {unidadSeleccionada && (
+            {unidadSeleccionada ? (
               <div style={styles.detalleCard}>
-                <div style={styles.detalleTitle}>
-                  Unidad {unidadSeleccionada.codigo_unidad} ·{" "}
-                  {unidadSeleccionada.placa || "-"}
-                </div>
-                <div style={styles.detalleLine}>
-                  <span style={styles.detalleLabel}>Transportista: </span>
-                  {getTransportistaLabel(unidadSeleccionada.id_usuario)}
-                </div>
-                <div style={styles.detalleLine}>
-                  <span style={styles.detalleLabel}>Teléfono: </span>
-                  {unidadSeleccionada.telefono || "No registrado"}
-                </div>
-                <div style={styles.detalleLine}>
-                  <span style={styles.detalleLabel}>Capacidad: </span>
-                  {unidadSeleccionada.capacidad_carga || "-"} Kg
-                </div>
-                <div style={styles.detalleLine}>
-                  <span style={styles.detalleLabel}>Estado: </span>
-                  <span style={styles.badgeEstadoUnidad(unidadSeleccionada.estado)}>
-                    {unidadSeleccionada.estado || "N/A"}
-                  </span>
-                </div>
+                <div style={styles.detalleTitle}>Unidad {unidadSeleccionada.codigo_unidad} · {unidadSeleccionada.placa || "-"}</div>
+                <div style={styles.detalleLine}><span style={styles.detalleLabel}>Transportista:</span> {getTransportistaLabel(unidadSeleccionada.id_usuario)}</div>
+                <div style={styles.detalleLine}><span style={styles.detalleLabel}>Teléfono:</span> {unidadSeleccionada.telefono || getTransportistaTelefono(unidadSeleccionada.id_usuario) || "-"}</div>
+                <div style={styles.detalleLine}><span style={styles.detalleLabel}>Capacidad:</span> {formatKg(toNumber(unidadSeleccionada.capacidad_carga || 0))}</div>
+                <div style={styles.detalleLine}><span style={styles.detalleLabel}>Estado:</span> <span style={styles.badgeEstadoUnidad(unidadSeleccionada.estado)}>{unidadSeleccionada.estado || "N/A"}</span></div>
               </div>
-            )}
+            ) : null}
 
-            {loadingUnidades && (
-              <div
-                style={{
-                  textAlign: "center",
-                  fontSize: "0.8rem",
-                  color: "#64748b",
-                  marginTop: "8px",
-                }}
-              >
-                Cargando unidades...
-              </div>
-            )}
+            {loadingUnidades ? <div style={{ textAlign: "center", fontSize: "0.8rem", color: "#64748b" }}>Cargando unidades...</div> : null}
           </div>
 
-          {/* COLUMNA 2: ENVÍOS */}
+          {/* ==================== ENVÍOS ==================== */}
           <div style={styles.sectionCard}>
             <div style={styles.sectionHeader}>
               <div>
-                <h3 style={styles.sectionTitle}>Envíos Activos</h3>
-                <div style={styles.smallText}>
-                  Crea envíos, asigna órdenes y envíalos a preparación.
-                </div>
+                <h3 style={styles.sectionTitle}>Envíos</h3>
+                <div style={styles.smallText}>Crea envíos, asigna órdenes y gestiona su ciclo.</div>
               </div>
-              <button
-                type="button"
-                style={styles.buttonPrimary}
-                onClick={abrirCrearEnvio}
-              >
-                <IconPlus /> Nuevo Envío
-              </button>
+              <button type="button" style={styles.buttonPrimary} onClick={abrirCrearEnvio}><IconPlus /> Nuevo Envío</button>
             </div>
 
             <div style={styles.searchRow}>
-              <div
-                style={{ flex: 1, display: "flex", alignItems: "center", gap: 6 }}
-              >
+              <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6 }}>
                 <IconSearch />
-                <input
-                  style={styles.searchInput}
-                  placeholder="Buscar por código o estado..."
-                  value={searchEnvio}
-                  onChange={(e) => setSearchEnvio(e.target.value)}
-                />
+                <input style={styles.searchInput} placeholder="Buscar por código o estado..." value={searchEnvio} onChange={(e) => setSearchEnvio(e.target.value)} />
               </div>
-              <select
-                style={{ ...styles.select, maxWidth: "180px", height: "36px" }}
-                value={filtroEstadoEnvio}
-                onChange={(e) => setFiltroEstadoEnvio(e.target.value)}
-              >
-                <option value="TODOS">Todos los estados</option>
-                {estadosEnvioDisponibles.map((estado) => (
-                  <option key={estado} value={estado.toUpperCase()}>
-                    {estado}
-                  </option>
-                ))}
+
+              <select style={styles.selectSmall} value={filtroEstadoEnvio} onChange={(e) => setFiltroEstadoEnvio(e.target.value)}>
+                <option value="TODOS">Estado: todos</option>
+                {ENVIO_ESTADOS_FILTER.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
               </select>
-              <button
-                type="button"
-                style={styles.buttonGhost}
-                onClick={() => {
-                  setSearchEnvio("");
-                  setFiltroEstadoEnvio("TODOS");
-                }}
-              >
+
+              <select style={styles.selectSmall} value={filtroUnidadEnvio} onChange={(e) => setFiltroUnidadEnvio(e.target.value)}>
+                <option value="TODOS">Unidad: todas</option>
+                {unidades.map((u) => <option key={u.id_unidad} value={u.id_unidad}>{u.codigo_unidad}</option>)}
+              </select>
+
+              <select style={styles.selectSmall} value={filtroTransportistaEnvio} onChange={(e) => setFiltroTransportistaEnvio(e.target.value)}>
+                <option value="TODOS">Chofer: todos</option>
+                {transportistas.map((t) => {
+                  const id = t.id_usuario ?? t.id;
+                  return <option key={id} value={id}>{t.username}</option>;
+                })}
+              </select>
+            </div>
+
+            <div style={styles.searchRow}>
+              <input style={styles.inputSmall} type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
+              <input style={styles.inputSmall} type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
+              <input style={styles.inputSmall} type="number" min="0" step="0.01" value={pesoMin} onChange={(e) => setPesoMin(e.target.value)} placeholder="Peso min (Kg)" />
+              <input style={styles.inputSmall} type="number" min="0" step="0.01" value={pesoMax} onChange={(e) => setPesoMax(e.target.value)} placeholder="Peso max (Kg)" />
+
+              <select style={styles.selectSmall} value={sortEnvio} onChange={(e) => setSortEnvio(e.target.value)}>
+                <option value="recientes">Orden: más recientes</option>
+                <option value="antiguos">Orden: más antiguos</option>
+              </select>
+
+              <button type="button" style={styles.buttonGhost} onClick={() => {
+                setSearchEnvio(""); setFiltroEstadoEnvio("TODOS"); setFiltroUnidadEnvio("TODOS"); setFiltroTransportistaEnvio("TODOS");
+                setFechaDesde(""); setFechaHasta(""); setPesoMin(""); setPesoMax(""); setSortEnvio("recientes");
+              }}>
                 <IconRefresh /> Limpiar
               </button>
             </div>
@@ -1508,188 +1460,102 @@ export default function TransporteEnvios() {
                     <th style={styles.th}>Envío</th>
                     <th style={styles.th}>Unidad</th>
                     <th style={styles.th}>Estado</th>
-                    <th style={styles.th}>Salida</th>
+                    <th style={styles.th}>Fecha</th>
+                    <th style={styles.th}>Peso</th>
                     <th style={styles.th}>Órdenes</th>
-                    <th style={{ ...styles.th, textAlign: "center" }}>Acción</th>
+                    <th style={{ ...styles.th, textAlign: "center" }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {enviosFiltrados.length === 0 && !loadingEnvios && (
-                    <tr>
-                      <td
-                        style={{
-                          ...styles.td,
-                          textAlign: "center",
-                          color: "#94a3b8",
-                          padding: "20px",
-                        }}
-                        colSpan={6}
-                      >
-                        No hay envíos registrados.
-                      </td>
-                    </tr>
-                  )}
+                  {enviosFiltrados.length === 0 && !loadingEnvios ? (
+                    <tr><td colSpan={7} style={{ ...styles.td, textAlign: "center", color: "#94a3b8", padding: "20px" }}>No hay envíos registrados.</td></tr>
+                  ) : null}
 
                   {enviosFiltrados.map((e, idx) => {
-                    const seleccionado =
-                      envioSeleccionado &&
-                      envioSeleccionado.id_envio === e.id_envio;
-                    const rowBase = {
-                      ...styles.td,
-                      ...(idx % 2 === 1 ? styles.rowAlt : {}),
-                      backgroundColor: seleccionado ? "#e0f2fe" : undefined,
-                    };
+                    const seleccionado = envioSeleccionado?.id_envio === e.id_envio;
+                    const rowBase = { ...styles.td, ...(idx % 2 === 1 ? styles.rowAlt : {}), backgroundColor: seleccionado ? "#e0f2fe" : undefined };
+
+                    const caps = envioActionCaps(e.estado);
+                    const u = getUnidadById(e.id_unidad);
                     const ordenesResumen = getOrdenesResumen(e);
-                    const estadoUpper = (e.estado || "").toUpperCase();
-                    const puedeCerrar =
-                      estadoUpper === ESTADO_CREACION_ENVIO.toUpperCase();
-                    const puedeAsignar =
-                      estadoUpper === ESTADO_CREACION_ENVIO.toUpperCase();
-                    const puedeEditar = !estadoUpper.includes("LISTO_PARA_SALIR");
+                    const { sum, missing } = getPesoEnvio(e);
 
                     return (
-                      <tr
-                        key={e.id_envio}
-                        style={{ cursor: "pointer" }}
-                        onClick={() => setEnvioSeleccionado(e)}
-                      >
+                      <tr key={e.id_envio} style={{ cursor: "pointer" }} onClick={() => setEnvioSeleccionado(e)}>
                         <td style={rowBase}>
-                          <div
-                            style={{
-                              fontWeight: "600",
-                              color: "#0d47a1",
-                              marginBottom: "2px",
-                            }}
-                          >
-                            {e.codigo_envio}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "0.75rem",
-                              color: "#94a3b8",
-                            }}
-                          >
-                            ID: {e.id_envio}
+                          <div style={{ fontWeight: 900, color: "#0d47a1", marginBottom: 2 }}>{e.codigo_envio}</div>
+                          <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>ID: {e.id_envio}</div>
+                        </td>
+                        <td style={rowBase}>
+                          <span style={styles.pillSmall}>{getUnidadLabel(e.id_unidad)}</span>
+                          <div style={{ marginTop: 4, fontSize: "0.72rem", color: "#94a3b8" }}>Chofer: {getTransportistaLabel(u?.id_usuario)}</div>
+                        </td>
+                        <td style={rowBase}>
+                          <span style={styles.badgeEstadoEnvio(e.estado)}>{String(e.estado || "N/A").replace(/_/g, " ")}</span>
+                          <div style={styles.hintSmall} title={caps.reasonFull}>
+                            {caps.reasonShort}
                           </div>
                         </td>
+                        <td style={rowBase}>{formatFechaCorta(e.fecha_salida)}</td>
+                        <td style={rowBase}>{missing ? <span style={{ color: "#94a3b8" }}>—</span> : formatKg(sum)}</td>
                         <td style={rowBase}>
-                          <span style={styles.pillSmall}>
-                            {getUnidadLabel(e.id_unidad)}
-                          </span>
-                        </td>
-                        <td style={rowBase}>
-                          <span style={styles.badgeEstadoEnvio(e.estado)}>
-                            {e.estado || "N/A"}
-                          </span>
-                        </td>
-                        <td style={rowBase}>
-                          <div>{formatFechaCorta(e.fecha_salida)}</div>
-                          {e.fecha_llegada && (
-                            <div
-                              style={{
-                                fontSize: "0.75rem",
-                                color: "#94a3b8",
-                                marginTop: "2px",
-                              }}
-                            >
-                              Llegada: {formatFechaCorta(e.fecha_llegada)}
-                            </div>
-                          )}
-                        </td>
-                        <td style={rowBase}>
-                          {Array.isArray(ordenesResumen) &&
-                          ordenesResumen.length > 0 ? (
+                          {Array.isArray(ordenesResumen) && ordenesResumen.length ? (
                             <>
+                              <div style={{ marginBottom: 4, fontSize: "0.75rem", color: "#64748b" }}>{ordenesResumen.length} orden(es)</div>
+                              {ordenesResumen.slice(0, 4).map((o) => {
+                                const id = typeof o === "object" ? o.id_orden : o;
+                                return <span key={id} style={{ ...styles.chipOrd, cursor: "default" }}>#{id}</span>;
+                              })}
+                              {ordenesResumen.length > 4 ? <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>+{ordenesResumen.length - 4}</span> : null}
+                            </>
+                          ) : <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Sin órdenes</span>}
+                        </td>
+
+                        <td style={{ ...rowBase, textAlign: "center", position: "relative" }} onClick={(ev) => ev.stopPropagation()}>
+                          <button
+                            type="button"
+                            style={styles.menuBtn}
+                            onClick={(ev) => { ev.stopPropagation(); setMenuEnvioOpenId((prev) => (prev === e.id_envio ? null : e.id_envio)); }}
+                            title="Acciones"
+                          >
+                            <IconDots />
+                          </button>
+
+                          {menuEnvioOpenId === e.id_envio ? (
+                            <div style={styles.menu} onClick={(ev) => ev.stopPropagation()}>
+                              <div style={{ ...styles.menuItem, ...(caps.canEdit ? {} : styles.menuItemDisabled) }} onClick={() => { if (!caps.canEdit) return; setMenuEnvioOpenId(null); abrirEditarEnvio(e); }} title={caps.canEdit ? "" : caps.reasonFull}>
+                                <span>Editar</span>
+                                {!caps.canEdit ? <span style={styles.menuHint}>Bloqueado</span> : null}
+                              </div>
+
+                              <div style={{ ...styles.menuItem, ...(caps.canAssign ? {} : styles.menuItemDisabled) }} onClick={() => { if (!caps.canAssign) return; setMenuEnvioOpenId(null); abrirAsignarOrdenes(e); }} title={caps.canAssign ? "" : caps.reasonFull}>
+                                <span>Asignar órdenes</span>
+                                {!caps.canAssign ? <span style={styles.menuHint}>Bloqueado</span> : null}
+                              </div>
+
+                              <div style={{ ...styles.menuItem, ...(caps.canClose ? {} : styles.menuItemDisabled) }} onClick={() => { if (!caps.canClose) return; setMenuEnvioOpenId(null); cerrarEnvio(e); }} title={caps.canClose ? "" : caps.reasonFull}>
+                                <span>Cerrar envío</span>
+                                {!caps.canClose ? <span style={styles.menuHint}>Bloqueado</span> : null}
+                              </div>
+
                               <div
                                 style={{
-                                  marginBottom: "4px",
-                                  fontSize: "0.75rem",
-                                  color: "#64748b",
+                                  ...styles.menuItem,
+                                  borderBottom: "none",
+                                  ...(caps.canDelete ? {} : styles.menuItemDisabled),
+                                }}
+                                title={caps.canDelete ? "Eliminar envío" : "Solo permitido en PENDIENTE POR ASIGNACIÓN"}
+                                onClick={() => {
+                                  if (!caps.canDelete) return;
+                                  setMenuEnvioOpenId(null);
+                                  eliminarEnvio(e);
                                 }}
                               >
-                                {ordenesResumen.length} orden(es)
+                                <span>Eliminar</span>
+                                {!caps.canDelete ? <span style={styles.menuHint}>Bloqueado</span> : null}
                               </div>
-                              {ordenesResumen.map((o) => {
-                                const id =
-                                  typeof o === "object" ? o.id_orden : o;
-                                const texto =
-                                  typeof o === "object"
-                                    ? `#${o.id_orden}`
-                                    : `#${o}`;
-                                return (
-                                  <span
-                                    key={id}
-                                    style={{
-                                      ...styles.chipOrd,
-                                      fontSize: "0.7rem",
-                                    }}
-                                  >
-                                    {texto}
-                                  </span>
-                                );
-                              })}
-                            </>
-                          ) : (
-                            <span
-                              style={{
-                                fontSize: "0.75rem",
-                                color: "#94a3b8",
-                              }}
-                            >
-                              Sin órdenes asignadas
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ ...rowBase, textAlign: "center" }}>
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: "6px",
-                              justifyContent: "center",
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            {puedeEditar && (
-                              <button
-                                type="button"
-                                style={styles.buttonGhost}
-                                onClick={(ev) => {
-                                  ev.stopPropagation();
-                                  abrirEditarEnvio(e);
-                                }}
-                              >
-                                Editar
-                              </button>
-                            )}
-                            {puedeAsignar && (
-                              <button
-                                type="button"
-                                style={styles.buttonGhost}
-                                onClick={(ev) => {
-                                  ev.stopPropagation();
-                                  abrirAsignarOrdenes(e);
-                                }}
-                              >
-                                Asignar
-                              </button>
-                            )}
-                            {puedeCerrar && (
-                              <button
-                                type="button"
-                                style={{
-                                  ...styles.buttonGhost,
-                                  borderColor: "#0d47a1",
-                                  color: "#0d47a1",
-                                }}
-                                onClick={(ev) => {
-                                  ev.stopPropagation();
-                                  cerrarEnvio(e);
-                                }}
-                              >
-                                Cerrar
-                              </button>
-                            )}
-                          </div>
+                            </div>
+                          ) : null}
                         </td>
                       </tr>
                     );
@@ -1698,109 +1564,93 @@ export default function TransporteEnvios() {
               </table>
             </div>
 
-            {enviosFiltrados.length > 0 && (
-              <div style={styles.resumenResultados}>
-                Mostrando {enviosFiltrados.length} envío(s). Haz clic en una fila
-                para ver el detalle completo y sus órdenes.
-              </div>
-            )}
+            {enviosFiltrados.length ? <div style={styles.resumenResultados}>Mostrando {enviosFiltrados.length} envío(s).</div> : null}
 
-            {envioSeleccionado && (
+            {/* DETALLE ENVÍO */}
+            {envioSeleccionado ? (
               <div style={styles.detalleCard}>
-                <div style={styles.detalleTitle}>
-                  Envío {envioSeleccionado.codigo_envio}
-                </div>
+                <div style={styles.detalleTitle}>Envío {envioSeleccionado.codigo_envio}</div>
+                <div style={styles.detalleLine}><span style={styles.detalleLabel}>ID envío:</span> {envioSeleccionado.id_envio}</div>
+
                 <div style={styles.detalleLine}>
-                  <span style={styles.detalleLabel}>ID envío: </span>
-                  {envioSeleccionado.id_envio}
-                </div>
-                <div style={styles.detalleLine}>
-                  <span style={styles.detalleLabel}>Unidad: </span>
-                  {getUnidadLabel(envioSeleccionado.id_unidad)}
-                </div>
-                <div style={styles.detalleLine}>
-                  <span style={styles.detalleLabel}>Estado: </span>
-                  <span style={styles.badgeEstadoEnvio(envioSeleccionado.estado)}>
-                    {envioSeleccionado.estado || "N/A"}
+                  <span style={styles.detalleLabel}>Unidad:</span>{" "}
+                  <span style={styles.linkPill} onClick={() => abrirModalUnidadInfo(envioSeleccionado.id_unidad)} role="button">
+                    {getUnidadLabel(envioSeleccionado.id_unidad)}
                   </span>
                 </div>
+                <div style={{ marginTop: -2, marginBottom: 6, fontSize: "0.72rem", color: "#94a3b8" }}>
+                  Tip: haz click en el nombre de la unidad para ver su información.
+                </div>
+
                 <div style={styles.detalleLine}>
-                  <span style={styles.detalleLabel}>Fecha salida: </span>
-                  {formatFechaCorta(envioSeleccionado.fecha_salida)}
+                  <span style={styles.detalleLabel}>Transportista:</span>{" "}
+                  {(() => {
+                    const u = getUnidadById(envioSeleccionado.id_unidad);
+                    return getTransportistaLabel(u?.id_usuario);
+                  })()}
                 </div>
+
                 <div style={styles.detalleLine}>
-                  <span style={styles.detalleLabel}>Fecha llegada: </span>
-                  {formatFechaCorta(envioSeleccionado.fecha_llegada)}
+                  <span style={styles.detalleLabel}>Estado:</span>{" "}
+                  <span style={styles.badgeEstadoEnvio(envioSeleccionado.estado)}>{String(envioSeleccionado.estado || "N/A").replace(/_/g, " ")}</span>
                 </div>
-                {typeof envioSeleccionado.peso_total !== "undefined" && (
-                  <div style={styles.detalleLine}>
-                    <span style={styles.detalleLabel}>Peso total: </span>
-                    {envioSeleccionado.peso_total || 0} Kg
-                  </div>
-                )}
-                <div
-                  style={{
-                    ...styles.detalleLine,
-                    marginTop: "6px",
-                  }}
-                >
-                  <span style={styles.detalleLabel}>Órdenes asignadas: </span>
+
+                <div style={styles.detalleLine}><span style={styles.detalleLabel}>Fecha:</span> {formatFechaCorta(envioSeleccionado.fecha_salida)}</div>
+
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: "0.8rem", fontWeight: 900, color: "#0f172a", marginBottom: 6 }}>Capacidad del envío</div>
+                  {(() => {
+                    const cap = getCapUnidad(envioSeleccionado.id_unidad);
+                    const { sum, missing } = getPesoEnvio(envioSeleccionado);
+                    if (missing) return <div style={{ fontSize: "0.82rem", color: "#94a3b8" }}>Peso total del envío: <b>No disponible</b></div>;
+                    return renderCapBar(sum, cap);
+                  })()}
                 </div>
-                <div style={{ marginTop: "4px" }}>
+
+                <div style={{ ...styles.detalleLine, marginTop: 12 }}>
+                  <span style={styles.detalleLabel}>Órdenes asignadas:</span>
+                  <span style={{ marginLeft: 8, fontSize: "0.78rem", color: "#94a3b8" }}>(click para ver detalle · si el envío está pendiente, puedes quitar una orden)</span>
+                </div>
+
+                <div style={{ marginTop: 6 }}>
                   {(() => {
                     const listado = getOrdenesResumen(envioSeleccionado);
-                    if (!Array.isArray(listado) || listado.length === 0) {
-                      return (
-                        <span
-                          style={{
-                            fontSize: "0.75rem",
-                            color: "#94a3b8",
-                          }}
-                        >
-                          Este envío aún no tiene órdenes asignadas.
-                        </span>
-                      );
-                    }
+                    if (!Array.isArray(listado) || listado.length === 0) return <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Este envío aún no tiene órdenes.</span>;
+
+                    const canQuickEdit = normEstado(envioSeleccionado.estado) === normEstado(ESTADO_CREACION_ENVIO);
+
                     return listado.map((o) => {
                       const id = typeof o === "object" ? o.id_orden : o;
-                      const textoPrincipal =
-                        typeof o === "object"
-                          ? `#${o.id_orden} · ${o.cliente_nombre || "Cliente"}`
-                          : `#${o}`;
-                      const sub =
-                        typeof o === "object" && o.estado_de_envio
-                          ? `Estado: ${o.estado_de_envio}`
-                          : "";
+                      const cliente = typeof o === "object" ? (o.cliente_nombre || o.id_cliente_nombre || "Cliente") : "";
+                      const estadoOrd = typeof o === "object" ? (o.estado_de_envio || "") : "";
+                      const pesoOrd = typeof o === "object" ? getPesoFromObj(o) : null;
 
                       return (
                         <div
                           key={id}
-                          style={{
-                            marginBottom: "4px",
-                            padding: "4px 6px",
-                            borderRadius: "8px",
-                            border: "1px solid #e2e8f0",
-                            background: "#f8fafc",
-                            fontSize: "0.78rem",
-                          }}
+                          style={{ marginBottom: 8, padding: "10px 10px", borderRadius: 12, border: "1px solid #e2e8f0", background: "#f8fafc", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}
+                          onClick={() => abrirModalOrdenInfo(id)}
                         >
-                          <div
-                            style={{
-                              fontWeight: "600",
-                              color: "#0d47a1",
-                            }}
-                          >
-                            {textoPrincipal}
-                          </div>
-                          {sub && (
-                            <div
-                              style={{
-                                fontSize: "0.72rem",
-                                color: "#64748b",
-                              }}
-                            >
-                              {sub}
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 900, color: "#0d47a1" }}>#{id}{cliente ? ` · ${cliente}` : ""}</div>
+                            <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: 2 }}>
+                              {estadoOrd ? `Estado: ${String(estadoOrd).replace(/_/g, " ")}` : ""}
+                              {pesoOrd !== null ? ` · Peso: ${toNumber(pesoOrd).toFixed(2)} Kg` : ""}
                             </div>
+                          </div>
+
+                          {canQuickEdit ? (
+                            <button
+                              type="button"
+                              style={{ ...styles.buttonDanger, height: 32, padding: "0 10px" }}
+                              disabled={!!busyKey}
+                              onClick={(ev) => { ev.stopPropagation(); quitarOrdenDeEnvio(envioSeleccionado, id); }}
+                              title="Quitar orden del envío"
+                            >
+                              Quitar
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Solo lectura</span>
                           )}
                         </div>
                       );
@@ -1808,114 +1658,57 @@ export default function TransporteEnvios() {
                   })()}
                 </div>
               </div>
-            )}
+            ) : null}
 
-            {loadingEnvios && (
-              <div
-                style={{
-                  textAlign: "center",
-                  fontSize: "0.8rem",
-                  color: "#64748b",
-                  marginTop: "8px",
-                }}
-              >
-                Cargando envíos...
-              </div>
-            )}
+            {loadingEnvios ? <div style={{ textAlign: "center", fontSize: "0.8rem", color: "#64748b" }}>Cargando envíos...</div> : null}
           </div>
         </div>
       </div>
 
-      {/* MODAL UNIDAD */}
-      {showUnidadModal && (
+      {/* ==================== MODALES ==================== */}
+      <ConfirmModal open={confirm.open} title={confirm.title} confirmTone={confirm.tone} confirmText="Confirmar" busy={!!busyKey && confirm.open} onClose={closeConfirm} onConfirm={confirm.onConfirm || (() => {})}>
+        {confirm.text}
+      </ConfirmModal>
+
+      {/* MODAL UNIDAD (crear/editar) */}
+      {showUnidadModal ? (
         <div style={styles.modalOverlay}>
-          <div style={styles.modal}>
-            <div style={styles.modalTitle}>
-              {unidadMode === "crear" ? "Registrar Unidad" : "Editar Unidad"}
-            </div>
-            <div style={styles.modalSubtitle}>
-              Completa los datos de la unidad y asigna un transportista.
-            </div>
+          <div style={{ ...styles.modal, maxWidth: "560px" }}>
+            <button type="button" style={styles.modalCloseX} onClick={() => (busyKey ? null : setShowUnidadModal(false))}><IconX /></button>
+            <h4 style={styles.modalTitle}>{unidadMode === "crear" ? "Registrar Unidad" : "Editar Unidad"}</h4>
+            <div style={styles.modalSubtitle}>Completa los datos de la unidad y asigna un transportista.</div>
 
             <form onSubmit={guardarUnidad}>
               <div style={styles.formGrid}>
                 <div>
-                  <div style={styles.label}>Código *</div>
-                  <input
-                    style={styles.input}
-                    value={unidadForm.codigo_unidad}
-                    onChange={(e) =>
-                      handleUnidadChange("codigo_unidad", e.target.value)
-                    }
-                    placeholder="Ej: CAMIÓN-01"
-                  />
+                  <div style={styles.label}>Nombre de unidad *</div>
+                  <input style={styles.input} value={unidadForm.nombre_unidad} onChange={(e) => setUnidadForm((p) => ({ ...p, nombre_unidad: e.target.value.slice(0, 15) }))} placeholder="Ej: CAMION-01" maxLength={15} />
+                  <div style={{ marginTop: 6, fontSize: "0.75rem", color: "#94a3b8" }}>Máx 15 caracteres.</div>
                 </div>
 
                 <div>
-                  <div style={styles.label}>Placa</div>
-                  <input
-                    style={styles.input}
-                    value={unidadForm.placa}
-                    onChange={(e) =>
-                      handleUnidadChange("placa", e.target.value)
-                    }
-                    placeholder="ABC-123"
-                  />
+                  <div style={styles.label}>Placa (máx 10)</div>
+                  <input style={styles.input} value={unidadForm.placa} onChange={(e) => setUnidadForm((p) => ({ ...p, placa: e.target.value.slice(0, 10) }))} placeholder="ABC-123" maxLength={10} />
+                  <div style={{ marginTop: 6, fontSize: "0.75rem", color: "#94a3b8" }}>Máx 10 caracteres.</div>
                 </div>
 
                 <div>
                   <div style={styles.label}>Transportista *</div>
-                  <select
-                    style={styles.select}
-                    value={unidadForm.id_usuario}
-                    onChange={(e) =>
-                      handleUnidadChange("id_usuario", e.target.value)
-                    }
-                  >
-                    <option value="">
-                      {loadingTransportistas ? "Cargando..." : "Selecciona..."}
-                    </option>
+                  <select style={styles.select} value={unidadForm.id_usuario} onChange={(e) => setUnidadForm((p) => ({ ...p, id_usuario: e.target.value }))}>
+                    <option value="">{loadingTransportistas ? "Cargando..." : "Selecciona..."}</option>
                     {transportistas.map((t) => {
                       const id = t.id_usuario ?? t.id;
-                      const ocupado = transportistaOcupadoEnOtraUnidad(
-                        id,
-                        unidadMode === "editar" && unidadSeleccionada
-                          ? unidadSeleccionada.id_unidad
-                          : null
-                      );
-                      return (
-                        <option key={id} value={id} disabled={ocupado}>
-                          {getTransportistaLabel(id)}
-                          {ocupado ? " (ya asignado)" : ""}
-                        </option>
-                      );
+                      const ocupado = transportistaOcupadoEnOtraUnidad(id, unidadMode === "editar" && unidadSeleccionada ? unidadSeleccionada.id_unidad : null);
+                      return <option key={id} value={id} disabled={ocupado}>{t.username}{ocupado ? " (ya asignado)" : ""}</option>;
                     })}
                   </select>
-                  {unidadForm.id_usuario && (
-                    <div
-                      style={{
-                        marginTop: "6px",
-                        fontSize: "0.8rem",
-                        color: "#64748b",
-                      }}
-                    >
-                      Teléfono del transportista:{" "}
-                      <strong>
-                        {getTransportistaTelefono(unidadForm.id_usuario) ||
-                          "No registrado"}
-                      </strong>
+                  {unidadForm.id_usuario ? (
+                    <div style={{ marginTop: 6, fontSize: "0.8rem", color: "#64748b" }}>
+                      Teléfono del transportista: <strong>{getTransportistaTelefono(unidadForm.id_usuario) || "No registrado"}</strong>
                     </div>
-                  )}
-                  <div style={{ marginTop: "8px" }}>
-                    <button
-                      type="button"
-                      style={{
-                        ...styles.buttonGhost,
-                        width: "100%",
-                        justifyContent: "center",
-                      }}
-                      onClick={abrirNuevoTransportista}
-                    >
+                  ) : null}
+                  <div style={{ marginTop: 10 }}>
+                    <button type="button" style={{ ...styles.buttonGhost, width: "100%", justifyContent: "center", height: 36 }} onClick={abrirNuevoTransportista}>
                       + Nuevo Transportista
                     </button>
                   </div>
@@ -1923,385 +1716,243 @@ export default function TransporteEnvios() {
 
                 <div>
                   <div style={styles.label}>Capacidad (Kg)</div>
-                  <input
-                    type="number"
-                    style={styles.input}
-                    value={unidadForm.capacidad_carga}
-                    onChange={(e) =>
-                      handleUnidadChange("capacidad_carga", e.target.value)
-                    }
-                    placeholder="Ej: 5000"
-                  />
+                  <input type="number" min="0" step="0.01" style={styles.input} value={unidadForm.capacidad_carga} onChange={(e) => setUnidadForm((p) => ({ ...p, capacidad_carga: e.target.value }))} placeholder="Ej: 5000" />
                 </div>
 
                 <div>
                   <div style={styles.label}>Estado</div>
-                  <select
-                    style={styles.select}
-                    value={unidadForm.estado}
-                    onChange={(e) =>
-                      handleUnidadChange("estado", e.target.value)
-                    }
-                  >
-                    <option value="ACTIVA">ACTIVA</option>
-                    <option value="INACTIVA">INACTIVA</option>
+                  <select style={styles.select} value={unidadForm.estado} onChange={(e) => setUnidadForm((p) => ({ ...p, estado: e.target.value }))}>
+                    {UNIDAD_ESTADOS.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
               </div>
 
-              {unidadFormError && (
-                <div style={styles.errorText}>{unidadFormError}</div>
-              )}
+              {unidadFormError ? <div style={styles.errorText}>{unidadFormError}</div> : null}
 
               <div style={styles.modalActions}>
-                <button
-                  type="button"
-                  style={styles.buttonGhost}
-                  onClick={() => setShowUnidadModal(false)}
-                  disabled={unidadFormLoading}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  style={styles.buttonPrimary}
-                  disabled={unidadFormLoading}
-                >
-                  {unidadFormLoading ? "Guardando..." : "Guardar"}
-                </button>
+                <button type="button" style={styles.buttonGhost} disabled={!!busyKey} onClick={() => setShowUnidadModal(false)}>Cancelar</button>
+                <button type="submit" style={{ ...styles.buttonPrimary, ...(busyKey === "unidad:save" ? styles.buttonDisabled : {}) }} disabled={!!busyKey}>{busyKey === "unidad:save" ? "Guardando..." : "Guardar"}</button>
               </div>
             </form>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* MODAL TRANSPORTISTA */}
-      {showTransportistaModal && (
+      {/* MODAL NUEVO TRANSPORTISTA */}
+      {showTransportistaModal ? (
         <div style={styles.modalOverlay}>
-          <div style={styles.modal}>
-            <div style={styles.modalTitle}>Nuevo Transportista</div>
-            <div style={styles.modalSubtitle}>
-              Crea un usuario para asignar a la unidad.
-            </div>
+          <div style={{ ...styles.modal, maxWidth: "560px" }}>
+            <button type="button" style={styles.modalCloseX} onClick={() => (busyKey ? null : setShowTransportistaModal(false))}><IconX /></button>
+            <h4 style={styles.modalTitle}>Nuevo Transportista</h4>
+            <div style={styles.modalSubtitle}>Crea un usuario para asignar a la unidad.</div>
 
             <form onSubmit={guardarTransportista}>
               <div style={styles.formGrid}>
-                <div>
-                  <div style={styles.label}>Usuario *</div>
-                  <input
-                    style={styles.input}
-                    value={transportistaForm.username}
-                    onChange={(e) =>
-                      handleTransportistaChange("username", e.target.value)
-                    }
-                    placeholder="Usuario login"
-                  />
-                </div>
-                <div>
-                  <div style={styles.label}>Nombre</div>
-                  <input
-                    style={styles.input}
-                    value={transportistaForm.first_name}
-                    onChange={(e) =>
-                      handleTransportistaChange("first_name", e.target.value)
-                    }
-                  />
-                </div>
-                <div>
-                  <div style={styles.label}>Apellido</div>
-                  <input
-                    style={styles.input}
-                    value={transportistaForm.last_name}
-                    onChange={(e) =>
-                      handleTransportistaChange("last_name", e.target.value)
-                    }
-                  />
-                </div>
-                <div>
-                  <div style={styles.label}>Teléfono</div>
-                  <input
-                    style={styles.input}
-                    value={transportistaForm.telefono}
-                    onChange={(e) =>
-                      handleTransportistaChange("telefono", e.target.value)
-                    }
-                  />
-                </div>
-                <div>
-                  <div style={styles.label}>Contraseña</div>
-                  <input
-                    type="password"
-                    style={styles.input}
-                    value={transportistaForm.password}
-                    onChange={(e) =>
-                      handleTransportistaChange("password", e.target.value)
-                    }
-                    placeholder="Opcional (Default: 123456)"
-                  />
-                </div>
+                <div><div style={styles.label}>Usuario *</div><input style={styles.input} value={transportistaForm.username} onChange={(e) => setTransportistaForm((p) => ({ ...p, username: e.target.value }))} /></div>
+                <div><div style={styles.label}>Nombre</div><input style={styles.input} value={transportistaForm.first_name} onChange={(e) => setTransportistaForm((p) => ({ ...p, first_name: e.target.value }))} /></div>
+                <div><div style={styles.label}>Apellido</div><input style={styles.input} value={transportistaForm.last_name} onChange={(e) => setTransportistaForm((p) => ({ ...p, last_name: e.target.value }))} /></div>
+                <div><div style={styles.label}>Teléfono</div><input style={styles.input} value={transportistaForm.telefono} onChange={(e) => setTransportistaForm((p) => ({ ...p, telefono: e.target.value }))} /></div>
+                <div><div style={styles.label}>Contraseña</div><input type="password" style={styles.input} value={transportistaForm.password} onChange={(e) => setTransportistaForm((p) => ({ ...p, password: e.target.value }))} placeholder="Opcional (Default: 123456)" /></div>
               </div>
 
-              {transportistaFormError && (
-                <div style={styles.errorText}>{transportistaFormError}</div>
-              )}
+              {transportistaFormError ? <div style={styles.errorText}>{transportistaFormError}</div> : null}
 
               <div style={styles.modalActions}>
-                <button
-                  type="button"
-                  style={styles.buttonGhost}
-                  onClick={() => setShowTransportistaModal(false)}
-                  disabled={transportistaFormLoading}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  style={styles.buttonPrimary}
-                  disabled={transportistaFormLoading}
-                >
-                  {transportistaFormLoading ? "Creando..." : "Crear"}
+                <button type="button" style={styles.buttonGhost} disabled={!!busyKey} onClick={() => setShowTransportistaModal(false)}>Cancelar</button>
+                <button type="submit" style={{ ...styles.buttonPrimary, ...(busyKey === "transportista:create" ? styles.buttonDisabled : {}) }} disabled={!!busyKey}>
+                  {busyKey === "transportista:create" ? "Creando..." : "Crear"}
                 </button>
               </div>
             </form>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* MODAL ENVÍO */}
-      {showEnvioModal && (
+      {showEnvioModal ? (
         <div style={styles.modalOverlay}>
-          <div style={styles.modal}>
-            <div style={styles.modalTitle}>
-              {envioMode === "crear" ? "Nuevo Envío" : "Editar Envío"}
-            </div>
-            <div style={styles.modalSubtitle}>
-              Configura los datos del envío.
-            </div>
+          <div style={{ ...styles.modal, maxWidth: "560px" }}>
+            <button type="button" style={styles.modalCloseX} onClick={() => (busyKey ? null : setShowEnvioModal(false))}><IconX /></button>
+            <h4 style={styles.modalTitle}>{envioMode === "crear" ? "Nuevo Envío" : "Editar Envío"}</h4>
+            <div style={styles.modalSubtitle}>Configura los datos del envío.</div>
 
             <form onSubmit={guardarEnvio}>
               <div style={styles.formGrid}>
-                <div>
-                  <div style={styles.label}>Código</div>
-                  <input
-                    style={{
-                      ...styles.input,
-                      backgroundColor: "#f1f5f9",
-                    }}
-                    value={envioForm.codigo_envio}
-                    readOnly
-                  />
-                </div>
+                <div><div style={styles.label}>Código</div><input style={{ ...styles.input, backgroundColor: "#f1f5f9" }} value={envioForm.codigo_envio} readOnly /></div>
 
                 <div>
                   <div style={styles.label}>Unidad Asignada *</div>
-                  <select
-                    style={styles.select}
-                    value={envioForm.id_unidad}
-                    onChange={(e) =>
-                      handleEnvioChange("id_unidad", e.target.value)
-                    }
-                  >
+                  <select style={styles.select} value={envioForm.id_unidad} onChange={(e) => setEnvioForm((p) => ({ ...p, id_unidad: e.target.value }))}>
                     <option value="">Selecciona unidad...</option>
-                    {unidades
-                      .filter((u) => {
-                        const estado = (u.estado || "").toUpperCase();
-                        const esActiva =
-                          estado === "ACTIVA" || estado === "DISPONIBLE";
-                        const ignoreEnvioId =
-                          envioMode === "editar" && envioSeleccionado
-                            ? envioSeleccionado.id_envio
-                            : null;
-                        const tieneActivo = unidadTieneEnvioActivo(
-                          u.id_unidad,
-                          ignoreEnvioId
-                        );
-                        return esActiva && !tieneActivo;
-                      })
-                      .map((u) => (
-                        <option key={u.id_unidad} value={u.id_unidad}>
-                          {u.codigo_unidad} · {u.placa || ""}
-                        </option>
-                      ))}
+                    {unidades.map((u) => <option key={u.id_unidad} value={u.id_unidad}>{u.codigo_unidad} · {u.placa || ""} · Cap: {toNumber(u.capacidad_carga).toFixed(2)}Kg</option>)}
                   </select>
                 </div>
 
                 <div>
-                  <div style={styles.label}>Fecha Salida *</div>
-                  <input
-                    type="date"
-                    style={styles.input}
-                    value={envioForm.fecha_salida}
-                    onChange={(e) =>
-                      handleEnvioChange("fecha_salida", e.target.value)
-                    }
-                  />
+                  <div style={styles.label}>Fecha (salida) *</div>
+                  <input type="date" style={styles.input} value={envioForm.fecha_salida} min={todayISO()} onChange={(e) => setEnvioForm((p) => ({ ...p, fecha_salida: e.target.value }))} />
                 </div>
               </div>
 
-              {envioFormError && (
-                <div style={styles.errorText}>{envioFormError}</div>
-              )}
+              {envioFormError ? <div style={styles.errorText}>{envioFormError}</div> : null}
 
               <div style={styles.modalActions}>
-                <button
-                  type="button"
-                  style={styles.buttonGhost}
-                  onClick={() => setShowEnvioModal(false)}
-                  disabled={envioFormLoading}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  style={styles.buttonPrimary}
-                  disabled={envioFormLoading}
-                >
-                  {envioFormLoading ? "Guardando..." : "Guardar"}
-                </button>
+                <button type="button" style={styles.buttonGhost} disabled={!!busyKey} onClick={() => setShowEnvioModal(false)}>Cancelar</button>
+                <button type="submit" style={{ ...styles.buttonPrimary, ...(busyKey === "envio:save" ? styles.buttonDisabled : {}) }} disabled={!!busyKey}>{busyKey === "envio:save" ? "Guardando..." : "Guardar"}</button>
               </div>
             </form>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* MODAL ASIGNAR ÓRDENES */}
-      {showAsignarModal && (
+      {/* MODAL ASIGNAR */}
+      {showAsignarModal ? (
         <div style={styles.modalOverlay}>
-          <div style={styles.modal}>
-            <div style={styles.modalTitle}>Asignar Órdenes</div>
-            <div style={styles.modalSubtitle}>
-              Envío: <strong>{envioSeleccionado?.codigo_envio}</strong>
+          <div style={{ ...styles.modal, maxWidth: "860px" }}>
+            <button type="button" style={styles.modalCloseX} onClick={() => (busyKey ? null : setShowAsignarModal(false))}><IconX /></button>
+            <h4 style={styles.modalTitle}>Asignar Órdenes</h4>
+            <div style={styles.modalSubtitle}>Envío: <strong>{envioSeleccionado?.codigo_envio}</strong> · Unidad: <strong>{getUnidadLabel(envioSeleccionado?.id_unidad)}</strong></div>
+
+            {(() => {
+              const cap = envioSeleccionado ? getCapUnidad(envioSeleccionado.id_unidad) : 0;
+              return (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: "0.82rem", fontWeight: 900, color: "#0f172a", marginBottom: 6 }}>Peso seleccionado / Capacidad de la unidad</div>
+                  {renderCapBar(pesoSeleccionado.sum, cap)}
+                </div>
+              );
+            })()}
+
+            <input style={styles.searchInput} placeholder="Filtrar orden por ID o cliente..." value={searchOrden} onChange={(e) => setSearchOrden(e.target.value)} />
+
+            <div style={{ marginTop: 10, maxHeight: 340, overflowY: "auto", border: "1px solid #e2e8f0", borderRadius: 12, background: "#fff" }}>
+              {ordenesDisponibles
+                .filter((o) => {
+                  const term = normalizeText(searchOrden);
+                  if (!term) return true;
+                  const cliente = (o.cliente_nombre || o.id_cliente_nombre || "").toLowerCase();
+                  return String(o.id_orden).includes(term) || cliente.includes(term);
+                })
+                .map((o) => {
+                  const peso = getPesoFromObj(o);
+                  const cliente = o.cliente_nombre || o.id_cliente_nombre || "Cliente";
+                  return (
+                    <label key={o.id_orden} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px", borderBottom: "1px solid #f1f5f9" }}>
+                      <input type="checkbox" checked={ordenesSeleccionadas.includes(o.id_orden)} onChange={() => setOrdenesSeleccionadas((prev) => prev.includes(o.id_orden) ? prev.filter((id) => id !== o.id_orden) : [...prev, o.id_orden])} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 900, color: "#0d47a1" }}>#{o.id_orden}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{cliente} · {String(o.estado_de_envio || "").replace(/_/g, " ")}</div>
+                        <div style={{ fontSize: "0.72rem", color: "#94a3b8" }}>Peso: <b>{peso === null ? "—" : `${toNumber(peso).toFixed(2)} Kg`}</b></div>
+                      </div>
+                      <button type="button" style={{ ...styles.buttonGhost, height: 32 }} onClick={(ev) => { ev.preventDefault(); ev.stopPropagation(); abrirModalOrdenInfo(o.id_orden); }}>Ver</button>
+                    </label>
+                  );
+                })}
+              {ordenesDisponibles.length === 0 ? <div style={{ padding: 14, textAlign: "center", color: "#94a3b8" }}>No hay órdenes disponibles.</div> : null}
             </div>
 
-            {asignarLoading ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: 20,
-                  color: "#64748b",
-                }}
-              >
-                Cargando órdenes...
-              </div>
-            ) : (
-              <>
-                <div style={{ marginBottom: "10px" }}>
-                  <input
-                    style={styles.searchInput}
-                    placeholder="Filtrar orden por ID o cliente..."
-                    value={searchOrden}
-                    onChange={(e) => setSearchOrden(e.target.value)}
-                  />
-                </div>
+            {asignarError ? <div style={styles.errorText}>{asignarError}</div> : null}
 
-                <div
-                  style={{
-                    maxHeight: "300px",
-                    overflowY: "auto",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "10px",
-                    padding: "10px",
-                  }}
-                >
-                  {ordenesDisponibles.filter(
-                    (o) =>
-                      String(o.id_orden).includes(searchOrden) ||
-                      (o.cliente_nombre || "")
-                        .toLowerCase()
-                        .includes((searchOrden || "").toLowerCase())
-                  ).length === 0 ? (
-                    <div
-                      style={{
-                        textAlign: "center",
-                        color: "#94a3b8",
-                        fontSize: "0.8rem",
-                      }}
-                    >
-                      No hay órdenes disponibles.
-                    </div>
-                  ) : (
-                    ordenesDisponibles
-                      .filter(
-                        (o) =>
-                          String(o.id_orden).includes(searchOrden) ||
-                          (o.cliente_nombre || "")
-                            .toLowerCase()
-                            .includes((searchOrden || "").toLowerCase())
-                      )
-                      .map((o) => (
-                        <label
-                          key={o.id_orden}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "10px",
-                            padding: "8px",
-                            borderBottom: "1px solid #f1f5f9",
-                            fontSize: "0.85rem",
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={ordenesSeleccionadas.includes(o.id_orden)}
-                            onChange={() =>
-                              setOrdenesSeleccionadas((prev) =>
-                                prev.includes(o.id_orden)
-                                  ? prev.filter((id) => id !== o.id_orden)
-                                  : [...prev, o.id_orden]
-                              )
-                            }
-                          />
-                          <div>
-                            <div
-                              style={{
-                                fontWeight: "bold",
-                                color: "#0d47a1",
-                              }}
-                            >
-                              #{o.id_orden}
-                            </div>
-                            <div
-                              style={{
-                                color: "#64748b",
-                                fontSize: "0.75rem",
-                              }}
-                            >
-                              {o.cliente_nombre || "Cliente"} ·{" "}
-                              {o.estado_de_envio}
-                            </div>
-                          </div>
-                        </label>
-                      ))
-                  )}
-                </div>
-
-                {asignarError && (
-                  <div style={styles.errorText}>{asignarError}</div>
-                )}
-
-                <div style={styles.modalActions}>
-                  <button
-                    type="button"
-                    style={styles.buttonGhost}
-                    onClick={() => setShowAsignarModal(false)}
-                    disabled={asignarLoading}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    style={styles.buttonPrimary}
-                    onClick={confirmarAsignacion}
-                    disabled={asignarLoading}
-                  >
-                    {asignarLoading ? "Asignando..." : "Confirmar"}
-                  </button>
-                </div>
-              </>
-            )}
+            <div style={styles.modalActions}>
+              <button type="button" style={styles.buttonGhost} disabled={!!busyKey} onClick={() => setShowAsignarModal(false)}>Cancelar</button>
+              <button type="button" style={{ ...styles.buttonPrimary, ...(busyKey === "asignar:confirm" ? styles.buttonDisabled : {}) }} disabled={!!busyKey} onClick={confirmarAsignacion}>
+                {busyKey === "asignar:confirm" ? "Asignando..." : "Confirmar"}
+              </button>
+            </div>
           </div>
         </div>
-      )}
+      ) : null}
+
+      {/* MODAL INFO UNIDAD */}
+      <ModalShell open={showUnidadInfo} title={unidadInfo ? `Unidad: ${unidadInfo.codigo_unidad}` : "Unidad"} subtitle={unidadInfo ? `Placa: ${unidadInfo.placa || "-"}` : ""} onClose={() => setShowUnidadInfo(false)} maxWidth="640px">
+        {unidadInfo ? (
+          <div style={{ display: "grid", gap: 8, color: "#334155" }}>
+            <div><b>Transportista:</b> {getTransportistaLabel(unidadInfo.id_usuario)}</div>
+            <div><b>Teléfono:</b> {unidadInfo.telefono || getTransportistaTelefono(unidadInfo.id_usuario) || "-"}</div>
+            <div><b>Capacidad:</b> {formatKg(toNumber(unidadInfo.capacidad_carga || 0))}</div>
+            <div><b>Estado:</b> <span style={styles.badgeEstadoUnidad(unidadInfo.estado)}>{unidadInfo.estado || "N/A"}</span></div>
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #f1f5f9", color: "#64748b", fontSize: "0.85rem" }}>
+              Tip: desde el detalle de un envío, haz click en la unidad para ver esta información.
+            </div>
+          </div>
+        ) : <div style={{ color: "#94a3b8" }}>No hay información.</div>}
+      </ModalShell>
+
+      {/* MODAL INFO ORDEN */}
+      <ModalShell
+        open={showOrdenInfo}
+        title={ordenInfo.orden ? `Orden #${ordenInfo.orden.id_orden || ""}` : "Orden"}
+        subtitle={ordenInfo.orden ? `Cliente: ${ordenInfo.orden.id_cliente_nombre || ordenInfo.orden.cliente_nombre || ordenInfo.cliente?.nombre || "-"}` : ""}
+        onClose={() => setShowOrdenInfo(false)}
+        maxWidth="820px"
+      >
+        {ordenInfo.loading ? (
+          <div style={{ padding: 14, color: "#64748b" }}>Cargando orden...</div>
+        ) : ordenInfo.error ? (
+          <div style={styles.errorText}>{ordenInfo.error}</div>
+        ) : (
+          <div>
+            <div style={{ display: "grid", gap: 6, color: "#334155" }}>
+              <div><b>Estado envío:</b> {String(ordenInfo.orden?.estado_de_envio || "-").replace(/_/g, " ")}</div>
+              <div><b>Fecha:</b> {formatFechaCorta(ordenInfo.orden?.fecha_orden)}</div>
+              <div><b>Total:</b> Bs {ordenInfo.orden?.precio_final ?? "-"}</div>
+              <div><b>Peso total:</b> {ordenInfo.peso === null ? "No disponible" : formatKg(ordenInfo.peso)}</div>
+              <div><b>Método de pago:</b> {ordenInfo.orden?.metodo_pago || "-"}</div>
+
+              {ordenInfo.cliente ? (
+                <div style={{ marginTop: 6, paddingTop: 8, borderTop: "1px solid #f1f5f9" }}>
+                  <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 6 }}>Cliente</div>
+                  <div><b>Nombre:</b> {ordenInfo.cliente.nombre || "-"}</div>
+                  <div><b>Teléfono:</b> {ordenInfo.cliente.telefono || "-"}</div>
+                  <div><b>Correo:</b> {ordenInfo.cliente.correo || "-"}</div>
+                  <div><b>Dirección:</b> {ordenInfo.cliente.direccion || "-"}</div>
+                </div>
+              ) : null}
+            </div>
+
+            <div style={{ marginTop: 14, fontWeight: 900, color: "#0f172a" }}>Items</div>
+            <div style={{ marginTop: 8, border: "1px solid #e2e8f0", borderRadius: 12, overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
+                <thead>
+                  <tr>
+                    <th style={{ background: "#f8fafc", padding: 10, textAlign: "left", color: "#475569", fontWeight: 900 }}>Producto</th>
+                    <th style={{ background: "#f8fafc", padding: 10, textAlign: "left", color: "#475569", fontWeight: 900 }}>Cant.</th>
+                    <th style={{ background: "#f8fafc", padding: 10, textAlign: "right", color: "#475569", fontWeight: 900 }}>Subtotal</th>
+                    <th style={{ background: "#f8fafc", padding: 10, textAlign: "right", color: "#475569", fontWeight: 900 }}>Peso</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(ordenInfo.detalles || []).length === 0 ? (
+                    <tr><td colSpan={4} style={{ padding: 12, color: "#94a3b8" }}>Sin detalles.</td></tr>
+                  ) : (
+                    (ordenInfo.detalles || []).map((d, idx) => (
+                      <tr key={idx}>
+                        <td style={{ padding: 10, borderTop: "1px solid #f1f5f9" }}>{d.id_producto_nombre || d.producto || d.id_producto?.nombre || "Producto"}</td>
+                        <td style={{ padding: 10, borderTop: "1px solid #f1f5f9" }}>{d.cantidad}</td>
+                        <td style={{ padding: 10, borderTop: "1px solid #f1f5f9", textAlign: "right", fontWeight: 800 }}>{d.subtotal}</td>
+                        <td style={{ padding: 10, borderTop: "1px solid #f1f5f9", textAlign: "right", fontWeight: 800 }}>{d.peso_subtotal ?? "-"}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {(() => {
+              const notas = (ordenInfo.detalles || []).map((d) => d.nota).filter((n) => !!n);
+              if (!notas.length) return null;
+              return (
+                <div style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid #f1f5f9" }}>
+                  <div style={{ fontWeight: 900, color: "#0f172a", marginBottom: 6 }}>Notas</div>
+                  <ul style={{ margin: 0, paddingLeft: 18, color: "#334155" }}>
+                    {notas.slice(0, 8).map((n, i) => <li key={i} style={{ marginBottom: 4 }}>{String(n)}</li>)}
+                  </ul>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+      </ModalShell>
     </div>
   );
 }

@@ -2,12 +2,13 @@
 
 import random
 import string
+from decimal import Decimal
+
 from django.utils import timezone
-from django.core.mail import send_mail
-from django.conf import settings
-from django.db.models import F, Sum
+from django.db.models import Sum, Count, Q
 from django.db import transaction
-from rest_framework import status, permissions, viewsets
+
+from rest_framework import status, permissions
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
@@ -38,11 +39,31 @@ from .serializers import (
 )
 
 # ============================================================
-#   CONSTANTES
+#   CONSTANTES (SINGLE SOURCE OF TRUTH)
 # ============================================================
 
-ESTADO_CREACION_ENVIO = "PENDIENTE POR APROBACION"
+# ✅ Estado correcto de creación de ENVÍO (no confundir con aprobación de órdenes)
+ESTADO_CREACION_ENVIO = "PENDIENTE POR ASIGNACION"
+
+# Estado de orden cuando se asigna a un envío
 ESTADO_ORDEN_ASIGNADA_ENVIO = "ASIGNADA_A_ENVIO"
+
+# Estado de orden disponible para asignación (tu UI usa PREPARADA)
+ESTADO_ORDEN_DISPONIBLE_PARA_ENVIO = "PREPARADA"
+
+# Estados finalizados de envío
+ESTADOS_ENVIO_FINALIZADOS = {"TERMINADO", "FINALIZADO", "CERRADO", "ENTREGADO"}
+
+# Estados de unidad
+UNIDAD_ACTIVA = "ACTIVA"
+UNIDAD_DISPONIBLE = "DISPONIBLE"
+UNIDAD_RESERVADA = "RESERVADA"
+UNIDAD_EN_TRANSITO = "EN TRANSITO"
+UNIDAD_INACTIVA = "INACTIVA"
+
+
+def _norm_estado(value: str) -> str:
+    return (value or "").strip().replace("_", " ").upper()
 
 
 # ============================================================
@@ -61,69 +82,55 @@ class UsuarioViewSet(BaseViewSet):
     search_fields = ["username", "first_name", "last_name", "tipo"]
     ordering_fields = ["id_usuario", "username"]
 
-    # ------------------------------------------------------------------
-    # 1. SOLICITAR CÓDIGO (Recuperación de Contraseña)
-    # 🚨 FIX: permission_classes=[permissions.AllowAny] para acceso público
-    # ------------------------------------------------------------------
-    @action(detail=False, methods=['post'], url_path='solicitar-reset', permission_classes=[permissions.AllowAny])
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="solicitar-reset",
+        permission_classes=[permissions.AllowAny],
+    )
     def solicitar_reset(self, request):
-        email = request.data.get('email')
+        email = request.data.get("email")
         if not email:
             return Response({"error": "Debes proporcionar un correo electrónico."}, status=400)
 
         usuario = Usuario.objects.filter(email=email).first()
-        
-        # Por seguridad, si el usuario no existe, simulamos éxito para no revelar correos.
+
+        # Por seguridad: si no existe, simulamos éxito
         if not usuario:
             return Response({"mensaje": "Si el correo existe, se ha enviado un código."}, status=200)
 
-        # Generar código de 6 dígitos
-        codigo = ''.join(random.choices(string.digits, k=6))
+        codigo = "".join(random.choices(string.digits, k=6))
         usuario.codigo_recuperacion = codigo
         usuario.fecha_recuperacion = timezone.now()
         usuario.save()
 
-        # Enviar correo (O imprimir en consola si no tienes SMTP configurado)
-        print(f"========================================")
+        print("========================================")
         print(f"🔐 CÓDIGO DE RECUPERACIÓN PARA {email}: {codigo}")
-        print(f"========================================")
-        
-        # Descomentar esto cuando tengas el SMTP real en settings.py
-        # try:
-        #     send_mail(
-        #         'Código de recuperación - DIGRAS',
-        #         f'Tu código de seguridad es: {codigo}',
-        #         settings.EMAIL_HOST_USER,
-        #         [email],
-        #         fail_silently=False,
-        #     )
-        # except Exception as e:
-        #     print(f"Error SMTP: {e}")
+        print("========================================")
 
         return Response({"mensaje": "Código enviado a tu correo."}, status=200)
 
-    # ------------------------------------------------------------------
-    # 2. CONFIRMAR CAMBIO (Recuperación de Contraseña)
-    # 🚨 FIX: permission_classes=[permissions.AllowAny] para acceso público
-    # ------------------------------------------------------------------
-    @action(detail=False, methods=['post'], url_path='confirmar-reset', permission_classes=[permissions.AllowAny])
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="confirmar-reset",
+        permission_classes=[permissions.AllowAny],
+    )
     def confirmar_reset(self, request):
-        email = request.data.get('email')
-        codigo = request.data.get('codigo')
-        nueva_password = request.data.get('nueva_password')
+        email = request.data.get("email")
+        codigo = request.data.get("codigo")
+        nueva_password = request.data.get("nueva_password")
 
         if not email or not codigo or not nueva_password:
             return Response({"error": "Faltan datos requeridos."}, status=400)
 
         usuario = Usuario.objects.filter(email=email).first()
-
         if not usuario:
             return Response({"error": "Usuario no encontrado."}, status=404)
 
         if usuario.codigo_recuperacion != codigo:
             return Response({"error": "El código es incorrecto."}, status=400)
 
-        # Cambiar la contraseña y limpiar el código
         usuario.set_password(nueva_password)
         usuario.codigo_recuperacion = None
         usuario.save()
@@ -136,10 +143,6 @@ class UsuarioViewSet(BaseViewSet):
 # ============================================================
 
 class RegistroAccionViewSet(BaseViewSet):
-    """
-    Vista para revisar las acciones registradas en el sistema.
-    """
-
     queryset = RegistroAccion.objects.all().order_by("-fecha_y_hora")
     serializer_class = RegistroAccionSerializer
     search_fields = ["modulo", "accion", "descripcion"]
@@ -151,164 +154,82 @@ class RegistroAccionViewSet(BaseViewSet):
 # ============================================================
 
 class ClienteViewSet(BaseViewSet):
-    """
-    Gestión de clientes.
-
-    Reglas de negocio:
-    - Listar:
-        * VENDEDOR: solo ve sus propios clientes.
-        * Otros roles: no ven clientes.
-    - Crear:
-        * Solo VENDEDOR.
-        * Se asocia automáticamente id_usuario = request.user.
-        * Cliente activo por defecto (activo=True).
-    - Editar (PUT / PATCH):
-        * Solo VENDEDOR y además debe ser el vendedor asociado al cliente.
-    - Activar / Desactivar:
-        * Se hace cambiando el campo 'activo' vía PATCH.
-        * Solo VENDEDOR asociado.
-        * Desactivar solo si TODAS las órdenes están cerradas:
-          ENTREGADA / CANCELADA / DEVUELTA.
-          (Si no tiene ninguna orden, también se permite desactivar).
-    - Eliminar:
-        * Solo VENDEDOR asociado.
-        * Solo si NO tiene órdenes asociadas.
-    - Registro de acciones:
-        * Crear cliente
-        * Editar cliente
-        * Activar cliente
-        * Desactivar cliente
-        * Eliminar cliente
-    """
-
     queryset = Cliente.objects.all()
     serializer_class = ClienteSerializer
     permission_classes = [permissions.IsAuthenticated]
     search_fields = ["nombre", "correo", "telefono"]
     ordering_fields = ["nombre", "id_cliente"]
 
-    # ---------------------------
-    #   Helpers internos
-    # ---------------------------
     def _asegurar_vendedor_propietario(self, cliente: Cliente):
-        """
-        Verifica que:
-        - el usuario autenticado sea VENDEDOR
-        - y que sea el vendedor asociado al cliente.
-        """
         usuario = self.request.user
 
         if getattr(usuario, "tipo", None) != "VENDEDOR":
             raise PermissionDenied("Solo los vendedores pueden gestionar clientes.")
 
         if cliente.id_usuario_id != usuario.pk:
-            raise PermissionDenied(
-                "Solo el vendedor asociado a este cliente puede gestionarlo."
-            )
+            raise PermissionDenied("Solo el vendedor asociado a este cliente puede gestionarlo.")
 
     def _todas_ordenes_cerradas(self, cliente: Cliente) -> bool:
-        """
-        Devuelve True si TODAS las órdenes del cliente están en estado
-        'cerrado' para poder desactivar al cliente.
-
-        Consideramos cerradas:
-        - ENTREGADA
-        - CANCELADA
-        - DEVUELTA
-
-        Y además no debe haber órdenes con cancelacion=False
-        en estados intermedios.
-
-        Si el cliente no tiene órdenes, también devuelve True.
-        """
-        estados_cerrados = [
-            "ENTREGADA",
-            "CANCELADA",
-            "DEVUELTA",
-        ]
-
+        estados_cerrados = ["ENTREGADA", "CANCELADA", "DEVUELTA"]
         qs = Orden.objects.filter(id_cliente=cliente)
-
-        abiertas = qs.exclude(estado_de_envio__in=estados_cerrados).exclude(
-            cancelacion=True
-        )
-
+        abiertas = qs.exclude(estado_de_envio__in=estados_cerrados).exclude(cancelacion=True)
         return not abiertas.exists()
 
-    # ---------------------------
-    #   Queryset según rol
-    # ---------------------------
     def get_queryset(self):
         usuario = self.request.user
-
         if not usuario.is_authenticated:
             return Cliente.objects.none()
 
         tipo = getattr(usuario, "tipo", None)
 
-        # Vendedor: solo sus clientes
         if tipo == "VENDEDOR":
-            return Cliente.objects.filter(id_usuario=usuario)
+            base_qs = Cliente.objects.filter(id_usuario=usuario)
+        elif tipo in ["GERENTE", "ADMINISTRADOR"]:
+            base_qs = Cliente.objects.all()
+        else:
+            return Cliente.objects.none()
 
-        # Gerente o Administrador: todos los clientes
-        if tipo in ["GERENTE", "ADMINISTRADOR"]:
-            return Cliente.objects.all()
+        estados_activos = [
+            "PENDIENTE POR APROBACION",
+            "PENDIENTE POR APROBACIÓN",
+            "APROBADA",
+            "PREPARADA",
+            ESTADO_ORDEN_ASIGNADA_ENVIO,
+            "EN_CURSO",
+        ]
 
-        # Otros roles: nada
-        return Cliente.objects.none()
+        return base_qs.annotate(
+            total_ordenes=Count("orden", distinct=True),
+            ordenes_activas=Count(
+                "orden",
+                filter=Q(orden__estado_de_envio__in=estados_activos, orden__cancelacion=False),
+                distinct=True,
+            ),
+        )
 
-    # ---------------------------
-    #   Crear cliente (POST)
-    # ---------------------------
     def perform_create(self, serializer):
         usuario = self.request.user
-
         if getattr(usuario, "tipo", None) != "VENDEDOR":
             raise PermissionDenied("Solo los vendedores pueden crear clientes.")
 
-        cliente = serializer.save(
-            id_usuario=usuario,
-            activo=True,
-        )
+        cliente = serializer.save(id_usuario=usuario, activo=True)
+        registrar_accion(usuario, "Clientes", "Crear cliente", f"Creación del cliente {cliente.nombre}", id_referencia=cliente.id_cliente)
 
-        registrar_accion(
-            usuario,
-            "Clientes",
-            "Crear cliente",
-            f"Creación del cliente {cliente.nombre}",
-            id_referencia=cliente.id_cliente,
-        )
-
-    # ---------------------------
-    #   Actualizar (PUT / PATCH)
-    # ---------------------------
     def perform_update(self, serializer):
-        """
-        Centraliza la lógica de edición / activar / desactivar.
-        """
         usuario = self.request.user
         cliente: Cliente = serializer.instance
 
         if getattr(usuario, "tipo", None) == "VENDEDOR" and cliente.id_usuario != usuario:
-             raise PermissionDenied("No puedes editar un cliente que no te pertenece.")
+            raise PermissionDenied("No puedes editar un cliente que no te pertenece.")
 
         self._asegurar_vendedor_propietario(cliente)
 
         old_activo = getattr(cliente, "activo", True)
         new_activo = serializer.validated_data.get("activo", old_activo)
 
-        # Validar DESACTIVACIÓN
         if old_activo and not new_activo:
             if not self._todas_ordenes_cerradas(cliente):
-                raise ValidationError(
-                    {
-                        "detail": (
-                            "No puedes desactivar este cliente porque tiene órdenes aún en proceso. "
-                            "Solo se permite desactivar cuando todas las órdenes estén entregadas, "
-                            "canceladas o devueltas."
-                        )
-                    }
-                )
+                raise ValidationError({"detail": "No puedes desactivar este cliente porque tiene órdenes aún en proceso."})
 
         cliente_actualizado = serializer.save()
 
@@ -319,391 +240,384 @@ class ClienteViewSet(BaseViewSet):
         else:
             accion = "Editar cliente"
 
-        registrar_accion(
-            usuario,
-            "Clientes",
-            accion,
-            f"{accion} {cliente_actualizado.nombre}",
-            id_referencia=cliente_actualizado.id_cliente,
-        )
+        registrar_accion(usuario, "Clientes", accion, f"{accion} {cliente_actualizado.nombre}", id_referencia=cliente_actualizado.id_cliente)
 
     def update(self, request, *args, **kwargs):
         cliente = self.get_object()
         self._asegurar_vendedor_propietario(cliente)
-
         data = request.data.copy()
         data.pop("id_usuario", None)
-
         serializer = self.get_serializer(cliente, data=data, partial=False)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def partial_update(self, request, *args, **kwargs):
         cliente = self.get_object()
         self._asegurar_vendedor_propietario(cliente)
-
         data = request.data.copy()
         data.pop("id_usuario", None)
-
         serializer = self.get_serializer(cliente, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
-
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    # ---------------------------
-    #   Eliminar cliente (DELETE)
-    # ---------------------------
     def destroy(self, request, *args, **kwargs):
         usuario = request.user
         cliente = self.get_object()
-
         self._asegurar_vendedor_propietario(cliente)
 
         if Orden.objects.filter(id_cliente=cliente).exists():
-            raise ValidationError(
-                "No puedes eliminar este cliente porque tiene órdenes asociadas. "
-                "En su lugar, debes desactivarlo."
-            )
+            raise ValidationError("No puedes eliminar este cliente porque tiene órdenes asociadas. En su lugar, desactívalo.")
 
         nombre = cliente.nombre
         id_cli = cliente.id_cliente
-
         response = super().destroy(request, *args, **kwargs)
 
-        registrar_accion(
-            usuario,
-            "Clientes",
-            "Eliminar cliente",
-            f"Cliente eliminado: {nombre}",
-            id_referencia=id_cli,
-        )
-
+        registrar_accion(usuario, "Clientes", "Eliminar cliente", f"Cliente eliminado: {nombre}", id_referencia=id_cli)
         return response
 
 
 # ============================================================
-#   ENVÍOS
+#   ENVÍOS (SINGLE SOURCE OF TRUTH + REMOVER ORDEN)
 # ============================================================
 
 class EnvioViewSet(BaseViewSet):
-    """
-    Gestión de envíos (contenedores de órdenes asignadas a una unidad).
-
-    Reglas:
-    - Solo GERENTE y ADMINISTRADOR pueden crear / editar envíos y asignar órdenes.
-    - Solo ALMACENISTA puede:
-        * Ver los envíos para verificar/preparar (para_verificar)
-        * Ver el detalle de un envío (detalle_verificacion)
-        * Marcar un envío como listo para salir (marcar_listo_salida)
-    - Flujo de estados del envío:
-        * Al crear desde gerencia: "PENDIENTE POR APROBACION"
-        * Al cerrar desde gerencia: "ASIGNADO"
-        * Cuando el ALMACENISTA marca listo:
-              -> "LISTO_PARA_SALIR"
-    """
-
-    queryset = Envio.objects.all()
+    queryset = Envio.objects.all().select_related("id_unidad")
     serializer_class = EnvioSerializer
     search_fields = ["codigo_envio"]
-    ordering_fields = ["fecha_salida", "fecha_llegada"]
+    ordering_fields = ["fecha_salida", "fecha_llegada", "id_envio"]
 
     # ---------------------------
-    #   Helpers
+    #   Helpers de rol
     # ---------------------------
-    def _es_gerente_o_admin(self, usuario):
+    def _es_gerente_o_admin(self, usuario) -> bool:
         return getattr(usuario, "tipo", None) in ["GERENTE", "ADMINISTRADOR"]
 
-    def _es_almacenista(self, usuario):
+    def _es_almacenista(self, usuario) -> bool:
         return getattr(usuario, "tipo", None) == "ALMACENISTA"
+
+    def _es_transportista(self, usuario) -> bool:
+        return getattr(usuario, "tipo", None) == "TRANSPORTISTA"
+
+    # ---------------------------
+    #   Helpers (single source of truth)
+    # ---------------------------
+    def _recalcular_peso_envio(self, envio: Envio) -> Decimal:
+        total = Orden.objects.filter(id_envio=envio).aggregate(total=Sum("peso_total")).get("total")
+        return total or Decimal("0")
+
+    def _validar_capacidad(self, unidad: Unidad, peso_total: Decimal):
+        cap = unidad.capacidad_carga or Decimal("0")
+        if cap > 0 and peso_total >= cap:
+            raise ValidationError({"detail": f"No permitido: peso total ({peso_total}) >= capacidad ({cap})."})
+
+    def _validar_envio_editable(self, envio: Envio):
+        if _norm_estado(envio.estado) != _norm_estado(ESTADO_CREACION_ENVIO):
+            raise ValidationError({"detail": "Solo puedes modificar envíos en PENDIENTE POR ASIGNACION."})
+
+    def _validar_unidad_disponible(self, unidad: Unidad, envio_actual: Envio = None):
+        # Si está inactiva, reservada o en tránsito, no se puede seleccionar
+        if _norm_estado(unidad.estado) in {_norm_estado(UNIDAD_INACTIVA), _norm_estado(UNIDAD_RESERVADA), _norm_estado(UNIDAD_EN_TRANSITO)}:
+            raise ValidationError({"detail": "La unidad no está disponible (INACTIVA/RESERVADA/EN TRANSITO)."})
+
+        qs = Envio.objects.filter(id_unidad=unidad).exclude(estado__in=list(ESTADOS_ENVIO_FINALIZADOS))
+        if envio_actual:
+            qs = qs.exclude(pk=envio_actual.pk)
+        if qs.exists():
+            raise ValidationError({"detail": "La unidad seleccionada ya tiene un envío activo."})
+
+    def _sync_unidad_estado_por_envio(self, envio: Envio):
+        """
+        Backend manda la verdad:
+          - crear/pendiente => RESERVADA
+          - asignado/listo/en curso => EN TRANSITO
+          - terminado => ACTIVA
+        """
+        unidad = envio.id_unidad
+        if _norm_estado(unidad.estado) == _norm_estado(UNIDAD_INACTIVA):
+            return  # no tocar
+
+        est = _norm_estado(envio.estado)
+        if est == _norm_estado(ESTADO_CREACION_ENVIO):
+            target = UNIDAD_RESERVADA
+        elif est in {_norm_estado(x) for x in ESTADOS_ENVIO_FINALIZADOS}:
+            target = UNIDAD_ACTIVA
+        else:
+            target = UNIDAD_EN_TRANSITO
+
+        if _norm_estado(unidad.estado) != _norm_estado(target):
+            unidad.estado = target
+            unidad.save(update_fields=["estado"])
 
     # ---------------------------
     #   CREATE / UPDATE
     # ---------------------------
     def perform_create(self, serializer):
-        """
-        Crear envíos: Solo GERENTE o ADMIN.
-
-        Además de crear el envío, si en el body viene una lista "ordenes"
-        (por ejemplo: {"id_unidad": 1, "ordenes": [1, 2, 3]}),
-        se asignan esas órdenes al envío recién creado,
-        se marcan como ASIGNADA_A_ENVIO y se recalcula el peso_total.
-        """
         usuario = self.request.user
         if not self._es_gerente_o_admin(usuario):
-            raise PermissionDenied(
-                "Solo el gerente o el administrador pueden crear envíos."
-            )
+            raise PermissionDenied("Solo el gerente o el administrador pueden crear envíos.")
 
         with transaction.atomic():
-            # Forzamos estado de creación si no viene
-            estado_creacion = serializer.validated_data.get(
-                "estado",
-                ESTADO_CREACION_ENVIO,
+            unidad = serializer.validated_data.get("id_unidad")
+            if not unidad:
+                raise ValidationError({"id_unidad": "Debes seleccionar una unidad."})
+
+            self._validar_unidad_disponible(unidad)
+
+            envio = serializer.save(
+                estado=serializer.validated_data.get("estado") or ESTADO_CREACION_ENVIO,
+                fecha_salida=serializer.validated_data.get("fecha_salida") or timezone.now(),
+                peso_total=Decimal("0"),
             )
-            envio = serializer.save(estado=estado_creacion)
 
-            # Lista opcional de IDs de órdenes que el front quiere asignar de una vez
-            ids_ordenes = self.request.data.get("ordenes", [])
+            registrar_accion(usuario, "Envíos", "Crear envío", f"Creación del envío {envio.codigo_envio}", id_referencia=envio.id_envio)
 
-            # Permitimos que no se envíen órdenes (crear envío vacío)
-            if isinstance(ids_ordenes, list) and ids_ordenes:
-                estados_permitidos = [
-                    "APROBADA",
-                    "POR_PREPARACION",
-                    "PREPARADA",
-                ]
-
-                ordenes = Orden.objects.select_for_update().filter(
-                    id_orden__in=ids_ordenes
-                )
-
-                if ordenes.count() != len(ids_ordenes):
-                    raise ValidationError(
-                        {"detail": "Alguna de las órdenes indicadas no existe."}
-                    )
-
-                for o in ordenes:
-                    if o.estado_de_envio not in estados_permitidos:
-                        raise ValidationError(
-                            {
-                                "detail": (
-                                    f"La orden {o.id_orden} no está en un estado permitido "
-                                    "para ser asignada a un envío."
-                                )
-                            }
-                        )
-                    if o.id_envio and o.id_envio != envio:
-                        raise ValidationError(
-                            {
-                                "detail": (
-                                    f"La orden {o.id_orden} ya está asignada a otro envío."
-                                )
-                            }
-                        )
-
-                # Asignar las órdenes al envío y marcar estado ASIGNADA_A_ENVIO
-                ordenes.update(
-                    id_envio=envio,
-                    estado_de_envio=ESTADO_ORDEN_ASIGNADA_ENVIO,
-                )
-
-                # Recalcular peso_total del envío
-                total_peso = (
-                    Orden.objects.filter(id_envio=envio)
-                    .aggregate(total=Sum("peso_total"))
-                    .get("total")
-                )
-                if total_peso is not None:
-                    envio.peso_total = total_peso
-                    envio.save(update_fields=["peso_total"])
-
-                registrar_accion(
-                    usuario,
-                    "Envíos",
-                    "Crear envío y asignar órdenes",
-                    f"Se creó el envío {envio.codigo_envio} y se asignaron las órdenes {ids_ordenes}.",
-                    id_referencia=envio.id_envio,
-                )
-            else:
-                registrar_accion(
-                    usuario,
-                    "Envíos",
-                    "Crear envío",
-                    f"Creación del envío {envio.codigo_envio}",
-                    id_referencia=envio.id_envio,
-                )
+            # single source: unidad reservada
+            self._sync_unidad_estado_por_envio(envio)
 
     def perform_update(self, serializer):
-        """
-        Actualizar envío: Solo GERENTE o ADMIN,
-        excepto en las acciones especiales del almacenista.
-        """
         usuario = self.request.user
         if not self._es_gerente_o_admin(usuario):
-            raise PermissionDenied(
-                "Solo el gerente o el administrador pueden modificar envíos."
-            )
+            raise PermissionDenied("Solo el gerente o el administrador pueden modificar envíos.")
 
-        envio = serializer.save()
-        registrar_accion(
-            usuario,
-            "Envíos",
-            "Editar envío",
-            f"Edición del envío {envio.codigo_envio}",
-            id_referencia=envio.id_envio,
-        )
+        envio = serializer.instance
+        self._validar_envio_editable(envio)
+
+        old_unidad = envio.id_unidad
+
+        with transaction.atomic():
+            envio = serializer.save()
+
+            # Si cambió unidad, validar disponibilidad + capacidad con peso actual
+            if envio.id_unidad_id != old_unidad.id_unidad:
+                self._validar_unidad_disponible(envio.id_unidad, envio_actual=envio)
+
+                peso_actual = self._recalcular_peso_envio(envio)
+                self._validar_capacidad(envio.id_unidad, peso_actual)
+
+            # recalcular peso
+            envio.peso_total = self._recalcular_peso_envio(envio)
+            envio.save(update_fields=["peso_total"])
+
+        registrar_accion(usuario, "Envíos", "Editar envío", f"Edición del envío {envio.codigo_envio}", id_referencia=envio.id_envio)
+
+        # sync estados unidad
+        self._sync_unidad_estado_por_envio(envio)
+
+        # unidad vieja puede quedar activa si ya no tiene envíos
+        try:
+            ultimo = Envio.objects.filter(id_unidad=old_unidad).exclude(estado__in=list(ESTADOS_ENVIO_FINALIZADOS)).first()
+            if not ultimo:
+                old_unidad.estado = UNIDAD_ACTIVA
+                old_unidad.save(update_fields=["estado"])
+        except Exception:
+            pass
 
     # ---------------------------
-    #   Asignar órdenes a un envío (GERENTE / ADMIN)
+    #   Asignar órdenes
     # ---------------------------
     @action(detail=True, methods=["post"], url_path="asignar_ordenes")
     def asignar_ordenes(self, request, pk=None):
-        """
-        POST /api/base/envios/<id>/asignar_ordenes/
-        Body: {"ordenes": [1,2,3]}
-
-        Asigna órdenes a un envío. Solo GERENTE / ADMIN.
-        Cambia el estado de la orden a ASIGNADA_A_ENVIO
-        y recalcula el peso_total del envío.
-        """
         usuario = request.user
         if not self._es_gerente_o_admin(usuario):
-            raise PermissionDenied(
-                "Solo el gerente o el administrador pueden asignar órdenes a un envío."
-            )
+            raise PermissionDenied("Solo el gerente o el administrador pueden asignar órdenes a un envío.")
 
         envio = self.get_object()
+        self._validar_envio_editable(envio)
+
         ids_ordenes = request.data.get("ordenes", [])
-
         if not isinstance(ids_ordenes, list) or not ids_ordenes:
-            raise ValidationError(
-                {"ordenes": "Debes enviar una lista de IDs de órdenes a asignar."}
-            )
+            raise ValidationError({"ordenes": "Debes enviar una lista de IDs de órdenes a asignar."})
 
-        estados_permitidos = [
-            "APROBADA",
-            "POR_PREPARACION",
-            "PREPARADA",
-        ]
+        estados_permitidos = ["APROBADA", "POR_PREPARACION", ESTADO_ORDEN_DISPONIBLE_PARA_ENVIO]
 
         with transaction.atomic():
-            ordenes = Orden.objects.select_for_update().filter(
-                id_orden__in=ids_ordenes
-            )
-
+            ordenes = Orden.objects.select_for_update().filter(id_orden__in=ids_ordenes)
             if ordenes.count() != len(ids_ordenes):
-                raise ValidationError(
-                    {"detail": "Alguna de las órdenes no existe."}
-                )
+                raise ValidationError({"detail": "Alguna de las órdenes indicadas no existe."})
 
             for o in ordenes:
                 if o.estado_de_envio not in estados_permitidos:
-                    raise ValidationError(
-                        {
-                            "detail": f"La orden {o.id_orden} no está en un estado permitido para ser asignada."
-                        }
-                    )
-                if o.id_envio and o.id_envio != envio:
-                    raise ValidationError(
-                        {
-                            "detail": f"La orden {o.id_orden} ya está asignada a otro envío."
-                        }
-                    )
+                    raise ValidationError({"detail": f"La orden {o.id_orden} no está en un estado permitido para asignarse."})
+                if o.id_envio and o.id_envio_id != envio.id_envio:
+                    raise ValidationError({"detail": f"La orden {o.id_orden} ya está asignada a otro envío."})
 
-            ordenes.update(
-                id_envio=envio,
-                estado_de_envio=ESTADO_ORDEN_ASIGNADA_ENVIO,
-            )
+            peso_actual = self._recalcular_peso_envio(envio)
+            peso_nuevo = ordenes.aggregate(total=Sum("peso_total")).get("total") or Decimal("0")
+            self._validar_capacidad(envio.id_unidad, peso_actual + peso_nuevo)
 
-            total_peso = (
-                Orden.objects.filter(id_envio=envio)
-                .aggregate(total=Sum("peso_total"))
-                .get("total")
-            )
-            if total_peso is not None:
-                envio.peso_total = total_peso
-                envio.save(update_fields=["peso_total"])
+            ordenes.update(id_envio=envio, estado_de_envio=ESTADO_ORDEN_ASIGNADA_ENVIO)
 
-        registrar_accion(
-            usuario,
-            "Envíos",
-            "Asignar órdenes a envío",
-            f"Se asignaron las órdenes {ids_ordenes} al envío {envio.codigo_envio}.",
-            id_referencia=envio.id_envio,
-        )
+            envio.peso_total = self._recalcular_peso_envio(envio)
+            envio.save(update_fields=["peso_total"])
+
+        registrar_accion(usuario, "Envíos", "Asignar órdenes", f"Se asignaron órdenes {ids_ordenes} al envío {envio.codigo_envio}.", id_referencia=envio.id_envio)
+
+        # unidad sigue reservada
+        self._sync_unidad_estado_por_envio(envio)
 
         serializer = self.get_serializer(envio)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     # ---------------------------
-    #   Remover órdenes de un envío (GERENTE / ADMIN)
+    #   ✅ Remover órdenes (el “patch” correcto)
     # ---------------------------
     @action(detail=True, methods=["post"], url_path="remover_ordenes")
     def remover_ordenes(self, request, pk=None):
         """
-        POST /api/base/envios/<id>/remover_ordenes/
-        Body: {"ordenes": [1,2,3]}
-
-        Desasigna órdenes de este envío. Solo GERENTE / ADMIN.
+        FRONT debe usar:
+          POST /base/envios/<id_envio>/remover_ordenes/
+          {"ordenes":[12, 13]}
         """
         usuario = request.user
         if not self._es_gerente_o_admin(usuario):
-            raise PermissionDenied(
-                "Solo el gerente o el administrador pueden remover órdenes de un envío."
-            )
+            raise PermissionDenied("Solo el gerente o el administrador pueden remover órdenes de un envío.")
 
         envio = self.get_object()
-        ids_ordenes = request.data.get("ordenes", [])
+        self._validar_envio_editable(envio)
 
+        ids_ordenes = request.data.get("ordenes", [])
         if not isinstance(ids_ordenes, list) or not ids_ordenes:
-            raise ValidationError(
-                {"ordenes": "Debes enviar una lista de IDs de órdenes a remover."}
-            )
+            raise ValidationError({"ordenes": "Debes enviar una lista de IDs de órdenes a remover."})
 
         with transaction.atomic():
-            ordenes = Orden.objects.select_for_update().filter(
-                id_orden__in=ids_ordenes,
-                id_envio=envio,
-            )
+            ordenes = Orden.objects.select_for_update().filter(id_orden__in=ids_ordenes, id_envio=envio)
+            if ordenes.count() != len(ids_ordenes):
+                raise ValidationError({"detail": "Alguna de las órdenes indicadas no pertenece a este envío."})
 
-            if not ordenes.exists():
-                raise ValidationError(
-                    {"detail": "Ninguna de las órdenes indicadas pertenece a este envío."}
-                )
+            ordenes.update(id_envio=None, estado_de_envio=ESTADO_ORDEN_DISPONIBLE_PARA_ENVIO)
 
-            ordenes.update(id_envio=None)
-
-            total_peso = (
-                Orden.objects.filter(id_envio=envio)
-                .aggregate(total=Sum("peso_total"))
-                .get("total")
-            )
-            envio.peso_total = total_peso or 0
+            envio.peso_total = self._recalcular_peso_envio(envio)
             envio.save(update_fields=["peso_total"])
 
-        registrar_accion(
-            usuario,
-            "Envíos",
-            "Remover órdenes de envío",
-            f"Se removieron las órdenes {ids_ordenes} del envío {envio.codigo_envio}.",
-            id_referencia=envio.id_envio,
-        )
+        registrar_accion(usuario, "Envíos", "Remover órdenes", f"Se removieron órdenes {ids_ordenes} del envío {envio.codigo_envio}.", id_referencia=envio.id_envio)
+
+        # unidad se mantiene reservada
+        self._sync_unidad_estado_por_envio(envio)
 
         serializer = self.get_serializer(envio)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    # ---------------------------
-    #   Envíos para verificar (ALMACENISTA)
-    # ---------------------------
-    @action(detail=False, methods=["get"], url_path="para_verificar")
-    def para_verificar(self, request, *args, **kwargs):
+    @action(detail=True, methods=["post"], url_path="remover_orden")
+    def remover_orden(self, request, pk=None):
         """
-        GET /api/base/envios/para_verificar/
-
-        Devuelve los envíos que el ALMACENISTA debe verificar/preparar.
-
-        Reglas:
-        - Solo usuarios tipo ALMACENISTA.
-        - Solo envíos en estado "ASIGNADO".
-        - Devuelve, por cada envío:
-            * Datos básicos del envío
-            * Unidad (código, placa)
-            * cantidad_ordenes_total
-            * cantidad_ordenes_almacenista: cantidad de órdenes PREPARADAS
-              (útil para mostrar "Preparadas / Total" en el front).
+        Shortcut:
+          POST /base/envios/<id_envio>/remover_orden/
+          {"id_orden": 12}
         """
+        orden_id = request.data.get("id_orden")
+        if not orden_id:
+            raise ValidationError({"id_orden": "Debes enviar id_orden."})
+
+        request.data["ordenes"] = [orden_id]
+        return self.remover_ordenes(request, pk=pk)
+
+    # ---------------------------
+    #   Cerrar envío (GERENTE / ADMIN)
+    # ---------------------------
+    @action(detail=True, methods=["post"], url_path="cerrar")
+    def cerrar(self, request, pk=None):
+        usuario = request.user
+        if not self._es_gerente_o_admin(usuario):
+            raise PermissionDenied("Solo el gerente o el administrador pueden cerrar envíos.")
+
+        envio = self.get_object()
+        self._validar_envio_editable(envio)
+
+        with transaction.atomic():
+            envio.peso_total = self._recalcular_peso_envio(envio)
+            envio.save(update_fields=["peso_total"])
+
+            self._validar_capacidad(envio.id_unidad, envio.peso_total)
+
+            if not Orden.objects.filter(id_envio=envio).exists():
+                raise ValidationError({"detail": "No puedes cerrar un envío sin órdenes."})
+
+            envio.estado = "ASIGNADO"
+            envio.save(update_fields=["estado"])
+
+        registrar_accion(usuario, "Envíos", "Cerrar envío", f"Envío {envio.codigo_envio} marcado como ASIGNADO.", id_referencia=envio.id_envio)
+
+        # unidad => en tránsito
+        self._sync_unidad_estado_por_envio(envio)
+
+        serializer = self.get_serializer(envio)
+        return Response({"mensaje": "Envío cerrado.", "envio": serializer.data}, status=status.HTTP_200_OK)
+
+    # ---------------------------
+    #   Marcar listo para salir (ALMACENISTA)
+    # ---------------------------
+    @action(detail=True, methods=["post"], url_path="marcar_listo_salida")
+    def marcar_listo_salida(self, request, pk=None):
         usuario = request.user
 
         if not usuario.is_authenticated:
             raise PermissionDenied("Debes iniciar sesión.")
-
         if not self._es_almacenista(usuario):
-            raise PermissionDenied(
-                "Solo el almacenista puede ver los envíos para preparar."
-            )
+            raise PermissionDenied("Solo el almacenista puede marcar un envío como listo para salir.")
+
+        envio = self.get_object()
+
+        if _norm_estado(envio.estado) != "ASIGNADO":
+            raise ValidationError({"detail": "Solo puedes marcar LISTO PARA SALIR un envío en estado ASIGNADO."})
+
+        if not Orden.objects.filter(id_envio=envio).exists():
+            raise ValidationError({"detail": "Este envío no tiene órdenes asociadas."})
+
+        envio.estado = "LISTO_PARA_SALIR"
+        envio.save(update_fields=["estado"])
+
+        registrar_accion(usuario, "Envíos", "Marcar listo para salir", f"Envío {envio.codigo_envio} marcado como LISTO PARA SALIR.", id_referencia=envio.id_envio)
+
+        # unidad => en tránsito
+        self._sync_unidad_estado_por_envio(envio)
+
+        serializer = self.get_serializer(envio)
+        return Response({"mensaje": "Envío marcado como LISTO PARA SALIR.", "envio": serializer.data}, status=status.HTTP_200_OK)
+
+    # ---------------------------
+    #   Marcar TERMINADO (TRANSPORTISTA)
+    # ---------------------------
+    @action(detail=True, methods=["post"], url_path="marcar_terminado")
+    def marcar_terminado(self, request, pk=None):
+        usuario = request.user
+
+        if not usuario.is_authenticated:
+            raise PermissionDenied("Debes iniciar sesión.")
+        if not self._es_transportista(usuario):
+            raise PermissionDenied("Solo el transportista puede marcar el envío como terminado.")
+
+        envio = self.get_object()
+
+        # Validar que el transportista sea el asignado a la unidad
+        if envio.id_unidad.id_usuario_id != usuario.pk:
+            raise PermissionDenied("No puedes terminar un envío de otra unidad.")
+
+        with transaction.atomic():
+            envio.estado = "TERMINADO"
+            envio.fecha_llegada = timezone.now()
+            envio.save(update_fields=["estado", "fecha_llegada"])
+
+        registrar_accion(usuario, "Envíos", "Marcar terminado", f"Envío {envio.codigo_envio} marcado como TERMINADO.", id_referencia=envio.id_envio)
+
+        # unidad => activa
+        self._sync_unidad_estado_por_envio(envio)
+
+        serializer = self.get_serializer(envio)
+        return Response({"mensaje": "Envío terminado.", "envio": serializer.data}, status=status.HTTP_200_OK)
+
+    # ---------------------------
+    #   Envíos para verificar (ALMACENISTA) - mantengo tu estructura
+    # ---------------------------
+    @action(detail=False, methods=["get"], url_path="para_verificar")
+    def para_verificar(self, request, *args, **kwargs):
+        usuario = request.user
+
+        if not usuario.is_authenticated:
+            raise PermissionDenied("Debes iniciar sesión.")
+        if not self._es_almacenista(usuario):
+            raise PermissionDenied("Solo el almacenista puede ver los envíos para preparar.")
 
         envios_qs = Envio.objects.filter(estado="ASIGNADO").select_related("id_unidad")
 
@@ -711,9 +625,7 @@ class EnvioViewSet(BaseViewSet):
         for envio in envios_qs:
             ordenes_qs = Orden.objects.filter(id_envio=envio)
             total_ordenes = ordenes_qs.count()
-            ordenes_preparadas = ordenes_qs.filter(
-                estado_de_envio="PREPARADA"
-            ).count()
+            ordenes_preparadas = ordenes_qs.filter(estado_de_envio=ESTADO_ORDEN_DISPONIBLE_PARA_ENVIO).count()
 
             data.append(
                 {
@@ -731,36 +643,16 @@ class EnvioViewSet(BaseViewSet):
 
         return Response(data, status=status.HTTP_200_OK)
 
-    # ---------------------------
-    #   Detalle de envío para verificación (ALMACENISTA)
-    # ---------------------------
     @action(detail=True, methods=["get"], url_path="detalle_verificacion")
     def detalle_verificacion(self, request, pk=None):
-        """
-        GET /api/base/envios/<id>/detalle_verificacion/
-
-        Devuelve:
-        {
-          "envio": {...},
-          "ordenes": [
-             {id_orden, cliente_nombre, precio_final, estado_de_envio},
-             ...
-          ]
-        }
-        Solo ALMACENISTA.
-        """
         usuario = request.user
 
         if not usuario.is_authenticated:
             raise PermissionDenied("Debes iniciar sesión.")
-
         if not self._es_almacenista(usuario):
-            raise PermissionDenied(
-                "Solo el almacenista puede ver el detalle de envío para verificación."
-            )
+            raise PermissionDenied("Solo el almacenista puede ver el detalle de envío para verificación.")
 
         envio = self.get_object()
-
         ordenes_qs = Orden.objects.filter(id_envio=envio).select_related("id_cliente")
 
         ordenes_data = []
@@ -770,6 +662,7 @@ class EnvioViewSet(BaseViewSet):
                     "id_orden": o.id_orden,
                     "cliente_nombre": getattr(o.id_cliente, "nombre", None),
                     "precio_final": getattr(o, "precio_final", None),
+                    "peso_total": getattr(o, "peso_total", None),
                     "estado_de_envio": o.estado_de_envio,
                 }
             )
@@ -785,79 +678,7 @@ class EnvioViewSet(BaseViewSet):
             "fecha_salida": envio.fecha_salida,
         }
 
-        return Response(
-            {
-                "envio": envio_data,
-                "ordenes": ordenes_data,
-            },
-            status=status.HTTP_200_OK,
-        )
-
-    # ---------------------------
-    #   Marcar envío como LISTO PARA SALIR (ALMACENISTA)
-    # ---------------------------
-    @action(detail=True, methods=["post"], url_path="marcar_listo_salida")
-    def marcar_listo_salida(self, request, pk=None):
-        """
-        POST /api/base/envios/<id>/marcar_listo_salida/
-
-        Acción del ALMACENISTA para indicar que un envío ya está
-        preparado y listo para salir.
-
-        Reglas:
-        - Solo ALMACENISTA.
-        - El envío debe estar en estado "ASIGNADO".
-        - Debe tener al menos una orden asociada.
-        (Ya NO se valida el estado individual de cada orden aquí.)
-        """
-        usuario = request.user
-
-        if not usuario.is_authenticated:
-            raise PermissionDenied("Debes iniciar sesión.")
-
-        if not self._es_almacenista(usuario):
-            raise PermissionDenied(
-                "Solo el almacenista puede marcar un envío como listo para salir."
-            )
-
-        envio = self.get_object()
-
-        if envio.estado != "ASIGNADO":
-            raise ValidationError(
-                {
-                    "detail": (
-                        "Solo puedes marcar como LISTO PARA SALIR un envío que esté en estado ASIGNADO."
-                    )
-                }
-            )
-
-        ordenes_qs = Orden.objects.filter(id_envio=envio)
-
-        if not ordenes_qs.exists():
-            raise ValidationError(
-                {"detail": "Este envío no tiene órdenes asociadas."}
-            )
-
-        # Ya no chequeamos el estado de cada orden.
-        envio.estado = "LISTO_PARA_SALIR"
-        envio.save(update_fields=["estado"])
-
-        registrar_accion(
-            usuario,
-            "Envíos",
-            "Marcar envío listo para salir",
-            f"Envío {envio.codigo_envio} marcado como LISTO PARA SALIR.",
-            id_referencia=envio.id_envio,
-        )
-
-        serializer = self.get_serializer(envio)
-        return Response(
-            {
-                "mensaje": "Envío marcado como LISTO PARA SALIR.",
-                "envio": serializer.data,
-            },
-            status=status.HTTP_200_OK,
-        )
+        return Response({"envio": envio_data, "ordenes": ordenes_data}, status=status.HTTP_200_OK)
 
 
 # ============================================================
@@ -865,12 +686,6 @@ class EnvioViewSet(BaseViewSet):
 # ============================================================
 
 class DetalleOrdenViewSet(BaseViewSet):
-    """
-    Vista para consultar detalles de órdenes (si la necesitas desde base).
-    Normalmente las operaciones fuertes sobre órdenes se hacen en la app
-    `ordenes`, pero aquí tienes un acceso básico.
-    """
-
     queryset = DetalleOrden.objects.all()
     serializer_class = DetalleOrdenSerializer
     search_fields = ["id_orden__id_orden", "id_producto__nombre"]
@@ -881,20 +696,6 @@ class DetalleOrdenViewSet(BaseViewSet):
 # ============================================================
 
 class UnidadViewSet(BaseViewSet):
-    """
-    Unidades de transporte (vehículos).
-
-    Reglas de negocio:
-    - Crear / Editar / Eliminar:
-        * Solo GERENTE o ADMINISTRADOR.
-    - Eliminar:
-        * Solo si la unidad no tiene envíos asociados.
-    - Registro de acciones:
-        * Crear unidad
-        * Editar unidad
-        * Eliminar unidad
-    """
-
     queryset = Unidad.objects.all()
     serializer_class = UnidadSerializer
     search_fields = ["codigo_unidad", "placa"]
@@ -906,116 +707,66 @@ class UnidadViewSet(BaseViewSet):
     def perform_create(self, serializer):
         usuario = self.request.user
         if not self._es_gerente_o_admin(usuario):
-            raise PermissionDenied(
-                "Solo el gerente o el administrador pueden crear unidades de transporte."
-            )
+            raise PermissionDenied("Solo el gerente o el administrador pueden crear unidades de transporte.")
 
-        # Si no mandan id_usuario en el body, podrías forzar que lo hagan:
         if "id_usuario" not in serializer.validated_data:
-            raise ValidationError(
-                {"id_usuario": "Debes seleccionar un transportista para la unidad."}
-            )
+            raise ValidationError({"id_usuario": "Debes seleccionar un transportista para la unidad."})
+
+        # Evita 2 unidades para el mismo transportista (consistencia)
+        id_usuario = serializer.validated_data["id_usuario"].id_usuario
+        if Unidad.objects.filter(id_usuario_id=id_usuario).exists():
+            raise ValidationError({"detail": "Este transportista ya tiene una unidad asignada."})
 
         unidad = serializer.save()
 
-        registrar_accion(
-            usuario,
-            "Unidades",
-            "Crear unidad",
-            f"Creación de la unidad {unidad.codigo_unidad}",
-            id_referencia=unidad.id_unidad,
-        )
+        registrar_accion(usuario, "Unidades", "Crear unidad", f"Creación de la unidad {unidad.codigo_unidad}", id_referencia=unidad.id_unidad)
 
     def perform_update(self, serializer):
         usuario = self.request.user
         if not self._es_gerente_o_admin(usuario):
-            raise PermissionDenied(
-                "Solo el gerente o el administrador pueden editar unidades de transporte."
-            )
+            raise PermissionDenied("Solo el gerente o el administrador pueden editar unidades de transporte.")
+
+        unidad = serializer.instance
+        new_user = serializer.validated_data.get("id_usuario", unidad.id_usuario)
+        if Unidad.objects.filter(id_usuario=new_user).exclude(pk=unidad.pk).exists():
+            raise ValidationError({"detail": "Este transportista ya tiene una unidad asignada."})
 
         unidad = serializer.save()
-
-        registrar_accion(
-            usuario,
-            "Unidades",
-            "Editar unidad",
-            f"Edición de la unidad {unidad.codigo_unidad}",
-            id_referencia=unidad.id_unidad,
-        )
+        registrar_accion(usuario, "Unidades", "Editar unidad", f"Edición de la unidad {unidad.codigo_unidad}", id_referencia=unidad.id_unidad)
 
     def destroy(self, request, *args, **kwargs):
         usuario = request.user
         unidad = self.get_object()
 
         if not self._es_gerente_o_admin(usuario):
-            raise PermissionDenied(
-                "Solo el gerente o el administrador pueden eliminar unidades de transporte."
-            )
+            raise PermissionDenied("Solo el gerente o el administrador pueden eliminar unidades de transporte.")
 
-        # Verificar que no tenga envíos asociados
-        if Envio.objects.filter(id_unidad=unidad).exists():
-            raise ValidationError(
-                "No puedes eliminar esta unidad porque tiene envíos asociados."
-            )
-
-        codigo = unidad.codigo_unidad
-        id_unidad = unidad.id_unidad
+        # Solo si NO tiene envíos activos
+        if Envio.objects.filter(id_unidad=unidad).exclude(estado__in=list(ESTADOS_ENVIO_FINALIZADOS)).exists():
+            raise ValidationError("No puedes eliminar esta unidad porque tiene envíos activos.")
 
         response = super().destroy(request, *args, **kwargs)
-
-        registrar_accion(
-            usuario,
-            "Unidades",
-            "Eliminar unidad",
-            f"Unidad eliminada: {codigo}",
-            id_referencia=id_unidad,
-        )
-
+        registrar_accion(usuario, "Unidades", "Eliminar unidad", f"Unidad eliminada: {unidad.codigo_unidad}", id_referencia=unidad.id_unidad)
         return response
 
 
 # ============================================================
-#   LOGIN PERSONALIZADO (MODIFICADO)
+#   LOGIN PERSONALIZADO
 # ============================================================
 
 class CustomLogin(ObtainAuthToken):
-    """
-    Vista de Login modificada para detectar usuarios inactivos
-    antes de validar la contraseña.
-    """
-
     def post(self, request, *args, **kwargs):
-        # 1. VERIFICACIÓN MANUAL DE ESTADO
-        # Obtenemos el username sin validar password todavía
-        username = request.data.get('username')
-        
-        # Buscamos si existe ese usuario en la BD
+        username = request.data.get("username")
         user_obj = Usuario.objects.filter(username=username).first()
-        
-        # Si existe y está desactivado (is_active = False)
-        if user_obj is not None and not user_obj.is_active:
-            # Devolvemos el error específico que espera el Frontend
-            return Response(
-                {"detail": "CUENTA_DESACTIVADA"}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
 
-        # 2. VALIDACIÓN ESTÁNDAR (Si está activo o no existe el user)
-        # Aquí Django valida si la contraseña es correcta
-        serializer = self.serializer_class(
-            data=request.data,
-            context={"request": request},
-        )
+        if user_obj is not None and not user_obj.is_active:
+            return Response({"detail": "CUENTA_DESACTIVADA"}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = self.serializer_class(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
 
-        # 3. GENERACIÓN DE RESPUESTA EXITOSA
         token, created = Token.objects.get_or_create(user=user)
         user_data = UsuarioSerializer(user).data
 
-        return Response(
-            {
-                "token": token.key,
-                "user": user_data,
-            }
-        )
+        return Response({"token": token.key, "user": user_data})
