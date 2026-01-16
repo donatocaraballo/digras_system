@@ -2,7 +2,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F, Q
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from base.viewsets import BaseViewSet
@@ -19,7 +19,7 @@ rechazo, filtros, reportes, preparación y consumo FIFO de lotes.
 """
 class OrdenViewSet(BaseViewSet):
     # queryset = Orden.objects.all()  <-- LO QUITAMOS para usar get_queryset dinámico
-    
+
     # Búsqueda básica
     search_fields = [
         'id_cliente__nombre',
@@ -44,7 +44,7 @@ class OrdenViewSet(BaseViewSet):
         Sobreescribimos la consulta base para filtrar qué órdenes ve cada usuario.
         """
         user = self.request.user
-        
+
         # 1. Base: Ordenar por fecha descendente
         qs = Orden.objects.all().order_by('-fecha_orden')
 
@@ -56,7 +56,7 @@ class OrdenViewSet(BaseViewSet):
         if getattr(user, 'tipo', None) == 'VENDEDOR':
             qs = qs.filter(id_usuario=user)
 
-        # 4. (Opcional) Si quisieras restringir al Almacenista:
+        # 4. (Opcional) restricciones adicionales por rol
         # if getattr(user, 'tipo', None) == 'ALMACENISTA':
         #     qs = qs.filter(estado_de_envio__in=['APROBADA', 'PREPARADA', 'ENTREGADA'])
 
@@ -64,7 +64,7 @@ class OrdenViewSet(BaseViewSet):
         return qs
 
     # ==========================================================
-    #   HELPERS PRIVADOS PARA FIFO DE LOTES
+    #   HELPERS PRIVADOS
     # ==========================================================
 
     def _consumir_lotes_fifo(self, producto_id: int, cantidad_total: int):
@@ -88,12 +88,12 @@ class OrdenViewSet(BaseViewSet):
             if disponible_lote >= restante:
                 # El lote cubre lo que falta
                 nueva_cantidad = disponible_lote - restante
-                
+
                 # Actualizamos cantidad y estado si llega a 0
                 update_kwargs = {'cantidad': nueva_cantidad}
                 if nueva_cantidad == 0:
                     update_kwargs['estado'] = 'AGOTADO'
-                
+
                 Lote.objects.filter(pk=lote.pk).update(**update_kwargs)
                 restante = 0
             else:
@@ -105,7 +105,9 @@ class OrdenViewSet(BaseViewSet):
             raise ValueError(f"Inconsistencia: Faltan {restante} unidades en lotes para el producto {producto_id}.")
 
     def _devolver_a_lotes_fifo(self, producto_id: int, cantidad_total: int):
-        # (Este método se mantiene igual, o puedes agregar lógica para reactivar lotes agotados si es necesario)
+        """
+        Devuelve unidades a los lotes (modo simple: al lote más reciente).
+        """
         if cantidad_total <= 0:
             return
 
@@ -121,8 +123,15 @@ class OrdenViewSet(BaseViewSet):
             # Si estaba agotado, lo reactivamos
             Lote.objects.filter(pk=primer_lote.pk).update(
                 cantidad=F('cantidad') + cantidad_total,
-                estado='ACTIVO' 
+                estado='ACTIVO'
             )
+
+    def _get_detalles_serializados(self, orden_id: int):
+        """
+        Helper centralizado para obtener los detalles serializados de una orden.
+        """
+        detalles_qs = DetalleOrden.objects.filter(id_orden_id=orden_id)
+        return DetalleOrdenSerializer(detalles_qs, many=True).data
 
     # ==========================================================
     #   CREAR ORDEN
@@ -142,7 +151,7 @@ class OrdenViewSet(BaseViewSet):
         # 1. Reunir cantidades
         required = {}
         for item in detalles_data:
-            # Ajuste: item["id_producto"] puede ser un objeto o un ID dependiendo del serializer
+            # item["id_producto"] puede ser objeto o ID
             producto = item["id_producto"]
             pid = producto.pk if hasattr(producto, 'pk') else producto
             qty = int(item["cantidad"])
@@ -161,27 +170,24 @@ class OrdenViewSet(BaseViewSet):
             if ex.cantidad < qty_needed:
                 return Response({"detail": f"Stock insuficiente para producto {pid}. Disponible: {ex.cantidad}"}, status=400)
 
-        # 3. Descontar inventario y ACTUALIZAR ESTADO (FIX)
+        # 3. Descontar inventario y ACTUALIZAR ESTADO
         for pid, qty_needed in required.items():
             ex = exist_map[pid]
-            
-            # Cálculo de nueva cantidad
+
             nueva_cantidad = ex.cantidad - qty_needed
-            
-            # Determinación del nuevo estado
+
             nuevo_estado = 'DISPONIBLE'
             if nueva_cantidad <= 0:
                 nuevo_estado = 'AGOTADO'
             elif nueva_cantidad < 10:
                 nuevo_estado = 'BAJA_EXISTENCIA'
-            
-            # Actualizamos DIRECTAMENTE en la BD (Atomico y Estado)
+
             Existencia.objects.filter(pk=ex.pk).update(
                 cantidad=nueva_cantidad,
                 estado=nuevo_estado
             )
 
-        # 3.1 Consumir lotes
+        # 3.1 Consumir lotes FIFO
         try:
             for pid, qty_needed in required.items():
                 self._consumir_lotes_fifo(pid, qty_needed)
@@ -191,12 +197,12 @@ class OrdenViewSet(BaseViewSet):
         # 4. Crear orden
         precio_final = 0
         peso_total = 0
-        
-        cliente_id = datos.get("id_cliente") 
-        
+
+        cliente_id = datos.get("id_cliente")
+
         orden = Orden.objects.create(
             metodo_pago=datos.get("metodo_pago", "EFECTIVO"),
-            id_cliente_id=cliente_id, 
+            id_cliente_id=cliente_id,
             estado_de_envio="PENDIENTE POR APROBACIÓN",
             estado_de_pago="PENDIENTE POR PAGO",
             precio_final=0,
@@ -209,9 +215,9 @@ class OrdenViewSet(BaseViewSet):
         for item in detalles_data:
             prod = item["id_producto"]
             cantidad = item["cantidad"]
-            
+
             p_obj = prod if hasattr(prod, 'precio_venta') else Producto.objects.get(pk=prod)
-            
+
             precio_unitario = p_obj.precio_venta
             peso_unitario = p_obj.peso_unidad
 
@@ -238,7 +244,7 @@ class OrdenViewSet(BaseViewSet):
 
         # 7. Registrar acción
         registrar_accion(
-            usuario, "Órdenes", "Crear orden", 
+            usuario, "Órdenes", "Crear orden",
             f"Orden creada. Total: {precio_final}", id_referencia=orden.id_orden
         )
 
@@ -257,10 +263,12 @@ class OrdenViewSet(BaseViewSet):
         # PATCH /ordenes/{id}/
         return self._editar_orden(request, pk=kwargs.get('pk'), partial=True)
 
-    # Permite editar una orden pendiente. Rehabilita inventario previo,
-    # aplica nuevos cambios, ajusta Existencia y lotes, recalcula totales,
-    # registra acción.
     def _editar_orden(self, request, pk=None, partial=False):
+        """
+        Permite editar una orden pendiente. Rehabilita inventario previo,
+        aplica nuevos cambios, ajusta Existencia y lotes, recalcula totales,
+        registra acción.
+        """
         usuario = request.user
 
         # 1) Verificar que la orden exista
@@ -443,13 +451,15 @@ class OrdenViewSet(BaseViewSet):
 
         return Response(OrdenSerializer(orden).data, status=status.HTTP_200_OK)
 
-    #Cambiar estado de pago
+    # ==========================================================
+    #   CAMBIAR ESTADO DE PAGO
+    # ==========================================================
     @action(detail=True, methods=["post"], url_path="cambiar_estado_pago")
     def cambiar_estado_pago(self, request, pk=None):
         orden = self.get_object()
         usuario = request.user
 
-        # Solo vendedor puede cambiar pago (igual que en el front)
+        # Solo vendedor puede cambiar pago
         if getattr(usuario, "tipo", None) != "VENDEDOR":
             raise PermissionDenied(
                 "Solo un usuario de tipo VENDEDOR puede registrar pagos."
@@ -477,8 +487,6 @@ class OrdenViewSet(BaseViewSet):
     # ==========================================================
     #   CANCELAR ORDEN (solo VENDEDOR que la creó)
     # ==========================================================
-    # Cancela una orden si fue creada por el vendedor y está pendiente/aprobada.
-    # Reintegra Existencia y lotes, marca cancelación y registra acción.
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def cancelar(self, request, pk=None):
@@ -568,7 +576,6 @@ class OrdenViewSet(BaseViewSet):
     # ==========================================================
     #   APROBAR ORDEN  (solo GERENTE)
     # ==========================================================
-    # Aprueba una orden (solo GERENTE). Cambia estado y registra acción.
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def aprobar(self, request, pk=None):
@@ -613,7 +620,6 @@ class OrdenViewSet(BaseViewSet):
     # ==========================================================
     #   RECHAZAR ORDEN  (solo GERENTE)
     # ==========================================================
-    # Rechaza una orden (solo GERENTE). Reintegra inventario y marca cancelación.
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def rechazar(self, request, pk=None):
@@ -684,7 +690,7 @@ class OrdenViewSet(BaseViewSet):
     @action(detail=False, methods=['get'])
     def para_preparar(self, request):
         """
-        Devuelve todas las órdenes que están APROBADAS para que 
+        Devuelve todas las órdenes que están APROBADAS para que
         puedan ser preparadas por un ALMACENISTA.
         """
         usuario = request.user
@@ -712,6 +718,12 @@ class OrdenViewSet(BaseViewSet):
         """
         Permite al almacenista ver una orden aprobada antes de prepararla.
         Notifica al gerente y al vendedor que la orden está siendo revisada.
+
+        Respuesta:
+        {
+          "orden": {...},        # OrdenSerializer
+          "detalles": [ {...} ]  # DetalleOrdenSerializer
+        }
         """
         usuario = request.user
 
@@ -719,7 +731,7 @@ class OrdenViewSet(BaseViewSet):
             return Response({"error": "Solo el almacenista puede revisar órdenes para preparar."}, status=403)
 
         try:
-            orden = Orden.objects.prefetch_related("detalleorden_set").get(pk=pk)
+            orden = Orden.objects.get(pk=pk)
         except Orden.DoesNotExist:
             return Response({"error": "Orden no encontrada."}, status=404)
 
@@ -729,7 +741,7 @@ class OrdenViewSet(BaseViewSet):
                 status=400
             )
 
-        # Notificar al almacenista (acción propia), gerente y vendedor
+        # Notificaciones
         registrar_accion(
             usuario,
             "Órdenes",
@@ -756,17 +768,7 @@ class OrdenViewSet(BaseViewSet):
                 id_referencia=orden.id_orden
             )
 
-        # Puedes devolver la orden + detalles si quieres mostrar todo
-        detalles = DetalleOrden.objects.filter(id_orden=orden)
-        detalles_serializados = [
-            {
-                "producto": d.id_producto.nombre,
-                "cantidad": d.cantidad,
-                "peso": str(d.peso_subtotal),
-                "subtotal": str(d.subtotal),
-            }
-            for d in detalles
-        ]
+        detalles_serializados = self._get_detalles_serializados(orden.id_orden)
 
         return Response(
             {
@@ -786,6 +788,13 @@ class OrdenViewSet(BaseViewSet):
         Marca una orden como PREPARADA.
         Solo el almacenista puede ejecutar esta acción.
         Notifica al vendedor y al gerente.
+
+        Respuesta:
+        {
+          "mensaje": "...",
+          "orden": {...},
+          "detalles": [ {...} ]
+        }
         """
         usuario = request.user
 
@@ -816,17 +825,8 @@ class OrdenViewSet(BaseViewSet):
                 status=400
             )
 
-        # 5. Obtenemos los detalles (para devolverlos en la respuesta)
-        detalles = DetalleOrden.objects.filter(id_orden=orden)
-        detalles_serializados = [
-            {
-                "producto": d.id_producto.nombre,
-                "cantidad": d.cantidad,
-                "peso": str(d.peso_subtotal),
-                "subtotal": str(d.subtotal)
-            }
-            for d in detalles
-        ]
+        # 5. Obtenemos los detalles
+        detalles_serializados = self._get_detalles_serializados(orden.id_orden)
 
         # 6. Marcamos como PREPARADA
         orden.estado_de_envio = "PREPARADA"
@@ -924,11 +924,11 @@ class OrdenViewSet(BaseViewSet):
     # ==========================================================
     #   LISTA CON FILTROS AVANZADOS + ORDENAMIENTO
     # ==========================================================
-    """
-    Devuelve la lista de órdenes con filtros avanzados y ordenamiento.
-    Compatible con el modelo actual de Orden.
-    """
     def list(self, request, *args, **kwargs):
+        """
+        Devuelve la lista de órdenes con filtros avanzados y ordenamiento.
+        Compatible con el modelo actual de Orden.
+        """
         usuario = request.user
 
         # 1) Transportista NO puede ver todas las órdenes
@@ -950,7 +950,7 @@ class OrdenViewSet(BaseViewSet):
 
         # Entidades relacionadas
         cliente = request.GET.get("cliente")      # nombre del cliente
-        vendedor = request.GET.get("vendedor")    # username del usuario
+        vendedor = request.GET.get("vendedor")    # username / id / nombre / correo
         envio = request.GET.get("envio")          # id_envio
         producto = request.GET.get("producto")    # nombre del producto
 
@@ -985,7 +985,27 @@ class OrdenViewSet(BaseViewSet):
             queryset = queryset.filter(id_cliente__nombre__icontains=cliente)
 
         if vendedor:
-            queryset = queryset.filter(id_usuario__username__icontains=vendedor)
+            # Permitimos buscar por:
+            # - id de usuario (numérico)
+            # - username
+            # - nombre
+            # - apellido
+            # - correo
+            term = vendedor.strip()
+
+            filtros_base = (
+                Q(id_usuario__username__icontains=term) |
+                Q(id_usuario__first_name__icontains=term) |
+                Q(id_usuario__last_name__icontains=term) |
+                Q(id_usuario__email__icontains=term)
+            )
+
+            if term.isdigit():
+                queryset = queryset.filter(
+                    Q(id_usuario_id=int(term)) | filtros_base
+                )
+            else:
+                queryset = queryset.filter(filtros_base)
 
         if envio:
             queryset = queryset.filter(id_envio_id=envio)
@@ -1051,9 +1071,6 @@ class OrdenViewSet(BaseViewSet):
     # ==========================================================
     #   MIS ÓRDENES (solo vendedor)
     # ==========================================================
-    """
-    Devuelve únicamente las órdenes creadas por el vendedor autenticado.
-    """
     @action(detail=False, methods=['get'])
     def mis_ordenes(self, request):
         """
@@ -1069,13 +1086,9 @@ class OrdenViewSet(BaseViewSet):
         serializer = OrdenSerializer(queryset, many=True)
         return Response(serializer.data)
 
-        # ==========================================================
+    # ==========================================================
     #   REPORTE RESUMIDO DE ÓRDENES
     # ==========================================================
-    """
-    Reporte estadístico resumido de órdenes.
-    Incluye: total_ordenes, aprobadas, pendientes, canceladas, monto_total.
-    """
     @action(detail=False, methods=['get'])
     def reporte(self, request):
         """
@@ -1112,9 +1125,8 @@ class OrdenViewSet(BaseViewSet):
 
         URL: GET /api/ordenes/<id>/detalles/
         """
-        detalles = DetalleOrden.objects.filter(id_orden_id=pk)
-        serializer = DetalleOrdenSerializer(detalles, many=True)
-        return Response(serializer.data)
+        detalles_serializados = self._get_detalles_serializados(pk)
+        return Response(detalles_serializados, status=200)
 
 
 # ==========================================================

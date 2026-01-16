@@ -94,8 +94,7 @@ class TransporteViewSet(viewsets.GenericViewSet):
     def mi_envio(self, request):
         """
         Devuelve el envío asignado al transportista autenticado (si existe),
-        junto con un resumen de las órdenes (aunque el frontend solo usa
-        el envío y carga órdenes aparte).
+        junto con un resumen de las órdenes.
         """
         usuario = self._require_transportista(request)
 
@@ -112,23 +111,35 @@ class TransporteViewSet(viewsets.GenericViewSet):
             .select_related("id_cliente")
         )
 
+        # 👇 Ahora incluimos teléfono del cliente y peso_total de la orden
         ordenes_data = [
             {
                 "id_orden": o.id_orden,
                 "cliente": o.id_cliente.nombre,
                 "direccion": getattr(o.id_cliente, "direccion", ""),
+                "telefono_cliente": getattr(o.id_cliente, "telefono", ""),
                 "estado_de_envio": o.estado_de_envio,
                 "estado_de_pago": o.estado_de_pago,
                 "precio_final": o.precio_final,
+                "peso_total": o.peso_total,
             }
             for o in ordenes
         ]
 
+        unidad = envio.id_unidad
+
+        # 👇 Exponemos placa, código de unidad, capacidad, fecha del envío y peso total del envío
         data = {
             "id_envio": envio.id_envio,
             "codigo": getattr(envio, "codigo_envio", f"ENV-{envio.id_envio}"),
             "estado": envio.estado,
-            "unidad": getattr(envio.id_unidad, "placa", None),
+            # La placa sigue yendo en `unidad` para no romper el front,
+            # pero también enviamos el código y la capacidad.
+            "unidad": getattr(unidad, "placa", None),
+            "unidad_codigo": getattr(unidad, "codigo_unidad", None),
+            "unidad_capacidad": getattr(unidad, "capacidad_carga", None),
+            "fecha_salida": envio.fecha_salida,
+            "peso_total": envio.peso_total,
             "ordenes": ordenes_data,
         }
         return Response(data, status=status.HTTP_200_OK)
@@ -243,9 +254,11 @@ class TransporteViewSet(viewsets.GenericViewSet):
                     "id_orden": o.id_orden,
                     "cliente": o.id_cliente.nombre,
                     "direccion": getattr(o.id_cliente, "direccion", ""),
+                    "telefono_cliente": getattr(o.id_cliente, "telefono", ""),
                     "estado_de_envio": o.estado_de_envio,
                     "estado_de_pago": o.estado_de_pago,
                     "precio_final": o.precio_final,
+                    "peso_total": o.peso_total,
                     "nota": getattr(o, "nota", ""),
                     "detalles": detalles,
                 }

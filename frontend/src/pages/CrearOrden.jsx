@@ -709,6 +709,12 @@ export default function CrearOrden() {
       }
     }
 
+    // Validar monto mínimo de la orden (equivalente a 20$)
+    if (totalOrden < 20) {
+      setError("El monto mínimo de la orden es 20$.");
+      return;
+    }
+
     try {
       setLoadingSubmit(true);
 

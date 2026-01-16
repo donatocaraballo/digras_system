@@ -184,8 +184,22 @@ class ClienteViewSet(BaseViewSet):
 
         if tipo == "VENDEDOR":
             base_qs = Cliente.objects.filter(id_usuario=usuario)
+
         elif tipo in ["GERENTE", "ADMINISTRADOR"]:
             base_qs = Cliente.objects.all()
+
+        elif tipo == "ALMACENISTA":
+            # Permitir a almacenista ver clientes relacionados a órdenes que maneja
+            base_qs = Cliente.objects.filter(
+                orden__cancelacion=False,
+                orden__estado_de_envio__in=[
+                    "APROBADA",
+                    "PREPARADA",
+                    ESTADO_ORDEN_ASIGNADA_ENVIO,  # ya existe en tu base/views.py
+                    "EN_CURSO",
+                ],
+            ).distinct()
+
         else:
             return Cliente.objects.none()
 
@@ -633,6 +647,7 @@ class EnvioViewSet(BaseViewSet):
                     "codigo_envio": envio.codigo_envio,
                     "estado": envio.estado,
                     "peso_total": envio.peso_total,
+                    "fecha_salida": envio.fecha_salida,
                     "id_unidad": envio.id_unidad_id,
                     "unidad_codigo": getattr(envio.id_unidad, "codigo_unidad", None),
                     "unidad_placa": getattr(envio.id_unidad, "placa", None),

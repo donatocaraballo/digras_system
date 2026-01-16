@@ -205,6 +205,7 @@ class EnvioSerializer(serializers.ModelSerializer):
             cliente_nombre = getattr(o.id_cliente, "nombre", None)
             resultado.append({
                 "id_orden": o.id_orden,
+                "id_cliente": o.id_cliente_id, 
                 "cliente_nombre": cliente_nombre,
                 "estado_de_envio": o.estado_de_envio,
                 "peso_total": o.peso_total,      # 👈 agregado
@@ -220,9 +221,12 @@ class EnvioSerializer(serializers.ModelSerializer):
 class OrdenSerializer(serializers.ModelSerializer):
     """
     Serializador base para Orden.
-    Incluye el username del usuario que creó la orden
-    para poder filtrar/mostrar en el frontend.
+    Incluye:
+    - id_usuario_username: username del usuario que creó la orden
+    - id_cliente_nombre: nombre del cliente
+    - vendedor_detalle: datos completos del vendedor (UsuarioSerializer)
     """
+
     id_usuario_username = serializers.CharField(
         source="id_usuario.username",
         read_only=True
@@ -232,8 +236,24 @@ class OrdenSerializer(serializers.ModelSerializer):
         read_only=True
     )
 
-    peso_total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True, coerce_to_string=False)
-    precio_final = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True, coerce_to_string=False)
+    # 👇 Campo extra para que el front tenga toda la info del vendedor
+    vendedor_detalle = UsuarioSerializer(
+        source="id_usuario",
+        read_only=True
+    )
+
+    peso_total = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        read_only=True,
+        coerce_to_string=False
+    )
+    precio_final = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        read_only=True,
+        coerce_to_string=False
+    )
 
     class Meta:
         model = Orden

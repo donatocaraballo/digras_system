@@ -122,7 +122,7 @@ const styles = {
     alignItems: "center",
     justifyContent: "space-between",
     gap: "12px",
-    marginBottom: "12px",
+    marginBottom: "8px",
     flexWrap: "wrap",
   },
   searchWrap: {
@@ -143,7 +143,7 @@ const styles = {
     background: "#ffffff",
   },
   sortWrap: {
-    flex: "0 0 320px",
+    flex: "0 0 auto",
     display: "flex",
     alignItems: "center",
     justifyContent: "flex-end",
@@ -158,7 +158,7 @@ const styles = {
   selectWrapper: {
     position: "relative",
     width: "100%",
-    maxWidth: "280px",
+    maxWidth: "200px",
   },
   select: {
     width: "100%",
@@ -189,7 +189,8 @@ const styles = {
     border: "1px solid #e2e8f0",
     overflow: "hidden",
     boxShadow: "0 2px 5px rgba(0,0,0,0.02)",
-    marginBottom: "30px",
+    marginBottom: "20px",
+    marginTop: "6px",
   },
   table: {
     width: "100%",
@@ -241,6 +242,7 @@ const styles = {
     cursor: "pointer",
     fontSize: "0.85rem",
     fontWeight: "600",
+    whiteSpace: "nowrap",
   },
   buttonPrimaryDisabled: {
     opacity: 0.6,
@@ -279,7 +281,8 @@ const styles = {
   resumenResultados: {
     fontSize: "0.85rem",
     color: "#64748b",
-    marginTop: "10px",
+    marginTop: "4px",
+    marginBottom: "4px",
     textAlign: "right",
     fontStyle: "italic",
   },
@@ -424,6 +427,21 @@ const fmt2 = (v) => {
   return n.toFixed(2);
 };
 
+const formatDateOnly = (dateLike) => {
+  if (!dateLike) return "-";
+  try {
+    const d = new Date(dateLike);
+    if (!Number.isFinite(d.getTime())) return String(dateLike).slice(0, 10);
+    return d.toLocaleDateString("es-VE", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+  } catch {
+    return String(dateLike).slice(0, 10);
+  }
+};
+
 const isObject = (v) => v && typeof v === "object" && !Array.isArray(v);
 
 export default function PreparacionOrdenes() {
@@ -435,7 +453,7 @@ export default function PreparacionOrdenes() {
   const [ordenes, setOrdenes] = useState([]);
   const [vendedores, setVendedores] = useState([]);
 
-  // cache opcional (si tiene permisos):
+  // cache opcional
   const [clientesCache, setClientesCache] = useState({}); // { [id_cliente]: cliente }
   const [unidadesCache, setUnidadesCache] = useState({}); // { [id_unidad]: unidad }
 
@@ -448,7 +466,7 @@ export default function PreparacionOrdenes() {
   const [errorEnvios, setErrorEnvios] = useState("");
 
   // ----------------------------
-  // BUSCAR / ORDENAR
+  // BUSCAR / ORDENAR / FILTRAR
   // ----------------------------
   const [ordenesQuery, setOrdenesQuery] = useState("");
   const [ordenesSort, setOrdenesSort] = useState("recientes");
@@ -511,7 +529,6 @@ export default function PreparacionOrdenes() {
 
   const getClienteNombreFromOrden = (orden) => {
     if (!orden) return "";
-    // OrdenSerializer expone id_cliente_nombre
     return (
       orden.id_cliente_nombre ||
       (isObject(orden.id_cliente) ? orden.id_cliente.nombre : "") ||
@@ -521,7 +538,6 @@ export default function PreparacionOrdenes() {
 
   const getVendedorUsernameFromOrden = (orden) => {
     if (!orden) return "";
-    // OrdenSerializer expone id_usuario_username
     return (
       orden.id_usuario_username ||
       (isObject(orden.id_usuario) ? orden.id_usuario.username : "") ||
@@ -560,9 +576,7 @@ export default function PreparacionOrdenes() {
   };
 
   const unidadLabel = (envio) => {
-    // Tu Unidad tiene codigo_unidad
     const id = getUnidadIdFromEnvio(envio);
-    // Si el backend te está devolviendo unidad anidada, úsala
     if (isObject(envio?.id_unidad) && envio.id_unidad.codigo_unidad) {
       return envio.id_unidad.codigo_unidad;
     }
@@ -578,7 +592,6 @@ export default function PreparacionOrdenes() {
   const getEnvioFecha = (e) => toTime(e?.fecha_salida) || toNumber(e?.id_envio);
   const getEnvioPeso = (e) => toNumber(e?.peso_total);
 
-  // No tienes total de envío en tu modelo; usamos suma de órdenes si viene o 0
   const getEnvioPrecio = (e) => {
     const det = e?.ordenes_detalle;
     if (Array.isArray(det) && det.length > 0) {
@@ -589,7 +602,6 @@ export default function PreparacionOrdenes() {
 
   const getEnvioOrdenesDetalle = (payload) => {
     if (!payload) return [];
-    // endpoint detalle_verificacion suele devolver { envio, ordenes } o { envio, ordenes_detalle }
     if (Array.isArray(payload.ordenes)) return payload.ordenes;
     if (Array.isArray(payload.ordenes_detalle)) return payload.ordenes_detalle;
     if (Array.isArray(payload.envio?.ordenes_detalle)) return payload.envio.ordenes_detalle;
@@ -598,8 +610,9 @@ export default function PreparacionOrdenes() {
 
   const countPreparadas = (ordenesDet) => {
     if (!Array.isArray(ordenesDet)) return 0;
-    // Ajusta aquí si tu estado exacto difiere
-    return ordenesDet.filter((o) => normalizeText(o?.estado_de_envio).includes("preparad")).length;
+    return ordenesDet.filter((o) =>
+      normalizeText(o?.estado_de_envio).includes("preparad")
+    ).length;
   };
 
   // ----------------------------
@@ -740,12 +753,11 @@ export default function PreparacionOrdenes() {
     setLoadingOrdenDetalle(true);
 
     try {
-      // En tu proyecto existe este endpoint
       const res = await api.get(`/ordenes/${idOrden}/ver_para_preparar/`);
-      setOrdenDetalle(res.data);
+      const payload = res.data || {};
+      setOrdenDetalle(payload);
 
-      // cache rápido del cliente si viene anidado o si podemos inferir
-      const ord = res.data?.orden;
+      const ord = payload?.orden;
       const idCliente = getClienteIdFromOrden(ord);
       const nombreCliente = getClienteNombreFromOrden(ord);
       if (idCliente != null && nombreCliente) {
@@ -757,7 +769,9 @@ export default function PreparacionOrdenes() {
     } catch (err) {
       console.error("Error cargando detalle de orden:", err);
       const backendMsg = err.response?.data?.detail || err.response?.data?.error;
-      setErrorOrdenDetalle(backendMsg || "No se pudieron cargar los detalles de la orden.");
+      setErrorOrdenDetalle(
+        backendMsg || "No se pudieron cargar los detalles de la orden."
+      );
     } finally {
       setLoadingOrdenDetalle(false);
     }
@@ -781,17 +795,15 @@ export default function PreparacionOrdenes() {
       const res = await api.post(`/ordenes/${id}/preparar/`);
       toast.success(res.data?.mensaje || "Orden marcada como PREPARADA.");
 
-      // quitar de tabla
       setOrdenes((prev) => prev.filter((o) => o.id_orden !== id));
-
-      // cerrar modal automáticamente
       cerrarModalOrden();
-
-      // refrescar envíos (conteos)
       cargarEnvios();
     } catch (err) {
       console.error("Error al preparar orden:", err);
-      const backendMsg = err.response?.data?.detail || err.response?.data?.mensaje || err.response?.data?.error;
+      const backendMsg =
+        err.response?.data?.detail ||
+        err.response?.data?.mensaje ||
+        err.response?.data?.error;
       toast.error(backendMsg || "No se pudo marcar la orden como PREPARADA.");
     } finally {
       setAccionOrdenLoading(false);
@@ -808,28 +820,34 @@ export default function PreparacionOrdenes() {
     setLoadingEnvioDetalle(true);
 
     try {
-      // endpoint custom en tu proyecto
       const res = await api.get(`/base/envios/${idEnvio}/detalle_verificacion/`);
       setEnvioDetalle(res.data);
 
-      // cache unidad (si se puede inferir)
       const envioObj = res.data?.envio;
       const idUnidad = getUnidadIdFromEnvio(envioObj);
-      if (idUnidad != null && isObject(envioObj?.id_unidad) && envioObj.id_unidad.codigo_unidad) {
+      if (
+        idUnidad != null &&
+        isObject(envioObj?.id_unidad) &&
+        envioObj.id_unidad.codigo_unidad
+      ) {
         setUnidadesCache((prev) => ({
           ...prev,
           [idUnidad]: { ...envioObj.id_unidad },
         }));
       }
     } catch (err) {
-      // fallback: usar el detail básico del envío (trae ordenes_detalle)
       try {
         const res2 = await api.get(`/base/envios/${idEnvio}/`);
-        setEnvioDetalle({ envio: res2.data, ordenes_detalle: res2.data?.ordenes_detalle || [] });
+        setEnvioDetalle({
+          envio: res2.data,
+          ordenes_detalle: res2.data?.ordenes_detalle || [],
+        });
       } catch (err2) {
         console.error("Error cargando detalle de envío:", err2);
         const backendMsg = err2.response?.data?.detail || err2.response?.data?.error;
-        setErrorEnvioDetalle(backendMsg || "No se pudieron cargar los detalles del envío.");
+        setErrorEnvioDetalle(
+          backendMsg || "No se pudieron cargar los detalles del envío."
+        );
       }
     } finally {
       setLoadingEnvioDetalle(false);
@@ -852,17 +870,21 @@ export default function PreparacionOrdenes() {
     setAccionEnvioLoading(true);
     try {
       const res = await api.post(`/base/envios/${id}/marcar_listo_salida/`);
-      toast.success(res.data?.mensaje || "Envío marcado como LISTO PARA SALIR.");
+      toast.success(
+        res.data?.mensaje || "Envío marcado como LISTO PARA SALIR."
+      );
 
-      // quitar de tabla
       setEnvios((prev) => prev.filter((e) => e.id_envio !== id));
-
-      // cerrar modal automáticamente
       cerrarModalEnvio();
     } catch (err) {
       console.error("Error al marcar envío:", err);
-      const backendMsg = err.response?.data?.detail || err.response?.data?.mensaje || err.response?.data?.error;
-      toast.error(backendMsg || "No se pudo marcar el envío como LISTO PARA SALIR.");
+      const backendMsg =
+        err.response?.data?.detail ||
+        err.response?.data?.mensaje ||
+        err.response?.data?.error;
+      toast.error(
+        backendMsg || "No se pudo marcar el envío como LISTO PARA SALIR."
+      );
     } finally {
       setAccionEnvioLoading(false);
     }
@@ -885,30 +907,28 @@ export default function PreparacionOrdenes() {
     setErrorCliente("");
     setLoadingCliente(true);
 
-    // 1) cache
     if (clientesCache[idCliente]) {
       setClienteData(clientesCache[idCliente]);
       setLoadingCliente(false);
       return;
     }
 
-    // 2) intentar detalle
     try {
       const res = await api.get(`/base/clientes/${idCliente}/`);
       setClienteData(res.data);
       setClientesCache((prev) => ({ ...prev, [idCliente]: res.data }));
     } catch (err) {
-      // Si no hay permisos, mostramos lo mínimo
       const backendMsg = err.response?.data?.detail || err.response?.data?.error;
       setErrorCliente(
         backendMsg ||
           "No se pudo cargar el detalle del cliente (posible restricción por permisos)."
       );
-      setClienteData({ id_cliente: idCliente, nombre: nombreFallback || `Cliente #${idCliente}` });
-      setClientesCache((prev) => ({
-        ...prev,
-        [idCliente]: { id_cliente: idCliente, nombre: nombreFallback || `Cliente #${idCliente}` },
-      }));
+      const fallback = {
+        id_cliente: idCliente,
+        nombre: nombreFallback || `Cliente #${idCliente}`,
+      };
+      setClienteData(fallback);
+      setClientesCache((prev) => ({ ...prev, [idCliente]: fallback }));
     } finally {
       setLoadingCliente(false);
     }
@@ -924,7 +944,6 @@ export default function PreparacionOrdenes() {
   };
 
   const abrirModalUnidad = async (envioLike) => {
-    // envioLike puede ser envío completo o el campo envioDetalle.envio
     const idUnidad = getUnidadIdFromEnvio(envioLike);
     if (!idUnidad) {
       setModalUnidadAbierto(true);
@@ -952,11 +971,9 @@ export default function PreparacionOrdenes() {
     } catch (err) {
       const backendMsg = err.response?.data?.detail || err.response?.data?.error;
       setErrorUnidad(backendMsg || "No se pudo cargar el detalle de la unidad.");
-      setUnidadData({ id_unidad: idUnidad, codigo_unidad: `Unidad #${idUnidad}` });
-      setUnidadesCache((prev) => ({
-        ...prev,
-        [idUnidad]: { id_unidad: idUnidad, codigo_unidad: `Unidad #${idUnidad}` },
-      }));
+      const fallback = { id_unidad: idUnidad, codigo_unidad: `Unidad #${idUnidad}` };
+      setUnidadData(fallback);
+      setUnidadesCache((prev) => ({ ...prev, [idUnidad]: fallback }));
     } finally {
       setLoadingUnidad(false);
     }
@@ -980,18 +997,40 @@ export default function PreparacionOrdenes() {
     setLoadingOrdenEnvioDetalle(true);
 
     try {
-      const res = await api.get(`/ordenes/${idOrden}/ver_para_preparar/`);
-      setOrdenEnvioDetalle(res.data);
-    } catch (err) {
-      // fallback básico
-      try {
-        const res2 = await api.get(`/ordenes/${idOrden}/`);
-        setOrdenEnvioDetalle({ orden: res2.data, detalles: [] });
-      } catch (err2) {
-        console.error("Error cargando detalle de orden (desde envío):", err2);
-        const backendMsg = err2.response?.data?.detail || err2.response?.data?.error;
-        setErrorOrdenEnvioDetalle(backendMsg || "No se pudo cargar el detalle de la orden.");
+      const [resOrden, resDetalles] = await Promise.all([
+        api.get(`/ordenes/${idOrden}/`),
+        api.get(`/ordenes/${idOrden}/detalles/`),
+      ]);
+
+      const detallesArray = Array.isArray(resDetalles.data)
+        ? resDetalles.data
+        : resDetalles.data?.results || [];
+
+      const payload = {
+        orden: resOrden.data,
+        detalles: detallesArray,
+      };
+
+      setOrdenEnvioDetalle(payload);
+
+      const idCliente = getClienteIdFromOrden(payload.orden);
+      const nombreCliente = getClienteNombreFromOrden(payload.orden);
+      if (idCliente != null && nombreCliente) {
+        setClientesCache((prev) => ({
+          ...prev,
+          [idCliente]: {
+            ...(prev[idCliente] || {}),
+            id_cliente: idCliente,
+            nombre: nombreCliente,
+          },
+        }));
       }
+    } catch (err) {
+      console.error("Error cargando detalle de orden (desde envío):", err);
+      const backendMsg = err.response?.data?.detail || err.response?.data?.error;
+      setErrorOrdenEnvioDetalle(
+        backendMsg || "No se pudo cargar el detalle de la orden."
+      );
     } finally {
       setLoadingOrdenEnvioDetalle(false);
     }
@@ -1018,7 +1057,8 @@ export default function PreparacionOrdenes() {
     );
   }
 
-  const tipoUsuarioActual = user.tipo || (user.user && user.user.tipo) || "No especificado";
+  const tipoUsuarioActual =
+    user.tipo || (user.user && user.user.tipo) || "No especificado";
 
   return (
     <div style={styles.page}>
@@ -1042,7 +1082,9 @@ export default function PreparacionOrdenes() {
 
       <div style={styles.card}>
         {/* ÓRDENES */}
-        <div style={{ ...styles.sectionTitle, marginTop: 0 }}>Órdenes Pendientes</div>
+        <div style={{ ...styles.sectionTitle, marginTop: 0 }}>
+          Órdenes Pendientes
+        </div>
         <div style={styles.hintMini}>
           Tip: haz click en el <strong>nombre del cliente</strong> para ver su ficha.
         </div>
@@ -1061,7 +1103,11 @@ export default function PreparacionOrdenes() {
           <div style={styles.sortWrap}>
             <span style={styles.sortLabel}>Ordenar por:</span>
             <div style={styles.selectWrapper}>
-              <select value={ordenesSort} onChange={(e) => setOrdenesSort(e.target.value)} style={styles.select}>
+              <select
+                value={ordenesSort}
+                onChange={(e) => setOrdenesSort(e.target.value)}
+                style={styles.select}
+              >
                 <option value="recientes">Más recientes</option>
                 <option value="antiguas">Más antiguas</option>
                 <option value="mayor_peso">Mayor peso</option>
@@ -1072,6 +1118,10 @@ export default function PreparacionOrdenes() {
               <span style={styles.selectArrow}>▼</span>
             </div>
           </div>
+        </div>
+
+        <div style={styles.resumenResultados}>
+          Mostrando {ordenesFiltradas.length} orden(es) (de {ordenes.length}).
         </div>
 
         <div style={styles.tableWrapper}>
@@ -1091,8 +1141,18 @@ export default function PreparacionOrdenes() {
             <tbody>
               {ordenesFiltradas.length === 0 && !loading && (
                 <tr>
-                  <td style={{ ...styles.td, textAlign: "center", color: "#94a3b8", padding: "30px" }} colSpan={8}>
-                    No hay órdenes que coincidan con la búsqueda/filtros.
+                  <td
+                    style={{
+                      ...styles.td,
+                      textAlign: "center",
+                      color: "#94a3b8",
+                      padding: "30px",
+                    }}
+                    colSpan={8}
+                  >
+                    {ordenes.length === 0
+                      ? "Por ahora no hay órdenes pendientes por preparación."
+                      : "No hay órdenes que coincidan con la búsqueda/filtros."}
                   </td>
                 </tr>
               )}
@@ -1102,26 +1162,36 @@ export default function PreparacionOrdenes() {
                 const idCliente = getClienteIdFromOrden(o);
                 return (
                   <tr key={o.id_orden} style={rowBase}>
-                    <td style={{ ...styles.td, fontWeight: 700, color: "#0d47a1" }}>#{o.id_orden}</td>
+                    <td style={{ ...styles.td, fontWeight: 700, color: "#0d47a1" }}>
+                      #{o.id_orden}
+                    </td>
                     <td style={styles.td}>
                       <span
                         style={styles.clickable}
-                        onClick={() => abrirModalCliente(idCliente, clienteLabelOrden(o))}
+                        onClick={() =>
+                          abrirModalCliente(idCliente, clienteLabelOrden(o))
+                        }
                         title="Ver ficha del cliente"
                       >
                         {clienteLabelOrden(o)}
                       </span>
-                      <div style={styles.hintMini}>Click para ver info del cliente</div>
+                      <div style={styles.hintMini}>
+                        Click para ver info del cliente
+                      </div>
                     </td>
                     <td style={styles.td}>{vendedorLabelOrden(o)}</td>
-                    <td style={styles.td}>{o.fecha_orden}</td>
+                    <td style={styles.td}>{formatDateOnly(o.fecha_orden)}</td>
                     <td style={styles.td}>{fmt2(o.peso_total)}</td>
                     <td style={styles.td}>{fmt2(o.precio_final)}</td>
                     <td style={styles.td}>
                       <span style={styles.badgeEstado}>{o.estado_de_envio}</span>
                     </td>
                     <td style={{ ...styles.td, textAlign: "center" }}>
-                      <button type="button" style={styles.buttonPrimary} onClick={() => abrirDetalleOrden(o.id_orden)}>
+                      <button
+                        type="button"
+                        style={styles.buttonPrimary}
+                        onClick={() => abrirDetalleOrden(o.id_orden)}
+                      >
                         <IconSearch /> Revisar
                       </button>
                     </td>
@@ -1140,13 +1210,11 @@ export default function PreparacionOrdenes() {
           </table>
         </div>
 
-        <div style={styles.resumenResultados}>
-          Mostrando {ordenesFiltradas.length} orden(es) (de {ordenes.length}).
-        </div>
-
         {/* ENVÍOS */}
         <div style={styles.sectionTitle}>Verificación de Envíos</div>
-        <p style={styles.sectionSubtitle}>Verifica los envíos y márcalos como listos para salir.</p>
+        <p style={styles.sectionSubtitle}>
+          Verifica los envíos y márcalos como listos para salir.
+        </p>
 
         <div style={styles.hintMini}>
           Tip: haz click en la <strong>unidad</strong> para ver su ficha.
@@ -1168,7 +1236,11 @@ export default function PreparacionOrdenes() {
           <div style={styles.sortWrap}>
             <span style={styles.sortLabel}>Ordenar por:</span>
             <div style={styles.selectWrapper}>
-              <select value={enviosSort} onChange={(e) => setEnviosSort(e.target.value)} style={styles.select}>
+              <select
+                value={enviosSort}
+                onChange={(e) => setEnviosSort(e.target.value)}
+                style={styles.select}
+              >
                 <option value="recientes">Más recientes</option>
                 <option value="antiguas">Más antiguas</option>
                 <option value="mayor_peso">Mayor peso</option>
@@ -1181,6 +1253,10 @@ export default function PreparacionOrdenes() {
           </div>
         </div>
 
+        <div style={styles.resumenResultados}>
+          Mostrando {enviosFiltrados.length} envío(s) (de {envios.length}).
+        </div>
+
         <div style={styles.tableWrapper}>
           <table style={styles.table}>
             <thead>
@@ -1188,7 +1264,7 @@ export default function PreparacionOrdenes() {
                 <th style={styles.th}># Envío</th>
                 <th style={styles.th}>Código</th>
                 <th style={styles.th}>Unidad</th>
-                <th style={styles.th}>Salida</th>
+                <th style={styles.th}>Fecha</th>
                 <th style={styles.th}>Órdenes (Prep./Total)</th>
                 <th style={styles.th}>Peso (kg)</th>
                 <th style={styles.th}>Estado</th>
@@ -1198,8 +1274,18 @@ export default function PreparacionOrdenes() {
             <tbody>
               {enviosFiltrados.length === 0 && !loadingEnvios && (
                 <tr>
-                  <td style={{ ...styles.td, textAlign: "center", color: "#94a3b8", padding: "30px" }} colSpan={8}>
-                    No hay envíos que coincidan con la búsqueda/filtros.
+                  <td
+                    style={{
+                      ...styles.td,
+                      textAlign: "center",
+                      color: "#94a3b8",
+                      padding: "30px",
+                    }}
+                    colSpan={8}
+                  >
+                    {envios.length === 0
+                      ? "Por ahora no hay envíos pendientes por verificación."
+                      : "No hay envíos que coincidan con la búsqueda/filtros."}
                   </td>
                 </tr>
               )}
@@ -1211,15 +1297,23 @@ export default function PreparacionOrdenes() {
                 const prep = e?.cantidad_ordenes_almacenista ?? countPreparadas(det);
                 return (
                   <tr key={e.id_envio} style={rowBase}>
-                    <td style={{ ...styles.td, fontWeight: 700, color: "#0d47a1" }}>#{e.id_envio}</td>
+                    <td style={{ ...styles.td, fontWeight: 700, color: "#0d47a1" }}>
+                      #{e.id_envio}
+                    </td>
                     <td style={styles.td}>{e.codigo_envio || "-"}</td>
                     <td style={styles.td}>
-                      <span style={styles.clickable} onClick={() => abrirModalUnidad(e)} title="Ver ficha de la unidad">
+                      <span
+                        style={styles.clickable}
+                        onClick={() => abrirModalUnidad(e)}
+                        title="Ver ficha de la unidad"
+                      >
                         {unidadLabel(e)}
                       </span>
-                      <div style={styles.hintMini}>Click para ver info de la unidad</div>
+                      <div style={styles.hintMini}>
+                        Click para ver info de la unidad
+                      </div>
                     </td>
-                    <td style={styles.td}>{e.fecha_salida || "-"}</td>
+                    <td style={styles.td}>{formatDateOnly(e.fecha_salida)}</td>
                     <td style={styles.td}>
                       {prep} / {total}
                     </td>
@@ -1228,7 +1322,11 @@ export default function PreparacionOrdenes() {
                       <span style={styles.badgeEstado}>{e.estado || "SIN ESTADO"}</span>
                     </td>
                     <td style={{ ...styles.td, textAlign: "center" }}>
-                      <button type="button" style={styles.buttonPrimary} onClick={() => abrirDetalleEnvio(e.id_envio)}>
+                      <button
+                        type="button"
+                        style={styles.buttonPrimary}
+                        onClick={() => abrirDetalleEnvio(e.id_envio)}
+                      >
                         <IconCheck /> Revisar
                       </button>
                     </td>
@@ -1246,10 +1344,6 @@ export default function PreparacionOrdenes() {
             </tbody>
           </table>
         </div>
-
-        <div style={styles.resumenResultados}>
-          Mostrando {enviosFiltrados.length} envío(s) (de {envios.length}).
-        </div>
       </div>
 
       {/* MODAL ORDEN */}
@@ -1258,15 +1352,28 @@ export default function PreparacionOrdenes() {
           <div style={styles.modalCard}>
             <div style={styles.modalHeaderRow}>
               <h3 style={styles.modalTitle}>
-                Detalles Orden {ordenDetalle?.orden?.id_orden ? `#${ordenDetalle.orden.id_orden}` : ""}
+                Detalles Orden
+                {ordenDetalle?.orden?.id_orden
+                  ? ` #${ordenDetalle.orden.id_orden}`
+                  : ""}
               </h3>
-              <button type="button" style={styles.modalCloseButton} onClick={cerrarModalOrden}>
+              <button
+                type="button"
+                style={styles.modalCloseButton}
+                onClick={cerrarModalOrden}
+              >
                 ✕
               </button>
             </div>
 
-            {loadingOrdenDetalle && <div style={styles.modalLine}>Cargando...</div>}
-            {errorOrdenDetalle && <div style={{ ...styles.modalLine, color: "#b91c1c" }}>{errorOrdenDetalle}</div>}
+            {loadingOrdenDetalle && (
+              <div style={styles.modalLine}>Cargando...</div>
+            )}
+            {errorOrdenDetalle && (
+              <div style={{ ...styles.modalLine, color: "#b91c1c" }}>
+                {errorOrdenDetalle}
+              </div>
+            )}
 
             {ordenDetalle && !loadingOrdenDetalle && !errorOrdenDetalle && (
               <>
@@ -1276,31 +1383,43 @@ export default function PreparacionOrdenes() {
                   <strong>Cliente:</strong>
                   <span
                     style={styles.clickable}
-                    onClick={() => abrirModalCliente(getClienteIdFromOrden(ordenDetalle.orden), clienteLabelOrden(ordenDetalle.orden))}
+                    onClick={() =>
+                      abrirModalCliente(
+                        getClienteIdFromOrden(ordenDetalle.orden),
+                        clienteLabelOrden(ordenDetalle.orden)
+                      )
+                    }
                     title="Ver ficha del cliente"
                   >
                     {clienteLabelOrden(ordenDetalle.orden)}
                   </span>
                 </div>
-                <div style={styles.hintMini}>Click en el nombre del cliente para ver información.</div>
+                <div style={styles.hintMini}>
+                  Click en el nombre del cliente para ver información.
+                </div>
 
                 <div style={styles.modalLine}>
-                  <strong>Vendedor:</strong> {vendedorLabelOrden(ordenDetalle.orden)}
+                  <strong>Vendedor:</strong>{" "}
+                  {vendedorLabelOrden(ordenDetalle.orden)}
                 </div>
                 <div style={styles.modalLine}>
-                  <strong>Método de pago:</strong> {ordenDetalle.orden.metodo_pago || "-"}
+                  <strong>Método de pago:</strong>{" "}
+                  {ordenDetalle.orden.metodo_pago || "-"}
                 </div>
                 <div style={styles.modalLine}>
-                  <strong>Fecha:</strong> {ordenDetalle.orden.fecha_orden || "-"}
+                  <strong>Fecha:</strong>{" "}
+                  {formatDateOnly(ordenDetalle.orden.fecha_orden)}
                 </div>
                 <div style={styles.modalLine}>
-                  <strong>Estado envío:</strong> {ordenDetalle.orden.estado_de_envio || "-"}
+                  <strong>Estado envío:</strong>{" "}
+                  {ordenDetalle.orden.estado_de_envio || "-"}
                 </div>
                 <div style={styles.modalLine}>
                   <strong>Peso total:</strong> {fmt2(ordenDetalle.orden.peso_total)} kg
                 </div>
                 <div style={styles.modalLine}>
-                  <strong>Total (Bs):</strong> {fmt2(ordenDetalle.orden.precio_final)}
+                  <strong>Total (Bs):</strong>{" "}
+                  {fmt2(ordenDetalle.orden.precio_final)}
                 </div>
 
                 <div style={styles.modalSectionTitle}>Productos a Preparar</div>
@@ -1323,10 +1442,16 @@ export default function PreparacionOrdenes() {
                     <tbody>
                       {ordenDetalle.detalles.map((d) => (
                         <tr key={d.id_detalleo}>
-                          <td style={styles.modalDetalleTd}>{d.producto || d.id_producto_nombre || "-"}</td>
+                          <td style={styles.modalDetalleTd}>
+                            {d.producto || d.id_producto_nombre || "-"}
+                          </td>
                           <td style={styles.modalDetalleTd}>{d.cantidad ?? "-"}</td>
-                          <td style={styles.modalDetalleTd}>{fmt2(d.peso_unitario)} kg</td>
-                          <td style={styles.modalDetalleTd}>{fmt2(d.peso_subtotal)} kg</td>
+                          <td style={styles.modalDetalleTd}>
+                            {fmt2(d.peso_unitario)} kg
+                          </td>
+                          <td style={styles.modalDetalleTd}>
+                            {fmt2(d.peso_subtotal)} kg
+                          </td>
                           <td style={styles.modalDetalleTd}>{fmt2(d.subtotal)}</td>
                         </tr>
                       ))}
@@ -1335,12 +1460,20 @@ export default function PreparacionOrdenes() {
                 )}
 
                 <div style={styles.modalActionsRow}>
-                  <button type="button" style={styles.buttonSecondary} onClick={cerrarModalOrden} disabled={accionOrdenLoading}>
+                  <button
+                    type="button"
+                    style={styles.buttonSecondary}
+                    onClick={cerrarModalOrden}
+                    disabled={accionOrdenLoading}
+                  >
                     Cerrar
                   </button>
                   <button
                     type="button"
-                    style={{ ...styles.buttonPrimary, ...(accionOrdenLoading ? styles.buttonPrimaryDisabled : {}) }}
+                    style={{
+                      ...styles.buttonPrimary,
+                      ...(accionOrdenLoading ? styles.buttonPrimaryDisabled : {}),
+                    }}
                     onClick={marcarComoPreparada}
                     disabled={accionOrdenLoading}
                   >
@@ -1359,15 +1492,28 @@ export default function PreparacionOrdenes() {
           <div style={styles.modalCard}>
             <div style={styles.modalHeaderRow}>
               <h3 style={styles.modalTitle}>
-                Detalles Envío {envioDetalle?.envio?.id_envio ? `#${envioDetalle.envio.id_envio}` : ""}
+                Detalles Envío
+                {envioDetalle?.envio?.id_envio
+                  ? ` #${envioDetalle.envio.id_envio}`
+                  : ""}
               </h3>
-              <button type="button" style={styles.modalCloseButton} onClick={cerrarModalEnvio}>
+              <button
+                type="button"
+                style={styles.modalCloseButton}
+                onClick={cerrarModalEnvio}
+              >
                 ✕
               </button>
             </div>
 
-            {loadingEnvioDetalle && <div style={styles.modalLine}>Cargando...</div>}
-            {errorEnvioDetalle && <div style={{ ...styles.modalLine, color: "#b91c1c" }}>{errorEnvioDetalle}</div>}
+            {loadingEnvioDetalle && (
+              <div style={styles.modalLine}>Cargando...</div>
+            )}
+            {errorEnvioDetalle && (
+              <div style={{ ...styles.modalLine, color: "#b91c1c" }}>
+                {errorEnvioDetalle}
+              </div>
+            )}
 
             {envioDetalle && !loadingEnvioDetalle && !errorEnvioDetalle && (
               <>
@@ -1379,20 +1525,25 @@ export default function PreparacionOrdenes() {
 
                 <div style={styles.modalLine}>
                   <strong>Unidad:</strong>
-                  <span style={styles.clickable} onClick={() => abrirModalUnidad(envioDetalle.envio)} title="Ver ficha de la unidad">
+                  <span
+                    style={styles.clickable}
+                    onClick={() => abrirModalUnidad(envioDetalle.envio)}
+                    title="Ver ficha de la unidad"
+                  >
                     {unidadLabel(envioDetalle.envio)}
                   </span>
                 </div>
-                <div style={styles.hintMini}>Click en la unidad para ver información.</div>
+                <div style={styles.hintMini}>
+                  Click en la unidad para ver información.
+                </div>
 
                 <div style={styles.modalLine}>
-                  <strong>Salida:</strong> {envioDetalle.envio?.fecha_salida || "-"}
+                  <strong>Fecha:</strong>{" "}
+                  {formatDateOnly(envioDetalle.envio?.fecha_salida)}
                 </div>
                 <div style={styles.modalLine}>
-                  <strong>Llegada:</strong> {envioDetalle.envio?.fecha_llegada || "-"}
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Peso total:</strong> {fmt2(envioDetalle.envio?.peso_total)} kg
+                  <strong>Peso total:</strong>{" "}
+                  {fmt2(envioDetalle.envio?.peso_total)} kg
                 </div>
                 <div style={styles.modalLine}>
                   <strong>Estado:</strong> {envioDetalle.envio?.estado || "-"}
@@ -1400,13 +1551,16 @@ export default function PreparacionOrdenes() {
 
                 <div style={styles.modalSectionTitle}>Órdenes Incluidas</div>
                 <div style={styles.hintMini}>
-                  Tip: puedes hacer click en una <strong>orden</strong> para ver productos y cliente.
+                  Tip: puedes hacer click en una <strong>orden</strong> para ver
+                  productos y cliente.
                 </div>
 
                 {(() => {
                   const ordenesDet = getEnvioOrdenesDetalle(envioDetalle);
                   if (!ordenesDet || ordenesDet.length === 0) {
-                    return <div style={styles.modalLine}>No hay órdenes asociadas.</div>;
+                    return (
+                      <div style={styles.modalLine}>No hay órdenes asociadas.</div>
+                    );
                   }
 
                   return (
@@ -1424,22 +1578,41 @@ export default function PreparacionOrdenes() {
                         {ordenesDet.map((o) => (
                           <tr key={o.id_orden}>
                             <td style={styles.modalDetalleTd}>
-                              <span style={styles.clickable} onClick={() => abrirModalOrdenEnvio(o.id_orden)} title="Ver detalle de la orden">
+                              <span
+                                style={styles.clickable}
+                                onClick={() => abrirModalOrdenEnvio(o.id_orden)}
+                                title="Ver detalle de la orden"
+                              >
                                 #{o.id_orden}
                               </span>
                             </td>
                             <td style={styles.modalDetalleTd}>
                               <span
                                 style={styles.clickable}
-                                onClick={() => abrirModalCliente(o?.id_cliente, o?.cliente_nombre || (o?.id_cliente ? `Cliente #${o.id_cliente}` : "Cliente"))}
+                                onClick={() =>
+                                  abrirModalCliente(
+                                    o?.id_cliente,
+                                    o?.cliente_nombre ||
+                                      (o?.id_cliente
+                                        ? `Cliente #${o.id_cliente}`
+                                        : "Cliente")
+                                  )
+                                }
                                 title="Ver ficha del cliente"
                               >
-                                {o.cliente_nombre || (o?.id_cliente ? `Cliente #${o.id_cliente}` : "-")}
+                                {o.cliente_nombre ||
+                                  (o?.id_cliente ? `Cliente #${o.id_cliente}` : "-")}
                               </span>
                             </td>
-                            <td style={styles.modalDetalleTd}>{fmt2(o.peso_total)} kg</td>
-                            <td style={styles.modalDetalleTd}>{fmt2(o.precio_final)}</td>
-                            <td style={styles.modalDetalleTd}>{o.estado_de_envio || "-"}</td>
+                            <td style={styles.modalDetalleTd}>
+                              {fmt2(o.peso_total)} kg
+                            </td>
+                            <td style={styles.modalDetalleTd}>
+                              {fmt2(o.precio_final)}
+                            </td>
+                            <td style={styles.modalDetalleTd}>
+                              {o.estado_de_envio || "-"}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -1448,16 +1621,26 @@ export default function PreparacionOrdenes() {
                 })()}
 
                 <div style={styles.modalActionsRow}>
-                  <button type="button" style={styles.buttonSecondary} onClick={cerrarModalEnvio} disabled={accionEnvioLoading}>
+                  <button
+                    type="button"
+                    style={styles.buttonSecondary}
+                    onClick={cerrarModalEnvio}
+                    disabled={accionEnvioLoading}
+                  >
                     Cerrar
                   </button>
                   <button
                     type="button"
-                    style={{ ...styles.buttonPrimary, ...(accionEnvioLoading ? styles.buttonPrimaryDisabled : {}) }}
+                    style={{
+                      ...styles.buttonPrimary,
+                      ...(accionEnvioLoading ? styles.buttonPrimaryDisabled : {}),
+                    }}
                     onClick={marcarEnvioListo}
                     disabled={accionEnvioLoading}
                   >
-                    {accionEnvioLoading ? "Procesando..." : "Marcar LISTO PARA SALIR"}
+                    {accionEnvioLoading
+                      ? "Procesando..."
+                      : "Marcar LISTO PARA SALIR"}
                   </button>
                 </div>
               </>
@@ -1472,19 +1655,30 @@ export default function PreparacionOrdenes() {
           <div style={styles.modalCard}>
             <div style={styles.modalHeaderRow}>
               <h3 style={styles.modalTitle}>Ficha del Cliente</h3>
-              <button type="button" style={styles.modalCloseButton} onClick={cerrarModalCliente}>
+              <button
+                type="button"
+                style={styles.modalCloseButton}
+                onClick={cerrarModalCliente}
+              >
                 ✕
               </button>
             </div>
 
-            {loadingCliente && <div style={styles.modalLine}>Cargando...</div>}
-            {errorCliente && <div style={{ ...styles.modalLine, color: "#b91c1c" }}>{errorCliente}</div>}
+            {loadingCliente && (
+              <div style={styles.modalLine}>Cargando...</div>
+            )}
+            {errorCliente && (
+              <div style={{ ...styles.modalLine, color: "#b91c1c" }}>
+                {errorCliente}
+              </div>
+            )}
 
             {clienteData && !loadingCliente && (
               <>
                 <div style={styles.modalSectionTitle}>Información General</div>
                 <div style={styles.modalLine}>
-                  <strong>ID:</strong> {clienteData.id_cliente ?? clienteData.id ?? "-"}
+                  <strong>ID:</strong>{" "}
+                  {clienteData.id_cliente ?? clienteData.id ?? "-"}
                 </div>
                 <div style={styles.modalLine}>
                   <strong>Nombre:</strong> {clienteData.nombre || "-"}
@@ -1499,14 +1693,22 @@ export default function PreparacionOrdenes() {
                   <strong>Dirección:</strong> {clienteData.direccion || "-"}
                 </div>
                 <div style={styles.modalLine}>
-                  <strong>Activo:</strong> {clienteData.activo === false ? "NO" : "SÍ"}
+                  <strong>Activo:</strong>{" "}
+                  {clienteData.activo === false ? "NO" : "SÍ"}
                 </div>
                 <div style={styles.modalLine}>
-                  <strong>Vendedor (id_usuario):</strong> {isObject(clienteData.id_usuario) ? (clienteData.id_usuario.id_usuario ?? clienteData.id_usuario.id) : (clienteData.id_usuario ?? "-")}
+                  <strong>Vendedor (id_usuario):</strong>{" "}
+                  {isObject(clienteData.id_usuario)
+                    ? clienteData.id_usuario.id_usuario ?? clienteData.id_usuario.id
+                    : clienteData.id_usuario ?? "-"}
                 </div>
 
                 <div style={styles.modalActionsRow}>
-                  <button type="button" style={styles.buttonSecondary} onClick={cerrarModalCliente}>
+                  <button
+                    type="button"
+                    style={styles.buttonSecondary}
+                    onClick={cerrarModalCliente}
+                  >
                     Cerrar
                   </button>
                 </div>
@@ -1522,19 +1724,28 @@ export default function PreparacionOrdenes() {
           <div style={styles.modalCard}>
             <div style={styles.modalHeaderRow}>
               <h3 style={styles.modalTitle}>Ficha de la Unidad</h3>
-              <button type="button" style={styles.modalCloseButton} onClick={cerrarModalUnidad}>
+              <button
+                type="button"
+                style={styles.modalCloseButton}
+                onClick={cerrarModalUnidad}
+              >
                 ✕
               </button>
             </div>
 
             {loadingUnidad && <div style={styles.modalLine}>Cargando...</div>}
-            {errorUnidad && <div style={{ ...styles.modalLine, color: "#b91c1c" }}>{errorUnidad}</div>}
+            {errorUnidad && (
+              <div style={{ ...styles.modalLine, color: "#b91c1c" }}>
+                {errorUnidad}
+              </div>
+            )}
 
             {unidadData && !loadingUnidad && (
               <>
                 <div style={styles.modalSectionTitle}>Información General</div>
                 <div style={styles.modalLine}>
-                  <strong>ID:</strong> {unidadData.id_unidad ?? unidadData.id ?? "-"}
+                  <strong>ID:</strong>{" "}
+                  {unidadData.id_unidad ?? unidadData.id ?? "-"}
                 </div>
                 <div style={styles.modalLine}>
                   <strong>Código unidad:</strong> {unidadData.codigo_unidad || "-"}
@@ -1549,14 +1760,22 @@ export default function PreparacionOrdenes() {
                   <strong>Estado:</strong> {unidadData.estado || "-"}
                 </div>
                 <div style={styles.modalLine}>
-                  <strong>Capacidad de carga:</strong> {fmt2(unidadData.capacidad_carga)}
+                  <strong>Capacidad de carga:</strong>{" "}
+                  {fmt2(unidadData.capacidad_carga)}
                 </div>
                 <div style={styles.modalLine}>
-                  <strong>Transportista (id_usuario):</strong> {isObject(unidadData.id_usuario) ? (unidadData.id_usuario.id_usuario ?? unidadData.id_usuario.id) : (unidadData.id_usuario ?? "-")}
+                  <strong>Transportista (id_usuario):</strong>{" "}
+                  {isObject(unidadData.id_usuario)
+                    ? unidadData.id_usuario.id_usuario ?? unidadData.id_usuario.id
+                    : unidadData.id_usuario ?? "-"}
                 </div>
 
                 <div style={styles.modalActionsRow}>
-                  <button type="button" style={styles.buttonSecondary} onClick={cerrarModalUnidad}>
+                  <button
+                    type="button"
+                    style={styles.buttonSecondary}
+                    onClick={cerrarModalUnidad}
+                  >
                     Cerrar
                   </button>
                 </div>
@@ -1572,74 +1791,122 @@ export default function PreparacionOrdenes() {
           <div style={styles.modalCard}>
             <div style={styles.modalHeaderRow}>
               <h3 style={styles.modalTitle}>
-                Detalle Orden {ordenEnvioDetalle?.orden?.id_orden ? `#${ordenEnvioDetalle.orden.id_orden}` : ""}
+                Detalle Orden
+                {ordenEnvioDetalle?.orden?.id_orden
+                  ? ` #${ordenEnvioDetalle.orden.id_orden}`
+                  : ""}
               </h3>
-              <button type="button" style={styles.modalCloseButton} onClick={cerrarModalOrdenEnvio}>
+              <button
+                type="button"
+                style={styles.modalCloseButton}
+                onClick={cerrarModalOrdenEnvio}
+              >
                 ✕
               </button>
             </div>
 
-            {loadingOrdenEnvioDetalle && <div style={styles.modalLine}>Cargando...</div>}
+            {loadingOrdenEnvioDetalle && (
+              <div style={styles.modalLine}>Cargando...</div>
+            )}
             {errorOrdenEnvioDetalle && (
-              <div style={{ ...styles.modalLine, color: "#b91c1c" }}>{errorOrdenEnvioDetalle}</div>
+              <div style={{ ...styles.modalLine, color: "#b91c1c" }}>
+                {errorOrdenEnvioDetalle}
+              </div>
             )}
 
-            {ordenEnvioDetalle && !loadingOrdenEnvioDetalle && !errorOrdenEnvioDetalle && (
-              <>
-                <div style={styles.modalSectionTitle}>Información General</div>
-                <div style={styles.modalLine}>
-                  <strong>Cliente:</strong> {clienteLabelOrden(ordenEnvioDetalle.orden)}
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Fecha:</strong> {ordenEnvioDetalle.orden?.fecha_orden || "-"}
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Peso total:</strong> {fmt2(ordenEnvioDetalle.orden?.peso_total)} kg
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Total (Bs):</strong> {fmt2(ordenEnvioDetalle.orden?.precio_final)}
-                </div>
-                <div style={styles.modalLine}>
-                  <strong>Estado envío:</strong> {ordenEnvioDetalle.orden?.estado_de_envio || "-"}
-                </div>
+            {ordenEnvioDetalle &&
+              !loadingOrdenEnvioDetalle &&
+              !errorOrdenEnvioDetalle && (
+                <>
+                  <div style={styles.modalSectionTitle}>Información General</div>
+                  <div style={styles.modalLine}>
+                    <strong>Cliente:</strong>
+                    <span
+                      style={styles.clickable}
+                      onClick={() =>
+                        abrirModalCliente(
+                          getClienteIdFromOrden(ordenEnvioDetalle.orden),
+                          clienteLabelOrden(ordenEnvioDetalle.orden)
+                        )
+                      }
+                      title="Ver ficha del cliente"
+                    >
+                      {clienteLabelOrden(ordenEnvioDetalle.orden)}
+                    </span>
+                  </div>
+                  <div style={styles.hintMini}>
+                    Click en el nombre del cliente para ver su ficha completa.
+                  </div>
+                  <div style={styles.modalLine}>
+                    <strong>Fecha:</strong>{" "}
+                    {formatDateOnly(ordenEnvioDetalle.orden?.fecha_orden)}
+                  </div>
+                  <div style={styles.modalLine}>
+                    <strong>Peso total:</strong>{" "}
+                    {fmt2(ordenEnvioDetalle.orden?.peso_total)} kg
+                  </div>
+                  <div style={styles.modalLine}>
+                    <strong>Total (Bs):</strong>{" "}
+                    {fmt2(ordenEnvioDetalle.orden?.precio_final)}
+                  </div>
+                  <div style={styles.modalLine}>
+                    <strong>Estado envío:</strong>{" "}
+                    {ordenEnvioDetalle.orden?.estado_de_envio || "-"}
+                  </div>
 
-                <div style={styles.modalSectionTitle}>Productos</div>
-                {(!ordenEnvioDetalle.detalles || ordenEnvioDetalle.detalles.length === 0) && (
-                  <div style={styles.modalLine}>No hay productos.</div>
-                )}
+                  <div style={styles.modalSectionTitle}>Productos</div>
+                  {(!ordenEnvioDetalle.detalles ||
+                    ordenEnvioDetalle.detalles.length === 0) && (
+                    <div style={styles.modalLine}>No hay productos.</div>
+                  )}
 
-                {ordenEnvioDetalle.detalles && ordenEnvioDetalle.detalles.length > 0 && (
-                  <table style={styles.modalDetalleTable}>
-                    <thead>
-                      <tr>
-                        <th style={styles.modalDetalleTh}>Producto</th>
-                        <th style={styles.modalDetalleTh}>Cant.</th>
-                        <th style={styles.modalDetalleTh}>Peso unit.</th>
-                        <th style={styles.modalDetalleTh}>Peso subtotal</th>
-                        <th style={styles.modalDetalleTh}>Subtotal (Bs)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ordenEnvioDetalle.detalles.map((d) => (
-                        <tr key={d.id_detalleo}>
-                          <td style={styles.modalDetalleTd}>{d.producto || d.id_producto_nombre || "-"}</td>
-                          <td style={styles.modalDetalleTd}>{d.cantidad ?? "-"}</td>
-                          <td style={styles.modalDetalleTd}>{fmt2(d.peso_unitario)} kg</td>
-                          <td style={styles.modalDetalleTd}>{fmt2(d.peso_subtotal)} kg</td>
-                          <td style={styles.modalDetalleTd}>{fmt2(d.subtotal)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+                  {ordenEnvioDetalle.detalles &&
+                    ordenEnvioDetalle.detalles.length > 0 && (
+                      <table style={styles.modalDetalleTable}>
+                        <thead>
+                          <tr>
+                            <th style={styles.modalDetalleTh}>Producto</th>
+                            <th style={styles.modalDetalleTh}>Cant.</th>
+                            <th style={styles.modalDetalleTh}>Peso unit.</th>
+                            <th style={styles.modalDetalleTh}>Peso subtotal</th>
+                            <th style={styles.modalDetalleTh}>Subtotal (Bs)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ordenEnvioDetalle.detalles.map((d) => (
+                            <tr key={d.id_detalleo}>
+                              <td style={styles.modalDetalleTd}>
+                                {d.producto || d.id_producto_nombre || "-"}
+                              </td>
+                              <td style={styles.modalDetalleTd}>
+                                {d.cantidad ?? "-"}
+                              </td>
+                              <td style={styles.modalDetalleTd}>
+                                {fmt2(d.peso_unitario)} kg
+                              </td>
+                              <td style={styles.modalDetalleTd}>
+                                {fmt2(d.peso_subtotal)} kg
+                              </td>
+                              <td style={styles.modalDetalleTd}>
+                                {fmt2(d.subtotal)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
 
-                <div style={styles.modalActionsRow}>
-                  <button type="button" style={styles.buttonSecondary} onClick={cerrarModalOrdenEnvio}>
-                    Cerrar
-                  </button>
-                </div>
-              </>
-            )}
+                  <div style={styles.modalActionsRow}>
+                    <button
+                      type="button"
+                      style={styles.buttonSecondary}
+                      onClick={cerrarModalOrdenEnvio}
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </>
+              )}
           </div>
         </div>
       )}

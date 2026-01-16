@@ -1,6 +1,6 @@
 // frontend/src/pages/Transportistas.jsx
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import api from "../api/api";
 
 const IconTruck = () => (
@@ -54,6 +54,17 @@ const IconRefresh = () => (
   </svg>
 );
 
+// Helper para mostrar solo fecha (dd/mm/aaaa)
+const formatDateOnly = (value) => {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (isNaN(d)) return "-";
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 export default function TransporteEnvio() {
   const [envio, setEnvio] = useState(null);
   const [ordenes, setOrdenes] = useState([]);
@@ -64,7 +75,7 @@ export default function TransporteEnvio() {
 
   // filtros
   const [filtroTexto, setFiltroTexto] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState("");
+  const [ordenSort, setOrdenSort] = useState(""); // "", "PESADAS", "LIVIANAS"
 
   // orden seleccionada
   const [ordenSeleccionada, setOrdenSeleccionada] = useState(null);
@@ -79,9 +90,10 @@ export default function TransporteEnvio() {
     try {
       const params = {};
       if (filtroTexto) params.q = filtroTexto;
-      if (filtroEstado) params.estado = filtroEstado;
 
-      const res = await api.get("base/transporte/mi-envio/ordenes/", { params });
+      const res = await api.get("base/transporte/mi-envio/ordenes/", {
+        params,
+      });
       setOrdenes(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error(err);
@@ -99,7 +111,7 @@ export default function TransporteEnvio() {
       if (res.data && res.data.id_envio) {
         setEnvio(res.data);
 
-        // 👇 SOLO cargamos órdenes si el envío ya está EN CURSO
+        // 👇 Solo cargamos órdenes si el envío ya está EN CURSO
         if (res.data.estado === "EN CURSO") {
           await cargarOrdenes();
         } else {
@@ -138,7 +150,7 @@ export default function TransporteEnvio() {
 
   const limpiarFiltros = () => {
     setFiltroTexto("");
-    setFiltroEstado("");
+    setOrdenSort("");
     setMensaje("");
     setError("");
     cargarOrdenes();
@@ -280,9 +292,53 @@ export default function TransporteEnvio() {
     return { bg: "#e2e8f0", text: "#475569" };
   };
 
-  // Helper for mostrar botón "Iniciar viaje"
-  const puedeIniciarViaje = envio && envio.estado !== "EN CURSO" && envio.estado !== "TERMINADO";
-  console.log("[Transportistas] Estado del envío:", envio?.estado);
+  // Helper para mostrar botón "Iniciar viaje"
+  const puedeIniciarViaje =
+    envio && envio.estado !== "EN CURSO" && envio.estado !== "TERMINADO";
+
+  // Cantidad de órdenes asignadas al envío (probar diferentes campos del backend)
+  const totalOrdenesAsignadas = envio
+    ? envio.cantidad_ordenes ??
+      envio.total_ordenes ??
+      envio.cantidad_ordenes_total ??
+      ordenes.length
+    : 0;
+
+  // Capacidad máxima, peso total y porcentaje de capacidad utilizada
+  const capacidadMaxima =
+    envio && envio.unidad_capacidad != null
+      ? Number(envio.unidad_capacidad)
+      : null;
+  const pesoEnvio =
+    envio && envio.peso_total != null ? Number(envio.peso_total) : 0;
+  const porcentajeCapacidad =
+    capacidadMaxima && capacidadMaxima > 0
+      ? Math.min(100, (pesoEnvio / capacidadMaxima) * 100)
+      : null;
+
+  // Ordenar por peso (más pesadas / más livianas)
+  const ordenesOrdenadas = useMemo(() => {
+    const copia = [...ordenes];
+    if (ordenSort === "PESADAS") {
+      copia.sort(
+        (a, b) => Number(b.peso_total || 0) - Number(a.peso_total || 0)
+      );
+    } else if (ordenSort === "LIVIANAS") {
+      copia.sort(
+        (a, b) => Number(a.peso_total || 0) - Number(b.peso_total || 0)
+      );
+    }
+    return copia;
+  }, [ordenes, ordenSort]);
+
+  // Detectar cuando todas las órdenes están en estado final
+  const todasEntregasCompletas = useMemo(() => {
+    if (!ordenes || ordenes.length === 0) return false;
+    const finales = ["ENTREGADA", "NO ENTREGADA", "DEVUELTA"];
+    return ordenes.every((o) =>
+      finales.includes((o.estado_de_envio || "").toUpperCase())
+    );
+  }, [ordenes]);
 
   return (
     <div style={styles.container}>
@@ -360,7 +416,74 @@ export default function TransporteEnvio() {
                 </h3>
                 <p style={{ margin: "4px 0", color: "#64748b" }}>
                   Unidad asignada:{" "}
+                  <strong>
+                    {envio.unidad_codigo ||
+                      envio.unidad ||
+                      "Sin unidad asignada"}
+                  </strong>
+                </p>
+                <p style={{ margin: "2px 0", color: "#64748b" }}>
+                  Placa:{" "}
                   <strong>{envio.unidad || "Sin placa registrada"}</strong>
+                </p>
+                <p style={{ margin: "2px 0", color: "#64748b" }}>
+                  Capacidad máxima:{" "}
+                  <strong>
+                    {capacidadMaxima !== null
+                      ? `${capacidadMaxima.toFixed(2)} kg`
+                      : "-"}
+                  </strong>
+                </p>
+                <p style={{ margin: "2px 0", color: "#64748b" }}>
+                  Peso total del envío:{" "}
+                  <strong>{pesoEnvio.toFixed(2)} kg</strong>
+                </p>
+                {porcentajeCapacidad !== null && (
+                  <div style={{ margin: "4px 0 6px" }}>
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#64748b",
+                        marginBottom: 2,
+                      }}
+                    >
+                      Uso de capacidad:{" "}
+                      <strong>
+                        {porcentajeCapacidad.toFixed(1)}
+                        %
+                      </strong>
+                    </div>
+                    <div
+                      style={{
+                        width: "200px",
+                        maxWidth: "100%",
+                        height: "6px",
+                        borderRadius: "999px",
+                        backgroundColor: "#e2e8f0",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${porcentajeCapacidad}%`,
+                          height: "100%",
+                          backgroundColor: "#16a34a",
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+                <p style={{ margin: "2px 0", color: "#64748b" }}>
+                  Fecha del envío:{" "}
+                  <strong>
+                    {formatDateOnly(
+                      envio.fecha_salida || envio.fecha || envio.fecha_envio
+                    )}
+                  </strong>
+                </p>
+                <p style={{ margin: "2px 0", color: "#64748b" }}>
+                  Órdenes asignadas:{" "}
+                  <strong>{totalOrdenesAsignadas}</strong>
                 </p>
                 <p style={{ margin: "2px 0", color: "#64748b" }}>
                   Estado actual:{" "}
@@ -423,6 +546,26 @@ export default function TransporteEnvio() {
               </div>
             )}
 
+            {/* MENSAJE CUANDO TODAS LAS ENTREGAS ESTÁN COMPLETAS */}
+            {envio.estado === "EN CURSO" &&
+              ordenes.length > 0 &&
+              todasEntregasCompletas && (
+                <div
+                  style={{
+                    padding: 14,
+                    borderRadius: 10,
+                    backgroundColor: "#ecfdf5",
+                    border: "1px solid #bbf7d0",
+                    color: "#166534",
+                    fontSize: "0.9rem",
+                    marginBottom: 12,
+                  }}
+                >
+                  Ya completaste todas tus entregas de este viaje, puedes
+                  finalizar el envío.
+                </div>
+              )}
+
             {/* FILTROS + ÓRDENES SOLO CUANDO ESTÁ EN CURSO */}
             {envio.estado === "EN CURSO" && (
               <>
@@ -440,17 +583,15 @@ export default function TransporteEnvio() {
                       />
                     </div>
                     <div>
-                      <label style={styles.label}>Estado de la orden</label>
+                      <label style={styles.label}>Ordenar por peso</label>
                       <select
                         style={styles.select}
-                        value={filtroEstado}
-                        onChange={(e) => setFiltroEstado(e.target.value)}
+                        value={ordenSort}
+                        onChange={(e) => setOrdenSort(e.target.value)}
                       >
-                        <option value="">Todos</option>
-                        <option value="PREPARADA">Preparada</option>
-                        <option value="ENTREGADA">Entregada</option>
-                        <option value="NO ENTREGADA">No entregada</option>
-                        <option value="DEVUELTA">Devuelta</option>
+                        <option value="">Sin orden especial</option>
+                        <option value="PESADAS">Más pesadas primero</option>
+                        <option value="LIVIANAS">Más livianas primero</option>
                       </select>
                     </div>
                   </div>
@@ -477,7 +618,7 @@ export default function TransporteEnvio() {
 
                 {/* LISTADO ÓRDENES */}
                 <div style={styles.content}>
-                  {ordenes.length === 0 ? (
+                  {ordenesOrdenadas.length === 0 ? (
                     <div
                       style={{
                         padding: 32,
@@ -489,11 +630,17 @@ export default function TransporteEnvio() {
                     </div>
                   ) : (
                     <div style={{ display: "grid", gap: 12, padding: 16 }}>
-                      {ordenes.map((o) => {
+                      {ordenesOrdenadas.map((o) => {
                         const badge = getBadgeColor(o.estado_de_envio);
                         const isSelected =
                           ordenSeleccionada &&
                           ordenSeleccionada.id_orden === o.id_orden;
+                        const telefonoCliente =
+                          o.telefono_cliente ||
+                          o.telefono ||
+                          o.cliente_telefono ||
+                          "Sin teléfono registrado";
+
                         return (
                           <div
                             key={o.id_orden}
@@ -560,7 +707,7 @@ export default function TransporteEnvio() {
                               style={{
                                 fontSize: "0.85rem",
                                 color: "#64748b",
-                                marginBottom: 8,
+                                marginBottom: 4,
                               }}
                             >
                               Dirección:{" "}
@@ -573,12 +720,16 @@ export default function TransporteEnvio() {
                               style={{
                                 fontSize: "0.85rem",
                                 color: "#64748b",
-                                marginBottom: 8,
+                                marginBottom: 4,
                               }}
                             >
                               Monto total:{" "}
                               <strong style={{ color: "#0f172a" }}>
                                 Bs {Number(o.precio_final || 0).toFixed(2)}
+                              </strong>{" "}
+                              · Peso:{" "}
+                              <strong style={{ color: "#0f172a" }}>
+                                {Number(o.peso_total || 0).toFixed(2)} kg
                               </strong>
                             </div>
 
@@ -638,26 +789,67 @@ export default function TransporteEnvio() {
                               </button>
                             </div>
 
-                            {/* Detalles productos si está seleccionada */}
-                            {isSelected &&
-                              o.detalles &&
-                              o.detalles.length > 0 && (
+                            {/* Bloque expandido: info cliente + productos */}
+                            {isSelected && (
+                              <div
+                                style={{
+                                  marginTop: 10,
+                                  paddingTop: 10,
+                                  borderTop: "1px dashed #e2e8f0",
+                                }}
+                              >
+                                {/* Info cliente */}
                                 <div
                                   style={{
-                                    marginTop: 10,
-                                    paddingTop: 10,
-                                    borderTop: "1px dashed #e2e8f0",
+                                    fontSize: "0.8rem",
+                                    color: "#64748b",
+                                    marginBottom: 6,
                                   }}
                                 >
-                                  <div
-                                    style={{
-                                      fontSize: "0.8rem",
-                                      color: "#64748b",
-                                      marginBottom: 4,
-                                    }}
-                                  >
-                                    Productos en esta orden:
-                                  </div>
+                                  Información del cliente:
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "0.82rem",
+                                    color: "#0f172a",
+                                    marginBottom: 2,
+                                  }}
+                                >
+                                  <strong>Nombre:</strong> {o.cliente}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "0.82rem",
+                                    color: "#0f172a",
+                                    marginBottom: 2,
+                                  }}
+                                >
+                                  <strong>Dirección:</strong>{" "}
+                                  {o.direccion || "Sin dirección registrada"}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "0.82rem",
+                                    color: "#0f172a",
+                                    marginBottom: 8,
+                                  }}
+                                >
+                                  <strong>Teléfono:</strong>{" "}
+                                  {telefonoCliente}
+                                </div>
+
+                                {/* Detalle de productos */}
+                                <div
+                                  style={{
+                                    fontSize: "0.8rem",
+                                    color: "#64748b",
+                                    marginBottom: 4,
+                                  }}
+                                >
+                                  Productos en esta orden:
+                                </div>
+
+                                {o.detalles && o.detalles.length > 0 ? (
                                   <table
                                     style={{
                                       width: "100%",
@@ -668,8 +860,7 @@ export default function TransporteEnvio() {
                                     <thead>
                                       <tr
                                         style={{
-                                          borderBottom:
-                                            "1px solid #e2e8f0",
+                                          borderBottom: "1px solid #e2e8f0",
                                         }}
                                       >
                                         <th
@@ -689,6 +880,15 @@ export default function TransporteEnvio() {
                                           }}
                                         >
                                           Cant.
+                                        </th>
+                                        <th
+                                          style={{
+                                            textAlign: "right",
+                                            paddingBottom: 4,
+                                            color: "#475569",
+                                          }}
+                                        >
+                                          Peso
                                         </th>
                                         <th
                                           style={{
@@ -728,6 +928,15 @@ export default function TransporteEnvio() {
                                               color: "#0f172a",
                                             }}
                                           >
+                                            {Number(d.peso || 0).toFixed(2)} kg
+                                          </td>
+                                          <td
+                                            style={{
+                                              padding: "4px 0",
+                                              textAlign: "right",
+                                              color: "#0f172a",
+                                            }}
+                                          >
                                             Bs{" "}
                                             {Number(
                                               d.subtotal || 0
@@ -737,8 +946,19 @@ export default function TransporteEnvio() {
                                       ))}
                                     </tbody>
                                   </table>
-                                </div>
-                              )}
+                                ) : (
+                                  <div
+                                    style={{
+                                      fontSize: "0.8rem",
+                                      color: "#94a3b8",
+                                      marginTop: 4,
+                                    }}
+                                  >
+                                    No hay productos para mostrar.
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
