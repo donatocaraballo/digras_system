@@ -1766,12 +1766,6 @@ export default function ListadoOrdenes() {
                   <strong>Correo:</strong>{" "}
                   {vendedorSeleccionado.email || "-"}
                 </div>
-                {typeof vendedorSeleccionado.telefono !== "undefined" && (
-                  <div>
-                    <strong>Teléfono:</strong>{" "}
-                    {vendedorSeleccionado.telefono || "-"}
-                  </div>
-                )}
                 <div>
                   <strong>Tipo usuario:</strong>{" "}
                   {vendedorSeleccionado.tipo || "-"}
