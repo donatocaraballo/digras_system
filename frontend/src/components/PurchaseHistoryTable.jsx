@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api/api'; 
 import AdvancedSearchBar from './AdvancedSearchBar';
 import RegisterPaymentModal from './RegisterPaymentModal';
-import toast from 'react-hot-toast';
+import toast from 'react-hot-toast'; 
 
 const COMPRAS_URL = '/compras/compras/'; 
 
@@ -12,12 +12,19 @@ const COMPRAS_URL = '/compras/compras/';
 const IconEdit = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>;
 const IconTrash = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
 const IconDollar = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>;
+const IconAlert = () => <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>;
 
 function PurchaseHistoryTable({ refreshTrigger, onUpdate, onEditClick, onRowClick, selectedId }) {
     const [compras, setCompras] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    
+    // Estado para el modal de pago
     const [paymentOrder, setPaymentOrder] = useState(null);
+    
+    // Estado para el modal de eliminación (CENTRADO)
+    const [deleteTargetId, setDeleteTargetId] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     
     const [searchTerm, setSearchTerm] = useState('');
     const [filters, setFilters] = useState({ startDate: '', endDate: '', status: '', secondary: '' });
@@ -47,6 +54,7 @@ function PurchaseHistoryTable({ refreshTrigger, onUpdate, onEditClick, onRowClic
             'PAGADO_PARCIAL': { bg: '#ccfbf1', text: '#115e59' }, 
             'RECIBIDA_PARCIAL': { bg: '#ccfbf1', text: '#115e59' },
             'CANCELADA': { bg: '#fee2e2', text: '#991b1b' }, 
+            'DEVUELTA': { bg: '#fee2e2', text: '#991b1b' }, 
         };
         return map[estado] || { bg: '#f1f5f9', text: '#475569' };
     };
@@ -71,25 +79,25 @@ function PurchaseHistoryTable({ refreshTrigger, onUpdate, onEditClick, onRowClic
         return matchText && matchDate && matchStatus && matchPay;
     });
 
-    const handleDelete = (compraId) => {
-        toast((t) => (
-            <div style={{textAlign:'center'}}>
-                <p>¿Eliminar Compra <b>#{compraId}</b>?</p>
-                <div style={{display:'flex', gap:'10px', justifyContent:'center'}}>
-                    <button onClick={() => toast.dismiss(t.id)} style={styles.toastBtnCancel}>Cancelar</button>
-                    <button onClick={() => { toast.dismiss(t.id); executeDelete(compraId); }} style={styles.toastBtnConfirm}>Sí, eliminar</button>
-                </div>
-            </div>
-        ));
+    // --- LÓGICA DE ELIMINACIÓN ---
+    const handleDeleteClick = (compraId) => {
+        setDeleteTargetId(compraId); // Abre el modal centrado
     };
 
-    const executeDelete = async (compraId) => {
+    const confirmDelete = async () => {
+        if (!deleteTargetId) return;
+        setIsDeleting(true);
         try {
-            await api.delete(`${COMPRAS_URL}${compraId}/`);
-            toast.success(`Compra #${compraId} eliminada`);
+            await api.delete(`${COMPRAS_URL}${deleteTargetId}/`);
+            toast.success(`Compra #${deleteTargetId} eliminada`);
             onUpdate();
+            fetchCompras();
+            setDeleteTargetId(null); // Cierra modal
         } catch (error) {
-            toast.error("Error al eliminar. Verifique permisos.");
+            const msg = error.response?.data?.error || "Error al eliminar.";
+            toast.error(msg);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -108,7 +116,9 @@ function PurchaseHistoryTable({ refreshTrigger, onUpdate, onEditClick, onRowClic
                             { value: 'PENDIENTE_APROBACION', label: '🟡 Pendiente' },
                             { value: 'APROBADA', label: '🔵 Aprobada' },
                             { value: 'RECIBIDA_COMPLETA', label: '🟢 Recibida' },
-                            { value: 'CANCELADA', label: '🔴 Cancelada' }
+                            { value: 'RECIBIDA_PARCIAL', label: '🟠 Recibida Parcial' },
+                            { value: 'CANCELADA', label: '🔴 Cancelada' },
+                            { value: 'DEVUELTA', label: '🔴 Devuelta' }
                         ]
                     }}
                 />
@@ -132,19 +142,9 @@ function PurchaseHistoryTable({ refreshTrigger, onUpdate, onEditClick, onRowClic
                             const envioStyle = getStatusStyle(compra.estado_de_envio);
                             const pagoStyle = getStatusStyle(compra.estado_de_pago);
                             
-                            // =================================================================
-                            // 🔒 LÓGICA DE BLOQUEO ESTRICTA
-                            // =================================================================
-                            
-                            // 1. Bloqueo por Envío: Si no es "PENDIENTE", se bloquea.
-                            const isEnvioLocked = !['PENDIENTE_APROBACION', 'PENDIENTE'].includes(compra.estado_de_envio);
-                            
-                            // 2. Bloqueo por Pago: Si tiene CUALQUIER pago (Total o Parcial), se bloquea.
-                            const isPagoLocked = ['PAGADO', 'PAGADO_PARCIAL'].includes(compra.estado_de_pago);
-
-                            // Si cualquiera de los dos es true, la orden está "cerrada" para edición/borrado
-                            const isLocked = isEnvioLocked || isPagoLocked;
-
+                            const isLocked = !['PENDIENTE_APROBACION', 'PENDIENTE'].includes(compra.estado_de_envio) || 
+                                             ['PAGADO', 'PAGADO_PARCIAL'].includes(compra.estado_de_pago);
+                            const isPayable = ['RECIBIDA_COMPLETA', 'RECIBIDA_PARCIAL'].includes(compra.estado_de_envio);
                             const isSelected = selectedId === compra.id_compra;
 
                             return (
@@ -178,24 +178,26 @@ function PurchaseHistoryTable({ refreshTrigger, onUpdate, onEditClick, onRowClic
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); onEditClick(compra); }} 
                                                 disabled={isLocked} 
-                                                title={isLocked ? "No se puede editar (Orden procesada o con pagos)" : "Editar"} 
+                                                title={isLocked ? "No editable (Procesada/Pagada)" : "Editar"} 
                                                 style={{...styles.iconBtn, color: isLocked ? '#cbd5e1' : '#3b82f6', cursor: isLocked ? 'not-allowed' : 'pointer'}}
                                             >
                                                 <IconEdit />
                                             </button>
                                             
                                             <button 
-                                                onClick={(e) => { e.stopPropagation(); setPaymentOrder(compra); }} 
-                                                title="Pagar" 
-                                                style={{...styles.iconBtn, color: '#f59e0b'}}
+                                                onClick={(e) => { e.stopPropagation(); if(isPayable) setPaymentOrder(compra); }} 
+                                                disabled={!isPayable}
+                                                title={!isPayable ? "Debe recibir la mercancía para pagar" : "Registrar Pago"} 
+                                                style={{...styles.iconBtn, color: !isPayable ? '#cbd5e1' : '#f59e0b', cursor: !isPayable ? 'not-allowed' : 'pointer'}}
                                             >
                                                 <IconDollar />
                                             </button>
                                             
+                                            {/* BOTÓN ELIMINAR */}
                                             <button 
-                                                onClick={(e) => { e.stopPropagation(); handleDelete(compra.id_compra); }} 
+                                                onClick={(e) => { e.stopPropagation(); handleDeleteClick(compra.id_compra); }} 
                                                 disabled={isLocked} 
-                                                title={isLocked ? "No se puede eliminar (Orden procesada o con pagos)" : "Eliminar"} 
+                                                title={isLocked ? "No eliminable (Procesada/Pagada)" : "Eliminar"} 
                                                 style={{...styles.iconBtn, color: isLocked ? '#cbd5e1' : '#ef4444', cursor: isLocked ? 'not-allowed' : 'pointer'}}
                                             >
                                                 <IconTrash />
@@ -210,12 +212,46 @@ function PurchaseHistoryTable({ refreshTrigger, onUpdate, onEditClick, onRowClic
                 {filteredCompras.length === 0 && <div style={styles.empty}>No se encontraron registros</div>}
             </div>
 
+            {/* MODAL DE PAGOS */}
             {paymentOrder && (
                 <RegisterPaymentModal 
                     compra={paymentOrder} 
                     onClose={() => setPaymentOrder(null)} 
-                    onSuccess={() => { setPaymentOrder(null); onUpdate(); }} 
+                    onSuccess={() => { setPaymentOrder(null); onUpdate(); fetchCompras(); }} 
                 />
+            )}
+
+            {/* 🚨 NUEVO MODAL DE CONFIRMACIÓN DE ELIMINACIÓN (CENTRADO) */}
+            {deleteTargetId && (
+                <div style={styles.modalOverlay}>
+                    <div style={styles.confirmModal}>
+                        <div style={{marginBottom: 15, display:'flex', flexDirection:'column', alignItems:'center'}}>
+                            <div style={{background:'#fee2e2', padding:10, borderRadius:'50%', marginBottom:10}}>
+                                <IconAlert />
+                            </div>
+                            <h3 style={{margin:0, color:'#1e293b'}}>¿Eliminar Compra #{deleteTargetId}?</h3>
+                        </div>
+                        <p style={{textAlign:'center', color:'#64748b', fontSize:'0.9rem', marginBottom:20}}>
+                            Esta acción no se puede deshacer. Se eliminará el registro permanentemente.
+                        </p>
+                        <div style={{display:'flex', gap:10, justifyContent:'center'}}>
+                            <button 
+                                onClick={() => setDeleteTargetId(null)} 
+                                style={styles.toastBtnCancel}
+                                disabled={isDeleting}
+                            >
+                                Cancelar
+                            </button>
+                            <button 
+                                onClick={confirmDelete} 
+                                style={styles.toastBtnConfirm}
+                                disabled={isDeleting}
+                            >
+                                {isDeleting ? 'Eliminando...' : 'Sí, eliminar'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
@@ -239,8 +275,24 @@ const styles = {
     iconBtn: { background: 'none', border: 'none', padding: '6px', borderRadius: '6px', transition: 'background 0.2s' },
     empty: { padding: '40px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' },
     
-    toastBtnConfirm: { background: '#ef4444', color:'white', border:'none', padding:'6px 12px', borderRadius:'4px', cursor:'pointer' },
-    toastBtnCancel: { background: '#e2e8f0', color:'#333', border:'none', padding:'6px 12px', borderRadius:'4px', cursor:'pointer' }
+    // Estilos del Modal Centrado
+    modalOverlay: {
+        position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)',
+        display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999 // Z-Index muy alto
+    },
+    confirmModal: {
+        backgroundColor: '#fff', padding: '30px', borderRadius: '16px', width: '90%', maxWidth: '400px',
+        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+        animation: 'scaleUp 0.2s ease-out'
+    },
+    
+    toastBtnConfirm: { background: '#ef4444', color:'white', border:'none', padding:'10px 20px', borderRadius:'8px', cursor:'pointer', fontWeight:'600', fontSize:'0.9rem' },
+    toastBtnCancel: { background: '#f1f5f9', color:'#334155', border:'1px solid #e2e8f0', padding:'10px 20px', borderRadius:'8px', cursor:'pointer', fontWeight:'600', fontSize:'0.9rem' }
 };
+
+// Inyectar animación
+const styleSheet = document.createElement("style");
+styleSheet.innerText = `@keyframes scaleUp { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }`;
+document.head.appendChild(styleSheet);
 
 export default PurchaseHistoryTable;

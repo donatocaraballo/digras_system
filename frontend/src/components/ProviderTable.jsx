@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import toast, { Toaster } from 'react-hot-toast'; // Importamos Toaster
+import toast, { Toaster } from 'react-hot-toast'; 
 import AdvancedSearchBar from './AdvancedSearchBar';
 
 const PROVEEDORES_URL = '/api/compras/proveedores/';
@@ -43,7 +43,7 @@ function ProviderTable({ refreshTrigger, onEditClick, filterText }) {
                 </div>
             </div>
         ), {
-            duration: 5000, // Dar tiempo para decidir
+            duration: 5000, 
             position: 'top-center',
             style: { border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }
         });
@@ -67,6 +67,7 @@ function ProviderTable({ refreshTrigger, onEditClick, filterText }) {
     const filteredProviders = proveedores.filter(p => {
         const term = activeSearchTerm.toLowerCase();
         return p.nombre.toLowerCase().includes(term) ||
+               (p.rif && p.rif.toLowerCase().includes(term)) || // 🚨 BUSQUEDA POR RIF
                (p.correo && p.correo.toLowerCase().includes(term)) ||
                (p.telefono && p.telefono.includes(term));
     });
@@ -75,14 +76,13 @@ function ProviderTable({ refreshTrigger, onEditClick, filterText }) {
 
     return (
         <div style={styles.card}>
-            {/* 🚨 TOASTER CON Z-INDEX MÁXIMO PARA GARANTIZAR VISIBILIDAD */}
             <Toaster 
                 containerStyle={{
                     top: 20,
                     left: 20,
                     bottom: 20,
                     right: 20,
-                    zIndex: 999999 // Muy alto para superar cualquier navbar o modal
+                    zIndex: 999999 
                 }} 
             />
 
@@ -94,7 +94,7 @@ function ProviderTable({ refreshTrigger, onEditClick, filterText }) {
                         filters={{}}
                         onFilterChange={(key, value) => { if(key === 'CLEAR') setInternalSearch('') }}
                         config={{
-                            searchPlaceholder: "🔍 Buscar por Nombre, RIF o Contacto...",
+                            searchPlaceholder: "🔍 Buscar por Nombre, RIF o Contacto...", // 🚨 Placeholder actualizado
                             showDateRange: false, 
                             showPriceRange: false,
                             statusOptions: null
@@ -108,6 +108,7 @@ function ProviderTable({ refreshTrigger, onEditClick, filterText }) {
                     <thead>
                         <tr style={styles.theadRow}>
                             <th style={styles.th}>Proveedor</th>
+                            <th style={styles.th}>RIF/Cédula</th>
                             <th style={styles.th}>Contacto</th>
                             <th style={styles.th}>Dirección</th>
                             <th style={styles.thAction}>Acciones</th>
@@ -123,10 +124,18 @@ function ProviderTable({ refreshTrigger, onEditClick, filterText }) {
                                         </div>
                                         <div>
                                             <div style={styles.nameText}>{prov.nombre}</div>
-                                            <div style={styles.idText}>ID: {prov.id_proveedor}</div>
+                                            <div style={styles.idText}>ID Sistema: {prov.id_proveedor}</div>
                                         </div>
                                     </div>
                                 </td>
+                                
+                                {/* 🚨 CELDA RIF */}
+                                <td style={styles.td}>
+                                    <span style={{fontFamily: 'monospace', color: '#475569', fontWeight: '600', backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px'}}>
+                                        {prov.rif || '-'}
+                                    </span>
+                                </td>
+
                                 <td style={styles.td}>
                                     {prov.correo && <div style={styles.contactItem}>📧 {prov.correo}</div>}
                                     {prov.telefono && <div style={styles.contactItem}>📞 {prov.telefono}</div>}
@@ -148,7 +157,7 @@ function ProviderTable({ refreshTrigger, onEditClick, filterText }) {
                             </tr>
                         ))}
                         {filteredProviders.length === 0 && (
-                            <tr><td colSpan="4" style={styles.empty}>No se encontraron proveedores.</td></tr>
+                            <tr><td colSpan="5" style={styles.empty}>No se encontraron proveedores.</td></tr>
                         )}
                     </tbody>
                 </table>

@@ -40,8 +40,8 @@ class DetalleCompraSerializer(serializers.ModelSerializer):
     - id_producto_nombre: nombre del producto (solo lectura).
     - id_compra: se vuelve opcional en creación anidada (lo setea el maestro).
     """
-
     id_producto_nombre = serializers.ReadOnlyField(source='id_producto.nombre')
+    producto_sku = serializers.ReadOnlyField(source='id_producto.sku')
 
     class Meta:
         model = DetalleCompra
@@ -50,11 +50,12 @@ class DetalleCompraSerializer(serializers.ModelSerializer):
             'id_compra',
             'id_producto',
             'id_producto_nombre',
+            'producto_sku',
             'cantidad',
             'precio_unitario',
             'subtotal',
         )
-        read_only_fields = ('id_detallec', 'id_producto_nombre')
+        read_only_fields = ('id_detallec', 'id_producto_nombre', 'producto_sku')
 
     def get_fields(self):
         """

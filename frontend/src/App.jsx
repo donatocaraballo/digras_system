@@ -22,8 +22,11 @@ import Usuarios from './pages/Usuarios';
 import RegistroAcciones from './pages/RegistroAcciones';
 import Transportistas from './pages/Transportistas';
 
-// 🚨 COMPONENTE DE ESTILOS FUTURISTAS (El que creamos antes)
+// 🚨 COMPONENTE DE ESTILOS FUTURISTAS
 import GlobalStyles from './components/GlobalStyles';
+
+// 🚨 NUEVO COMPONENTE SCROLL
+import ScrollToTop from './components/ScrollToTop';
 
 // --- MÓDULOS DE VENTAS ---
 import Home from './pages/Home';
@@ -68,6 +71,9 @@ function App() {
         
         {/* 🚨 INYECCIÓN DE MAGIA VISUAL */}
         <GlobalStyles /> 
+
+        {/* 🚨 BOTÓN SCROLL TO TOP GLOBAL */}
+        <ScrollToTop />
 
         <Toaster 
             position="top-center" 

@@ -3,93 +3,61 @@
 import React, { useEffect, useState } from "react";
 import api from "../api/api";
 import { useAuth } from "../AuthContext";
+import jsPDF from "jspdf"; // ➕ Importación para PDF
+import autoTable from "jspdf-autotable"; // ➕ Importación para Tablas PDF
 
 // --- ICONOS SVG ---
 const IconUser = () => (
-  <svg
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
     <circle cx="12" cy="7" r="4"></circle>
   </svg>
 );
 const IconSearch = () => (
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="11" cy="11" r="8"></circle>
     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
   </svg>
 );
 const IconPlus = () => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <line x1="12" y1="5" x2="12" y2="19"></line>
     <line x1="5" y1="12" x2="19" y2="12"></line>
   </svg>
 );
 const IconTrash = () => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-  >
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <polyline points="3 6 5 6 21 6"></polyline>
     <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
   </svg>
 );
 const IconEdit = () => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-  >
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
   </svg>
 );
 const IconRefresh = () => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="23 4 23 10 17 10"></polyline>
     <polyline points="1 20 1 14 7 14"></polyline>
     <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+  </svg>
+);
+// ➕ Icono Imprimir (Definición Agregada)
+const IconPrint = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="6 9 6 2 18 2 18 9"></polyline>
+    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+    <rect x="6" y="14" width="12" height="8"></rect>
+  </svg>
+);
+// ➕ Icono Descargar (Definición Agregada)
+const IconDownload = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+    <polyline points="7 10 12 15 17 10"></polyline>
+    <line x1="12" y1="15" x2="12" y2="3"></line>
   </svg>
 );
 
@@ -322,7 +290,7 @@ const styles = {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 4000,
+    zIndex: 20000,
     padding: "20px",
   },
   modal: {
@@ -367,6 +335,7 @@ export default function Clientes() {
 
   const [formData, setFormData] = useState({
     nombre: "",
+    rif: "",
     telefono: "",
     correo: "",
     direccion: "",
@@ -430,17 +399,105 @@ export default function Clientes() {
     }
     return (
       (c.nombre || "").toLowerCase().includes(texto) ||
+      (c.rif || "").toLowerCase().includes(texto) ||
       (c.correo || "").toLowerCase().includes(texto) ||
       (c.telefono || "").toLowerCase().includes(texto) ||
       matchVendedor
     );
   });
 
+  // --- ➕ NUEVAS FUNCIONES PDF ---
+  
+  // 1. Exportar la tabla completa (filtrada)
+  const exportarListadoPDF = () => {
+    if (filtrados.length === 0) return alert("No hay datos para exportar.");
+    
+    const doc = new jsPDF();
+    doc.setFontSize(14);
+    doc.text("Reporte de Clientes - DIGRAS", 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 22);
+
+    const headers = ["ID", "Nombre", "RIF/Cédula", "Teléfono", "Correo", "Estado"];
+    if (esGerencia) headers.splice(3, 0, "Vendedor");
+
+    const rows = filtrados.map(c => {
+        const row = [
+            c.id_cliente,
+            c.nombre,
+            c.rif || "-",
+            c.telefono || "-",
+            c.correo || "-",
+            c.activo ? "ACTIVO" : "INACTIVO"
+        ];
+        if (esGerencia) row.splice(3, 0, getNombreVendedor(c.id_usuario));
+        return row;
+    });
+
+    autoTable(doc, {
+        head: [headers],
+        body: rows,
+        startY: 30,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [15, 23, 42] }
+    });
+
+    doc.save("listado_clientes.pdf");
+  };
+
+  // 2. Exportar la ficha individual del cliente seleccionado
+  const exportarFichaClientePDF = (cliente) => {
+    if (!cliente) return;
+    const doc = new jsPDF();
+
+    // Encabezado
+    doc.setFillColor(239, 246, 255); // #eff6ff
+    doc.rect(0, 0, 210, 40, "F");
+    doc.setFontSize(18);
+    doc.setTextColor(30, 64, 175); // #1e40af
+    doc.text("Ficha de Cliente", 14, 25);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.text("DIGRAS C.A.", 195, 25, { align: "right" });
+
+    // Datos
+    const dataBody = [
+      ['ID Cliente', `#${cliente.id_cliente}`],
+      ['Nombre / Razón Social', cliente.nombre],
+      ['RIF / Cédula', cliente.rif || "No registrado"],
+      ['Teléfono', cliente.telefono || "-"],
+      ['Correo', cliente.correo || "-"],
+      ['Dirección', cliente.direccion || "-"],
+      ['Estado', cliente.activo ? "ACTIVO" : "INACTIVO"],
+    ];
+
+    if (esGerencia) {
+      dataBody.push(['Vendedor Asignado', getNombreVendedor(cliente.id_usuario)]);
+    }
+
+    dataBody.push(['Órdenes Históricas', cliente.ordenes_totales ?? cliente.total_ordenes ?? 0]);
+    dataBody.push(['Órdenes Activas', cliente.ordenes_activas ?? cliente.total_ordenes_activas ?? 0]);
+
+    autoTable(doc, {
+        startY: 50,
+        head: [['Campo', 'Valor']],
+        body: dataBody,
+        theme: 'grid',
+        headStyles: { fillColor: [30, 64, 175] },
+        columnStyles: { 0: { fontStyle: 'bold', width: 60 } }
+    });
+
+    doc.save(`cliente_${cliente.id_cliente}.pdf`);
+  };
+  // ------------------------------------
+
   const abrirCrear = () => {
     setFormMode("crear");
     setClienteSeleccionado(null);
     setFormData({
       nombre: "",
+      rif: "",
       telefono: "",
       correo: "",
       direccion: "",
@@ -450,7 +507,6 @@ export default function Clientes() {
   };
 
   const abrirEditar = (cliente) => {
-    // Regla: no permitir editar si el cliente tiene órdenes activas
     if (tieneOrdenesActivas(cliente)) {
       alert(
         "Este cliente tiene órdenes activas. Solo se puede editar cuando todas sus órdenes estén ENTREGADAS, DEVUELTAS o CANCELADAS."
@@ -462,6 +518,7 @@ export default function Clientes() {
     setClienteSeleccionado(cliente);
     setFormData({
       nombre: cliente.nombre || "",
+      rif: cliente.rif || "",
       telefono: cliente.telefono || "",
       correo: cliente.correo || "",
       direccion: cliente.direccion || "",
@@ -507,7 +564,6 @@ export default function Clientes() {
   const eliminarCliente = async () => {
     if (!clienteSeleccionado) return;
 
-    // Regla: no se puede eliminar si tiene cualquier orden asociada
     if (tieneOrdenesTotales(clienteSeleccionado)) {
       alert(
         "Este cliente tiene órdenes registradas a su nombre. Solo se puede desactivar, no eliminar."
@@ -538,7 +594,6 @@ export default function Clientes() {
   const cambiarEstadoCliente = async (activo) => {
     if (!clienteSeleccionado) return;
 
-    // Si se intenta desactivar y tiene órdenes activas → bloquear
     if (!activo && tieneOrdenesActivas(clienteSeleccionado)) {
       alert(
         "Este cliente tiene órdenes activas. No se puede desactivar mientras existan órdenes pendientes por entregar."
@@ -578,7 +633,6 @@ export default function Clientes() {
     );
   };
 
-  // --- NUEVAS FUNCIONES DE APOYO PARA ÓRDENES ---
   const tieneOrdenesTotales = (cli) => {
     if (!cli) return false;
     const totales = cli.ordenes_totales ?? cli.total_ordenes ?? 0;
@@ -591,7 +645,6 @@ export default function Clientes() {
     return Number(activas) > 0;
   };
 
-  // flag global para los botones del detalle
   const deshabilitarAccionesPorOrdenesActivas = clienteSeleccionado
     ? tieneOrdenesActivas(clienteSeleccionado)
     : false;
@@ -664,7 +717,7 @@ export default function Clientes() {
                 ...styles.input,
                 paddingLeft: "38px",
               }}
-              placeholder="Buscar por nombre, correo, teléfono o vendedor..."
+              placeholder="Buscar por nombre, RIF, correo o vendedor..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -678,6 +731,16 @@ export default function Clientes() {
             }}
             className="responsive-buttons"
           >
+            {/* ➕ BOTÓN PDF LISTA */}
+            <button
+              type="button"
+              style={styles.btnGhost}
+              onClick={exportarListadoPDF}
+              title="Exportar listado a PDF"
+            >
+              <IconPrint /> Exportar PDF
+            </button>
+
             <button
               type="button"
               style={styles.btnGhost}
@@ -698,6 +761,7 @@ export default function Clientes() {
               <tr>
                 <th style={styles.th}>ID</th>
                 <th style={styles.th}>Nombre</th>
+                <th style={styles.th}>RIF/Cédula</th>
                 {esGerencia && <th style={styles.th}>Vendedor</th>}
                 <th style={styles.th}>Teléfono</th>
                 <th style={styles.th}>Correo</th>
@@ -705,7 +769,6 @@ export default function Clientes() {
               </tr>
             </thead>
             <tbody>
-              {/* Caso 1: no hay clientes en el sistema */}
               {!loading && clientes.length === 0 && (
                 <tr>
                   <td
@@ -715,14 +778,13 @@ export default function Clientes() {
                       color: "#94a3b8",
                       padding: "30px",
                     }}
-                    colSpan={esGerencia ? 6 : 5}
+                    colSpan={esGerencia ? 7 : 6}
                   >
                     No hay clientes registrados.
                   </td>
                 </tr>
               )}
 
-              {/* Caso 2: hay clientes, pero el filtro no coincide */}
               {!loading &&
                 clientes.length > 0 &&
                 filtrados.length === 0 && (
@@ -734,14 +796,13 @@ export default function Clientes() {
                         color: "#94a3b8",
                         padding: "30px",
                       }}
-                      colSpan={esGerencia ? 6 : 5}
+                      colSpan={esGerencia ? 7 : 6}
                     >
                       No hay clientes que coincidan con el filtro actual.
                     </td>
                   </tr>
                 )}
 
-              {/* Listado normal */}
               {filtrados.map((c, idx) => {
                 const isSelected =
                   clienteSeleccionado?.id_cliente === c.id_cliente;
@@ -786,6 +847,7 @@ export default function Clientes() {
                       #{c.id_cliente}
                     </td>
                     <td style={rowBase}>{c.nombre}</td>
+                    <td style={{...rowBase, fontFamily: 'monospace', color: '#475569'}}>{c.rif || "-"}</td>
                     {esGerencia && (
                       <td
                         style={{
@@ -833,6 +895,15 @@ export default function Clientes() {
               }}
             >
               <div>
+                <div style={styles.resumenLine}>
+                  <span style={{ fontWeight: "600", color: "#64748b" }}>
+                    RIF / Cédula
+                  </span>
+                  <span style={{ fontFamily: "monospace", fontWeight: "bold" }}>
+                    {clienteSeleccionado.rif || "No registrado"}
+                  </span>
+                </div>
+
                 {esGerencia && (
                   <div style={styles.resumenLine}>
                     <span style={{ fontWeight: "600", color: "#64748b" }}>
@@ -915,6 +986,16 @@ export default function Clientes() {
                 flexWrap: "wrap",
               }}
             >
+              {/* ➕ BOTÓN PDF FICHA */}
+              <button
+                type="button"
+                style={styles.btnSecondary}
+                onClick={() => exportarFichaClientePDF(clienteSeleccionado)}
+                title="Descargar Ficha PDF"
+              >
+                <IconDownload /> Ficha PDF
+              </button>
+
               <button
                 type="button"
                 style={styles.btnSecondary}
@@ -988,11 +1069,10 @@ export default function Clientes() {
         )}
       </div>
 
-      {/* MODAL */}
+      {/* MODAL CREAR/EDITAR */}
       {showFormModal && (
         <div style={styles.modalOverlay}>
           <div style={styles.modal}>
-            {/* Botón de cierre (X) */}
             <button
               type="button"
               onClick={() => setShowFormModal(false)}
@@ -1034,6 +1114,19 @@ export default function Clientes() {
                     placeholder="Nombre del cliente"
                   />
                 </div>
+                
+                <div>
+                  <label style={styles.label}>RIF / Cédula</label>
+                  <input
+                    style={styles.input}
+                    value={formData.rif}
+                    onChange={(e) =>
+                      handleFormChange("rif", e.target.value)
+                    }
+                    placeholder="J-12345678-9 o V-12345678"
+                  />
+                </div>
+
                 <div>
                   <label style={styles.label}>Teléfono</label>
                   <input

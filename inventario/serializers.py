@@ -43,7 +43,7 @@ class ProductoSerializer(serializers.ModelSerializer):
         fields = (
             'id_producto', 'nombre', 'descripcion', 'fecha_creacion', 'id_marca', 
             'id_categoria', 'sku', 'precio_venta', 'peso_unidad', 
-            'id_marca_nombre', 'id_categoria_nombre', 'existencia_total'
+            'id_marca_nombre', 'id_categoria_nombre', 'existencia_total', 'activo'
         )
 
 # --- Serializador de Lote ---

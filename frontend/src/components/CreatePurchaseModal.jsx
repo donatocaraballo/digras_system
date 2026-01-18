@@ -35,7 +35,8 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
     const fetchCatalogData = useCallback(async () => {
         try {
             const [productsRes, providersRes] = await Promise.all([
-                axios.get(PRODUCTOS_URL),
+                // 🚨 MODIFICADO: Solo productos activos
+                axios.get(PRODUCTOS_URL + '?activo=true'),
                 axios.get(PROVEEDORES_URL)
             ]);
             setProductsList(productsRes.data);

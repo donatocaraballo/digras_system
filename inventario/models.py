@@ -37,6 +37,8 @@ class Producto(models.Model):
     precio_venta = models.DecimalField(max_digits=10, decimal_places=2)
     peso_unidad = models.DecimalField(max_digits=10, decimal_places=2)
 
+    activo = models.BooleanField(default=True)
+
     def save(self, *args, **kwargs):
         # 🚨 Eliminamos la lógica de 'request' y 'registrar_accion' de aquí.
         # Solo dejamos la generación de SKU automática.

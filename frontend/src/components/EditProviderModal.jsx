@@ -1,12 +1,13 @@
 // frontend/src/components/EditProviderModal.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 
 const PROVEEDORES_URL = '/api/compras/proveedores/';
 
 function EditProviderModal({ provider, onClose, onSave }) {
     const [nombre, setNombre] = useState(provider.nombre);
+    const [rif, setRif] = useState(provider.rif || ''); // 🚨 NUEVO
     const [direccion, setDireccion] = useState(provider.direccion);
     const [correo, setCorreo] = useState(provider.correo);
     const [telefono, setTelefono] = useState(provider.telefono);
@@ -16,7 +17,8 @@ function EditProviderModal({ provider, onClose, onSave }) {
         e.preventDefault();
         setStatus('Guardando cambios...');
         try {
-            const updateData = { nombre, direccion, correo, telefono };
+            // Incluir RIF en el payload
+            const updateData = { nombre, rif, direccion, correo, telefono };
             // PATCH: /api/compras/proveedores/{id}/
             await axios.patch(`${PROVEEDORES_URL}${provider.id_proveedor}/`, updateData);
             
@@ -38,6 +40,10 @@ function EditProviderModal({ provider, onClose, onSave }) {
                     <label style={labelStyle}>Nombre:</label>
                     <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} required style={inputStyle} />
                     
+                    {/* 🚨 INPUT RIF */}
+                    <label style={labelStyle}>RIF / Cédula:</label>
+                    <input type="text" value={rif} onChange={(e) => setRif(e.target.value)} placeholder="J-12345678-9" style={inputStyle} />
+
                     <label style={labelStyle}>Dirección:</label>
                     <input type="text" value={direccion} onChange={(e) => setDireccion(e.target.value)} style={inputStyle} />
                     

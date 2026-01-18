@@ -145,6 +145,18 @@ const styles = {
     fontWeight: "600",
     display: 'flex', alignItems:'center', gap:'6px'
   },
+  buttonDisabled: {
+    borderRadius: "8px",
+    padding: "6px 12px",
+    background: "#f3f4f6",
+    border: "1px solid #e5e7eb",
+    color: "#9ca3af",
+    cursor: "not-allowed",
+    fontSize: "0.8rem",
+    fontWeight: "600",
+    display: 'flex', alignItems:'center', gap:'6px',
+    opacity: 0.7
+  },
 
   // Tabla
   tableWrapper: {
@@ -212,7 +224,7 @@ const styles = {
     display: "flex", 
     justifyContent: "center", 
     alignItems: "center", 
-    zIndex: 20000, // 🚨 CORRECCIÓN: Z-Index muy alto para tapar el Navbar (que es 9999)
+    zIndex: 20000, 
   },
   // Modal de Formulario (Grande)
   modal: {
@@ -392,6 +404,24 @@ export default function Usuarios() {
 
   // 6. Confirmación y Acciones Seguras
   const triggerToggleActive = (user) => {
+      // 🚨 VALIDACIÓN: No desactivarse a uno mismo
+      const currentId = currentUser.id_usuario || currentUser.id;
+      const targetId = user.id_usuario || user.id;
+
+      if (currentId === targetId) {
+          toast.error("No puedes desactivar tu propia cuenta.");
+          return;
+      }
+
+      // 🚨 VALIDACIÓN: Gerente no puede desactivar a otro Gerente
+      const isTargetGerente = (user.tipo || "").toUpperCase() === "GERENTE";
+      const amIGerente = (currentUser.tipo || "").toUpperCase() === "GERENTE";
+
+      if (amIGerente && isTargetGerente) {
+          toast.error("Un Gerente no puede desactivar a otro Gerente.");
+          return;
+      }
+
       const action = user.is_active ? "desactivar" : "activar";
       const type = user.is_active ? 'danger' : 'success';
       
@@ -478,6 +508,22 @@ export default function Usuarios() {
                     
                     {usuariosFiltrados.map((u, idx) => {
                         const rowStyle = idx % 2 === 1 ? styles.rowAlt : {};
+                        
+                        // 🚨 Lógica de bloqueo visual en la tabla
+                        const currentId = currentUser.id_usuario || currentUser.id;
+                        const targetId = u.id_usuario || u.id;
+                        const isSelf = currentId === targetId;
+                        
+                        const isTargetGerente = (u.tipo || "").toUpperCase() === "GERENTE";
+                        const amIGerente = (currentUser.tipo || "").toUpperCase() === "GERENTE";
+                        
+                        // Si soy yo mismo, o soy gerente intentando editar otro gerente, bloqueo el botón
+                        const isActionDisabled = isSelf || (amIGerente && isTargetGerente);
+                        
+                        let tooltip = "";
+                        if (isSelf) tooltip = "No puedes desactivar tu propia cuenta.";
+                        else if (amIGerente && isTargetGerente) tooltip = "No puedes desactivar a otro Gerente.";
+
                         return (
                             <tr key={u.id_usuario} style={rowStyle}>
                                 <td style={{...styles.td, fontWeight:'700', color:'#0f172a'}}>@{u.username}</td>
@@ -501,8 +547,13 @@ export default function Usuarios() {
                                         </button>
                                         
                                         <button 
-                                            onClick={() => triggerToggleActive(u)} 
-                                            style={u.is_active ? styles.buttonDanger : styles.buttonSuccess}
+                                            onClick={() => !isActionDisabled && triggerToggleActive(u)} 
+                                            style={isActionDisabled 
+                                                ? styles.buttonDisabled 
+                                                : (u.is_active ? styles.buttonDanger : styles.buttonSuccess)
+                                            }
+                                            disabled={isActionDisabled}
+                                            title={tooltip}
                                         >
                                             {u.is_active ? <><IconLock /> Desactivar</> : <><IconUnlock /> Activar</>}
                                         </button>

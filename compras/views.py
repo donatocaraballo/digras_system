@@ -11,15 +11,24 @@ from base.utils import registrar_accion
 from .models import Compra, DetalleCompra, Proveedor, PagoCompra
 from inventario.models import Lote, Existencia 
 from .serializers import CompraSerializer, DetalleCompraSerializer, ProveedorSerializer
-# from base.models import Usuario # Asumiendo que ya está importado si lo usas en el admin.
 from base.utils import registrar_accion
 
 # Clase CompraViewSet
 class CompraViewSet(viewsets.ModelViewSet):
-    # ... (código existente del queryset y serializer_class)
-    queryset = Compra.objects.all()
+    queryset = Compra.objects.all().order_by('-id_compra') # Ordenar descendente por defecto
     serializer_class = CompraSerializer
     permission_classes = [AllowAny]
+
+    @action(detail=True, methods=['get'], url_path='detalles')
+    def detalles(self, request, pk=None):
+        """
+        Devuelve los productos (detalles) de una compra específica.
+        Ruta: /api/compras/compras/{id}/detalles/
+        """
+        compra = self.get_object()
+        detalles = DetalleCompra.objects.filter(id_compra=compra)
+        serializer = DetalleCompraSerializer(detalles, many=True)
+        return Response(serializer.data)
 
     # 2. BLOQUEO DE ELIMINACIÓN (DESTROY)
     def destroy(self, request, *args, **kwargs):
@@ -33,8 +42,7 @@ class CompraViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # 2. Validación Pagos 🚨 (NUEVA)
-            # Verificamos si tiene pagos asociados
+            # 2. Validación Pagos
             if instance.pagos.exists():
                 return Response(
                     {"error": f"No se puede eliminar la compra #{instance.id_compra} porque tiene pagos registrados."},
@@ -66,26 +74,32 @@ class CompraViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
-    # 🚨 ACCIÓN: Recibir Mercancía 🚨
+    # 🚨 ACCIÓN: Recibir Mercancía (LÓGICA CORREGIDA + AJUSTE DE PRECIO) 🚨
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def recibir_mercancia(self, request, pk=None):
         """
-        Recibe la mercancía, procesa devoluciones/notas y genera lotes.
-        Determina si la recepción es PARCIAL o COMPLETA.
+        1. Recibe mercancía y genera lotes.
+        2. Marca items no recibidos como devueltos.
+        3. RECALCULA EL TOTAL DE LA COMPRA basado en lo recibido.
         """
         compra = self.get_object()
         
+        # Validar estado previo
         if compra.estado_de_envio != 'APROBADA':
              return Response(
                 {'error': f'Acción denegada. La compra está en estado {compra.estado_de_envio} y ya fue procesada anteriormente.'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Datos enviados desde el Modal de React
         datos_recepcion = request.data.get('detalles', [])
         
-        es_parcial = False
+        if not datos_recepcion:
+            return Response({"error": "No se enviaron detalles para procesar."}, status=400)
+
+        # Contadores para determinar el estado final
+        total_unidades_pedidas = 0
+        total_unidades_recibidas = 0
 
         try:
             with transaction.atomic():
@@ -96,34 +110,59 @@ class CompraViewSet(viewsets.ModelViewSet):
                     nota = item.get('nota', '')
                     fecha_vencimiento = item.get('fecha_vencimiento')
                     
-                    # Buscar el detalle original en la BD
-                    detalle = DetalleCompra.objects.get(id_detallec=detalle_id, id_compra=compra)
+                    try:
+                        detalle = DetalleCompra.objects.get(id_detallec=detalle_id, id_compra=compra)
+                    except DetalleCompra.DoesNotExist:
+                        continue 
                     
-                    # Calcular devoluciones
+                    # Calcular devoluciones / faltantes
                     cantidad_ordenada = detalle.cantidad
                     cantidad_rechazada = cantidad_ordenada - cantidad_recibida
                     
+                    # Actualizamos el detalle
+                    detalle.cantidad_recibida = cantidad_recibida
+                    detalle.nota = nota
+                    
+                    # Logica de devolución
                     if cantidad_rechazada > 0:
-                        es_parcial = True # Si falta algo, la orden es parcial
                         detalle.devolucion = True
                         detalle.cantidad_devolvida = cantidad_rechazada
-                        detalle.nota = nota # Razón del rechazo
-                        detalle.save()
+                    else:
+                        detalle.devolucion = False
+                        detalle.cantidad_devolvida = 0
                     
-                    # 2. Crear el Lote (SOLO con lo recibido)
+                    # 🚨 IMPORTANTE: Ajustamos el subtotal de la línea
+                    # Ahora el subtotal refleja lo que realmente se va a pagar (precio * recibido)
+                    detalle.subtotal = detalle.precio_unitario * cantidad_recibida
+                    detalle.save()
+                    
+                    # Acumuladores
+                    total_unidades_pedidas += cantidad_ordenada
+                    total_unidades_recibidas += cantidad_recibida
+                    
+                    # 2. Crear el Lote (SOLO SI SE RECIBIÓ ALGO)
                     if cantidad_recibida > 0:
                         Lote.objects.create(
                             id_producto=detalle.id_producto,
-                            numero_lote=f"CMP{compra.id_compra}-{detalle.id_producto.id_producto}", # Nomenclatura simple
+                            numero_lote=f"CMP{compra.id_compra}-{detalle.id_producto.id_producto}", 
                             fecha_pedido=compra.fecha_pedido,
                             fecha_vencimiento=fecha_vencimiento,
-                            cantidad=cantidad_recibida, # <-- IMPORTANTE: Entra al stock lo recibido
+                            cantidad=cantidad_recibida, 
                             estado="ACTIVO",
-                            # id_existencia se maneja por la señal del modelo Lote automáticamente
                         )
 
-                # 3. Actualizar Estado de la Compra
-                if es_parcial:
+                # 3. 🚨 RECALCULAR EL PRECIO FINAL DE LA COMPRA 🚨
+                # Sumamos todos los subtotales actualizados
+                nuevo_total = DetalleCompra.objects.filter(id_compra=compra).aggregate(
+                    total=Sum('subtotal')
+                )['total'] or 0
+                
+                compra.precio_final = nuevo_total
+
+                # 4. DETERMINAR ESTADO FINAL DE LA COMPRA
+                if total_unidades_recibidas == 0:
+                    compra.estado_de_envio = 'DEVUELTA'
+                elif total_unidades_recibidas < total_unidades_pedidas:
                     compra.estado_de_envio = 'RECIBIDA_PARCIAL'
                 else:
                     compra.estado_de_envio = 'RECIBIDA_COMPLETA'
@@ -133,38 +172,46 @@ class CompraViewSet(viewsets.ModelViewSet):
                 # 🚨 LOG DE RECEPCIÓN
                 registrar_accion(
                     request.user,
-                    "Almacén",  # Módulo distinto para diferenciar
+                    "Almacén",
                     "Recepción Mercancía",
-                    f"Se recibió mercancía de la compra #{compra.id_compra}. Nuevo estado: {compra.estado_de_envio}.",
+                    f"Se procesó la compra #{compra.id_compra}. Total ajustado: {nuevo_total}. Estado: {compra.estado_de_envio}.",
                     id_referencia=compra.id_compra
                 )
 
-            return Response({'status': f'Recepción procesada. Estado: {compra.estado_de_envio}'})
+            return Response({
+                'status': f'Recepción procesada. Total ajustado: {compra.precio_final}',
+                'estado': compra.estado_de_envio
+            })
 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
         
     # 🚨 ACCIÓN: Registrar Pago 🚨
     @action(detail=True, methods=['post'])
-    @transaction.atomic # Asegura que si un pago falla, no se guarde ninguno
+    @transaction.atomic 
     def registrar_pago(self, request, pk=None):
         compra = self.get_object()
         
-        # Aceptamos una lista de pagos o un solo objeto (por compatibilidad)
+        # 1. VALIDACIÓN ESTRICTA DE ESTADO
+        # Solo permitir pago si ya se recibió mercancía (Parcial o Completa)
+        estados_pagables = ['RECIBIDA_COMPLETA', 'RECIBIDA_PARCIAL']
+        if compra.estado_de_envio not in estados_pagables:
+            return Response({
+                'error': f'No se pueden registrar pagos. La compra debe estar RECIBIDA (Total o Parcial). Estado actual: {compra.estado_de_envio}.'
+            }, status=400)
+
         data_pagos = request.data.get('pagos', [])
         if not data_pagos:
-             # Soporte legacy si el frontend mandara un solo objeto plano
              data_pagos = [request.data]
 
         total_monto_usd = Decimal('0.00')
 
-        # 1. Validación preliminar del total
+        # Validación preliminar del total
         for p_data in data_pagos:
              monto_local = Decimal(str(p_data.get('monto_local', 0)))
              tasa = Decimal(str(p_data.get('tasa_cambio', 1)))
              if tasa <= 0: return Response({'error': 'La tasa debe ser mayor a 0'}, status=400)
              
-             # Calculamos el valor en USD
              moneda = p_data.get('moneda', 'USD')
              if moneda == 'VES':
                  monto_usd = monto_local / tasa
@@ -173,36 +220,33 @@ class CompraViewSet(viewsets.ModelViewSet):
             
              total_monto_usd += monto_usd
 
-        # 2. Verificar Saldo
+        # Verificar Saldo
         saldo = compra.saldo_pendiente()
-        # Tolerancia de 0.05 centavos para errores de redondeo de tasa
         if total_monto_usd > (saldo + Decimal('0.05')):
              return Response({
                  'error': f'El total a pagar (${total_monto_usd:.2f}) supera la deuda (${saldo:.2f}).'
              }, status=400)
 
-        # 3. Crear los Pagos
+        # Crear los Pagos
         try:
             for p_data in data_pagos:
                 moneda = p_data.get('moneda', 'USD')
                 monto_local = Decimal(str(p_data.get('monto_local', 0)))
                 tasa = Decimal(str(p_data.get('tasa_cambio', 1)))
                 
-                # Determinamos el monto final en USD para la contabilidad
                 if moneda == 'VES':
                     monto_contable = monto_local / tasa
                 else:
                     monto_contable = monto_local
-                    tasa = 1.00 # Si es USD, la tasa es 1
+                    tasa = 1.00 
 
                 PagoCompra.objects.create(
                     id_compra=compra,
                     metodo_pago=p_data.get('metodo_pago'),
                     referencia=p_data.get('referencia', ''),
-                    
-                    monto=monto_contable,        # Valor real en USD (para restar deuda)
-                    monto_local=monto_local,     # Valor en billetes (para recibo)
-                    tasa_cambio=tasa,            # Tasa usada
+                    monto=monto_contable,        
+                    monto_local=monto_local,     
+                    tasa_cambio=tasa,            
                     moneda=moneda
                 )
             
@@ -226,13 +270,7 @@ class CompraViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def aprobar(self, request, pk=None):
-        """
-        Solo GERENTE puede aprobar compras.
-        Cambia estado_de_envio a 'APROBADA'.
-        No toca inventario (eso se hace luego en recepción).
-        """
         usuario = request.user
-
         if getattr(usuario, "tipo", None) != "GERENTE":
             raise PermissionDenied("Solo el gerente puede aprobar compras.")
 
@@ -252,7 +290,6 @@ class CompraViewSet(viewsets.ModelViewSet):
         compra.estado_de_envio = "APROBADA"
         compra.save()
 
-        # Registro de acción
         registrar_accion(
             usuario,
             "Compras",
@@ -268,13 +305,7 @@ class CompraViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def rechazar(self, request, pk=None):
-        """
-        Solo GERENTE puede rechazar compras.
-        Cambia estado_de_envio a 'RECHAZADA'.
-        NO mueve inventario (porque la mercancía nunca entró).
-        """
         usuario = request.user
-
         if getattr(usuario, "tipo", None) != "GERENTE":
             raise PermissionDenied("Solo el gerente puede rechazar compras.")
 
@@ -330,4 +361,3 @@ class ProveedorViewSet(viewsets.ModelViewSet):
     queryset = Proveedor.objects.all()
     serializer_class = ProveedorSerializer
     permission_classes = [AllowAny]
-

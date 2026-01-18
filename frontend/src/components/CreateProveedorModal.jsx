@@ -7,6 +7,7 @@ const PROVEEDORES_URL = '/api/compras/proveedores/';
 
 function CreateProveedorModal({ isOpen, onClose, onProveedorCreated }) {
     const [nombre, setNombre] = useState('');
+    const [rif, setRif] = useState(''); // 🚨 NUEVO
     const [direccion, setDireccion] = useState('');
     const [correo, setCorreo] = useState('');
     const [telefono, setTelefono] = useState('');
@@ -16,7 +17,8 @@ function CreateProveedorModal({ isOpen, onClose, onProveedorCreated }) {
         e.preventDefault();
         setStatus('Creando proveedor...');
         try {
-            const data = { nombre, direccion, correo, telefono };
+            // Incluir RIF
+            const data = { nombre, rif, direccion, correo, telefono };
             const response = await axios.post(PROVEEDORES_URL, data);
             
             setStatus(`✅ Proveedor "${nombre}" creado.`);
@@ -25,7 +27,7 @@ function CreateProveedorModal({ isOpen, onClose, onProveedorCreated }) {
             onProveedorCreated(response.data.id_proveedor); 
             
             // 2. Limpia y cierra el modal
-            setNombre(''); setDireccion(''); setCorreo(''); setTelefono('');
+            setNombre(''); setRif(''); setDireccion(''); setCorreo(''); setTelefono('');
             setTimeout(onClose, 1500);
             
         } catch (error) {
@@ -44,6 +46,10 @@ function CreateProveedorModal({ isOpen, onClose, onProveedorCreated }) {
                     <label style={labelStyle}>Nombre:</label>
                     <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} required style={inputStyle} />
                     
+                    {/* 🚨 INPUT RIF */}
+                    <label style={labelStyle}>RIF / Cédula:</label>
+                    <input type="text" value={rif} onChange={(e) => setRif(e.target.value)} placeholder="J-12345678-9" style={inputStyle} />
+
                     <label style={labelStyle}>Dirección:</label>
                     <input type="text" value={direccion} onChange={(e) => setDireccion(e.target.value)} required style={inputStyle} />
                     

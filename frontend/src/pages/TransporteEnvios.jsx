@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import api from "../api/api";
 import { toast } from "react-hot-toast";
+import { useAuth } from "../AuthContext";
 
 // Debe coincidir con backend/UI
 const ESTADO_CREACION_ENVIO = "PENDIENTE POR ASIGNACION";
@@ -182,7 +183,7 @@ const styles = {
 };
 
 // -----------------------------
-// Keyframes (una sola vez)
+// Keyframes
 // -----------------------------
 (function ensureKeyframes() {
   if (typeof document === "undefined") return;
@@ -314,9 +315,10 @@ function ConfirmModal({ open, title, children, confirmText = "Confirmar", confir
 }
 
 // -----------------------------
-// COMPONENTE
+// COMPONENTE PRINCIPAL
 // -----------------------------
 export default function TransporteEnvios() {
+  const { user } = useAuth();
   const [unidades, setUnidades] = useState([]);
   const [envios, setEnvios] = useState([]);
   const [transportistas, setTransportistas] = useState([]);
@@ -378,6 +380,11 @@ export default function TransporteEnvios() {
   const [confirm, setConfirm] = useState({ open: false, title: "", tone: "primary", text: null, onConfirm: null });
 
   const syncGuardRef = useRef(false);
+
+  // ----------------------------------------------------------------
+  // 🔐 CONTROL DE PERMISOS
+  // ----------------------------------------------------------------
+  const esAdmin = user?.tipo === 'ADMINISTRADOR';
 
   // Auditoría
   const logAccion = async (accion, descripcion, idReferencia = null, modulo = "Transporte") => {
@@ -1287,7 +1294,10 @@ export default function TransporteEnvios() {
                 <h3 style={styles.sectionTitle}>Unidades de Transporte</h3>
                 <div style={styles.smallText}>Gestiona unidades, choferes y capacidad de carga.</div>
               </div>
-              <button type="button" style={styles.buttonPrimary} onClick={abrirCrearUnidad}><IconPlus /> Nueva Unidad</button>
+              {/* Ocultar botón CREAR si es admin */}
+              {!esAdmin && (
+                <button type="button" style={styles.buttonPrimary} onClick={abrirCrearUnidad}><IconPlus /> Nueva Unidad</button>
+              )}
             </div>
 
             <div style={styles.searchRow}>
@@ -1327,12 +1337,13 @@ export default function TransporteEnvios() {
                     <th style={styles.th}>Transportista</th>
                     <th style={styles.th}>Cap. (Kg)</th>
                     <th style={styles.th}>Estado</th>
-                    <th style={{ ...styles.th, textAlign: "center" }}>Acción</th>
+                    {/* Ocultar columna Acción si es Admin */}
+                    {!esAdmin && <th style={{ ...styles.th, textAlign: "center" }}>Acción</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {unidadesFiltradas.length === 0 && !loadingUnidades ? (
-                    <tr><td colSpan={5} style={{ ...styles.td, textAlign: "center", color: "#94a3b8", padding: "20px" }}>No hay unidades registradas.</td></tr>
+                    <tr><td colSpan={esAdmin ? 4 : 5} style={{ ...styles.td, textAlign: "center", color: "#94a3b8", padding: "20px" }}>No hay unidades registradas.</td></tr>
                   ) : null}
 
                   {unidadesFiltradas.map((u, idx) => {
@@ -1356,27 +1367,51 @@ export default function TransporteEnvios() {
                         </td>
                         <td style={rowBase}>{toNumber(u.capacidad_carga).toFixed(2)}</td>
                         <td style={rowBase}><span style={styles.badgeEstadoUnidad(u.estado)}>{u.estado || "N/A"}</span></td>
-                        <td style={{ ...rowBase, textAlign: "center" }}>
-                          <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
-                            <button type="button" style={{ ...styles.buttonGhost, ...(!puedeGestionar ? styles.buttonDisabled : {}) }} disabled={!puedeGestionar || !!busyKey} onClick={(e) => { e.stopPropagation(); abrirEditarUnidad(u); }}>
-                              {busyKey === "unidad:save" ? "Guardando..." : "Editar"}
-                            </button>
-
-                            {esActiva ? (
-                              <button type="button" style={{ ...styles.buttonGhost, ...(bloqueActDes || !puedeGestionar ? styles.buttonDisabled : {}) }} disabled={bloqueActDes || !puedeGestionar || !!busyKey} onClick={(e) => { e.stopPropagation(); toggleUnidadEstado(u, "INACTIVA"); }}>
-                                Desactivar
+                        
+                        {/* Ocultar celda Acción si es Admin */}
+                        {!esAdmin && (
+                          <td style={{ ...rowBase, textAlign: "center" }}>
+                            <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
+                              <button
+                                type="button"
+                                style={{ ...styles.buttonGhost, ...(!puedeGestionar ? styles.buttonDisabled : {}) }}
+                                disabled={!puedeGestionar || !!busyKey}
+                                onClick={(e) => { e.stopPropagation(); abrirEditarUnidad(u); }}
+                              >
+                                {busyKey === "unidad:save" ? "Guardando..." : "Editar"}
                               </button>
-                            ) : (
-                              <button type="button" style={{ ...styles.buttonGhost, ...(bloqueActDes ? styles.buttonDisabled : {}) }} disabled={bloqueActDes || !!busyKey} onClick={(e) => { e.stopPropagation(); toggleUnidadEstado(u, "ACTIVA"); }}>
-                                Activar
-                              </button>
-                            )}
 
-                            <button type="button" style={{ ...styles.buttonDanger, ...(!puedeGestionar ? styles.buttonDisabled : {}) }} disabled={!puedeGestionar || !!busyKey} onClick={(e) => { e.stopPropagation(); eliminarUnidad(u); }}>
-                              <IconTrash />
-                            </button>
-                          </div>
-                        </td>
+                              {esActiva ? (
+                                <button
+                                  type="button"
+                                  style={{ ...styles.buttonGhost, ...(bloqueActDes || !puedeGestionar ? styles.buttonDisabled : {}) }}
+                                  disabled={bloqueActDes || !puedeGestionar || !!busyKey}
+                                  onClick={(e) => { e.stopPropagation(); toggleUnidadEstado(u, "INACTIVA"); }}
+                                >
+                                  Desactivar
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  style={{ ...styles.buttonGhost, ...(bloqueActDes ? styles.buttonDisabled : {}) }}
+                                  disabled={bloqueActDes || !!busyKey}
+                                  onClick={(e) => { e.stopPropagation(); toggleUnidadEstado(u, "ACTIVA"); }}
+                                >
+                                  Activar
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                style={{ ...styles.buttonDanger, ...(!puedeGestionar ? styles.buttonDisabled : {}) }}
+                                disabled={!puedeGestionar || !!busyKey}
+                                onClick={(e) => { e.stopPropagation(); eliminarUnidad(u); }}
+                              >
+                                <IconTrash />
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -1401,6 +1436,7 @@ export default function TransporteEnvios() {
 
           {/* ==================== ENVÍOS ==================== */}
           <div style={styles.sectionCard}>
+            {/* ... Resto del código de envíos sin cambios significativos (Admin sigue pudiendo gestionar envíos) ... */}
             <div style={styles.sectionHeader}>
               <div>
                 <h3 style={styles.sectionTitle}>Envíos</h3>

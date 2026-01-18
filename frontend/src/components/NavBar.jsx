@@ -84,7 +84,7 @@ function Navbar() {
         { path: '/preparacion', name: 'Preparación', icon: '📦', color: '#94a3b8', allowedRoles: ['ALMACENISTA'] },
         { path: '/aprobaciones', name: 'Aprobar', icon: '✅', color: '#a3e635', allowedRoles: ['GERENTE'] },
         { path: '/proveedores', name: 'Proveedores', icon: '🏭', color: '#94a3b8', allowedRoles: ['GERENTE', 'ADMINISTRADOR'] },
-        { path: '/envios', name: 'Envíos', icon: '🚛', color: '#a78bfa', allowedRoles: ['GERENTE'] },
+        { path: '/envios', name: 'Envíos', icon: '🚛', color: '#a78bfa', allowedRoles: ['GERENTE', 'ADMINISTRADOR'] },
         { path: '/transporte', name: 'Mi Ruta', icon: '🚚', color: '#ec4899', allowedRoles: ['TRANSPORTISTA'] },
         { path: '/usuarios', name: 'Usuarios', icon: '👤', color: '#6366f1', allowedRoles: ['GERENTE'] },
         { path: '/registros', name: 'Acciones', icon: '🛡️', color: '#f43f5e', allowedRoles: ['GERENTE'] },

@@ -3,21 +3,21 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import CreateProductForm from '../components/CreateProductForm';
+import CreateProductForm from '../components/CreateProductForm'; // Importamos el nuevo modal multi-tab
 import AdvancedSearchBar from '../components/AdvancedSearchBar';
 import TableSkeleton from '../components/TableSkeleton';
-import { useAuth } from '../AuthContext'; // 1. Importar AuthContext
+import { useAuth } from '../AuthContext'; 
 
 // --- ICONOS SVG ---
 const IconBox = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>;
-const IconPlus = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
+const IconSettings = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>;
 const IconEye = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>;
 
 const PRODUCTOS_URL = '/api/inventario/productos/';
 const EXISTENCIAS_URL = '/api/inventario/existencias/';
 
 function InventoryDashboard({ refreshTrigger, onUpdate }) {
-    const { user } = useAuth(); // 2. Obtener usuario para permisos
+    const { user } = useAuth(); 
     
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -43,8 +43,8 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
                         ...p,
                         current_stock: stock ? stock.cantidad : 0,
                         stock_status: stock ? stock.estado : 'AGOTADO',
-                        marca: p.id_marca_nombre || '-', 
-                        categoria: p.id_categoria_nombre || '-'
+                        marca: p.id_marca_nombre || p.marca_nombre || '-', 
+                        categoria: p.id_categoria_nombre || p.categoria_nombre || '-'
                     };
                 });
                 
@@ -78,10 +78,13 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
         return matchText && matchMin && matchMax && matchStatus;
     });
 
-    // Métricas rápidas (KPIs)
+    // KPIs
     const totalStock = products.reduce((acc, p) => acc + p.current_stock, 0);
     const valorInventario = products.reduce((acc, p) => acc + (p.current_stock * parseFloat(p.precio_venta)), 0);
     const agotadosCount = products.filter(p => p.stock_status === 'AGOTADO').length;
+
+    // Verificar Rol
+    const puedeGestionar = user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'GERENTE';
 
     if (loading) return (
         <div style={styles.container}>
@@ -111,10 +114,10 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
                         </div>
                     </div>
                     
-                    {/* 3. RESTRICCIÓN DEL BOTÓN: SOLO ADMINISTRADOR */}
-                    {user?.tipo === 'ADMINISTRADOR' && (
+                    {/* BOTÓN UNIFICADO: GESTIÓN DE PRODUCTOS */}
+                    {puedeGestionar && (
                         <button onClick={() => setIsCreateModalOpen(true)} style={styles.createBtn}>
-                            <IconPlus /> Nuevo Producto
+                            <IconSettings /> Gestión de Productos
                         </button>
                     )}
                 </div>
@@ -209,6 +212,7 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
                 </div>
             </div>
 
+            {/* MODAL GESTIÓN DE PRODUCTOS (MULTI-TAB) */}
             <CreateProductForm 
                 isOpen={isCreateModalOpen} 
                 onClose={() => setIsCreateModalOpen(false)} 
@@ -218,7 +222,6 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
     );
 }
 
-// FUNCIONES DE ESTILO DINÁMICO
 const getStatusStyle = (status) => {
     const base = { padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700', display: 'inline-block' };
     if (status === 'DISPONIBLE') return { ...base, backgroundColor: '#dcfce7', color: '#166534' };
@@ -227,11 +230,8 @@ const getStatusStyle = (status) => {
     return { ...base, backgroundColor: '#f1f5f9', color: '#475569' };
 };
 
-// ESTILOS MODERNOS (Premium UI)
 const styles = {
     container: { padding: '24px 32px', maxWidth: '1400px', margin: '0 auto', fontFamily: "'Inter', sans-serif" },
-    
-    // Top Section
     topSection: { marginBottom: '32px' },
     header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' },
     titleGroup: { display: 'flex', alignItems: 'center', gap: '16px' },
@@ -245,34 +245,24 @@ const styles = {
         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
         transition: 'transform 0.1s ease'
     },
-
-    // KPIs
     kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' },
     kpiCard: { backgroundColor: '#fff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
     kpiLabel: { display: 'block', fontSize: '0.8rem', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase', fontWeight: '600' },
     kpiValue: { fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', lineHeight: 1 },
-
-    // Content Area
     content: { backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', overflow: 'hidden', border: '1px solid #e2e8f0' },
-    
-    // Tabla
     table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' },
     theadRow: { backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' },
     th: { padding: '16px 24px', textAlign: 'left', fontWeight: '600', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' },
     thRight: { padding: '16px 24px', textAlign: 'right', fontWeight: '600', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' },
     thAction: { padding: '16px 24px', textAlign: 'center', fontWeight: '600', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase' },
-    
     tr: { borderBottom: '1px solid #f1f5f9', transition: 'background 0.1s' },
     td: { padding: '16px 24px', verticalAlign: 'middle', color: '#334155' },
     tdRight: { padding: '16px 24px', verticalAlign: 'middle', textAlign: 'right', color: '#334155', fontFamily: 'monospace', fontSize: '0.95rem' },
     tdAction: { padding: '16px 24px', verticalAlign: 'middle', textAlign: 'center' },
-
-    // Elementos de Celda
     prodName: { fontWeight: '600', color: '#0f172a', marginBottom: '2px' },
     prodSku: { fontSize: '0.75rem', color: '#94a3b8', fontFamily: 'monospace' },
     categoryBadge: { display: 'inline-block', backgroundColor: '#f1f5f9', padding: '2px 8px', borderRadius: '4px', fontSize: '0.75rem', color: '#475569', fontWeight: '600' },
     brandText: { fontSize: '0.85rem', color: '#475569', fontWeight: '500' },
-    
     linkBtn: { 
         display: 'inline-flex', alignItems: 'center', gap: '6px',
         color: '#3b82f6', textDecoration: 'none', fontWeight: '600', fontSize: '0.85rem',

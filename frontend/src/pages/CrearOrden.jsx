@@ -483,7 +483,8 @@ export default function CrearOrden() {
 
         const [resClientes, resProductos, resExistencias] = await Promise.all([
           api.get("/base/clientes/", config),
-          api.get("/inventario/productos/", config),
+          // 🚨 MODIFICADO: AÑADIDO ?activo=true PARA SOLO TRAER PRODUCTOS ACTIVOS
+          api.get("/inventario/productos/?activo=true", config),
           api.get("/inventario/existencias/", config),
         ]);
 

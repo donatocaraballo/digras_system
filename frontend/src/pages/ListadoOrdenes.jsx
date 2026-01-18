@@ -1348,7 +1348,9 @@ export default function ListadoOrdenes() {
                             style={styles.linkButton}
                             onClick={(e) => {
                               e.stopPropagation();
-                              abrirModalVendedor(o.vendedor_detalle || o.id_usuario);
+                              abrirModalVendedor(
+                                o.vendedor_detalle || o.id_usuario
+                              );
                             }}
                           >
                             {nombreVendedor(o.id_usuario)}
@@ -1699,6 +1701,13 @@ export default function ListadoOrdenes() {
                 <div>
                   <strong>Teléfono:</strong>{" "}
                   {clienteSeleccionado.telefono || "-"}
+                </div>
+                {/* 🚨 AGREGADO RIF */}
+                <div>
+                  <strong>RIF / Cédula:</strong>{" "}
+                  <span style={{ fontFamily: "monospace" }}>
+                    {clienteSeleccionado.rif || "No registrado"}
+                  </span>
                 </div>
                 {typeof clienteSeleccionado.total_ordenes !==
                   "undefined" && (
@@ -2292,8 +2301,8 @@ const styles = {
     backgroundColor: "rgba(15, 23, 42, 0.6)",
     backdropFilter: "blur(4px)",
     display: "flex",
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
     zIndex: 20000,
   },
   modal: {
