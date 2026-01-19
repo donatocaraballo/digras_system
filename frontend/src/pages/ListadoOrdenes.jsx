@@ -5,12 +5,20 @@ import api from "../api/api";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-// --- CONST: MÉTODOS DE PAGO PERMITIDOS ---
+// --- CONST: MÉTODOS DE PAGO PERMITIDOS (ORDEN BASE) ---
 const METODOS_PAGO = [
   "EFECTIVO",
   "PAGO MOVIL",
   "TRANSFERENCIA NACIONAL",
   "TRANSFERENCIA INTERNACIONAL",
+];
+
+// --- CONST: MÉTODOS DE PAGO PARA PAGOS DE VENTA ---
+const METODOS_PAGO_VENTA = [
+  { value: "EFECTIVO", label: "Efectivo ($)", currency: "USD" },
+  { value: "PAGO MOVIL", label: "Pago Móvil (Bs)", currency: "VES" },
+  { value: "TRANSFERENCIA NACIONAL", label: "Transferencia Nacional (Bs)", currency: "VES" },
+  { value: "TRANSFERENCIA INTERNACIONAL", label: "Transferencia Internacional ($)", currency: "USD" },
 ];
 
 const API_TASA_LOCAL = "/base/tasa-dolar/";
@@ -140,29 +148,50 @@ export default function ListadoOrdenes() {
   const [vendedorBusqueda, setVendedorBusqueda] = useState("");
   const [idOrdenPagoLoading, setIdOrdenPagoLoading] = useState(null);
   const [paginaActual, setPaginaActual] = useState(1);
+
+  // Para ver monto en Bs en la tarjeta de detalle
   const [tasaBCV, setTasaBCV] = useState(null);
   const [loadingTasa, setLoadingTasa] = useState(false);
   const [montoBsDetalle, setMontoBsDetalle] = useState(null);
   const [errorTasa, setErrorTasa] = useState("");
+
   const pageSize = 10;
 
-  // Modales
+  // --- ESTADO PARA MODAL DE GESTIÓN DE PAGOS (VENTAS) ---
   const [modalPagoVisible, setModalPagoVisible] = useState(false);
   const [ordenParaPago, setOrdenParaPago] = useState(null);
   const [modalPagoError, setModalPagoError] = useState("");
+  const [pagosVentaLoading, setPagosVentaLoading] = useState(false);
 
-  const [modalEditarVisible, setModalEditarVisible] = useState(false);
-  const [ordenParaEditar, setOrdenParaEditar] = useState(null);
-  const [formEditar, setFormEditar] = useState({ metodo_pago: "" });
-  const [detallesEditar, setDetallesEditar] = useState([]);
-  const [editarLoading, setEditarLoading] = useState(false);
-  const [editarError, setEditarError] = useState("");
+  const [historialPagosVenta, setHistorialPagosVenta] = useState([]);
+  const [saldoOriginalUSD, setSaldoOriginalUSD] = useState(0);
+  const [totalPagadoUSD, setTotalPagadoUSD] = useState(0);
+  const [saldoPendienteUSD, setSaldoPendienteUSD] = useState(0);
+
+  const [metodoPagoVenta, setMetodoPagoVenta] = useState(
+    METODOS_PAGO_VENTA[0].value
+  );
+  const [montoPagoInput, setMontoPagoInput] = useState("");
+  const [tasaPagoInput, setTasaPagoInput] = useState("");
+  const [referenciaPagoInput, setReferenciaPagoInput] = useState("");
+
+  const [tasaBCVVenta, setTasaBCVVenta] = useState(null);
+  const [loadingTasaVenta, setLoadingTasaVenta] = useState(false);
+  const [errorTasaVenta, setErrorTasaVenta] = useState("");
 
   // Modales de detalle de Cliente y Vendedor
   const [modalClienteVisible, setModalClienteVisible] = useState(false);
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
   const [modalVendedorVisible, setModalVendedorVisible] = useState(false);
   const [vendedorSeleccionado, setVendedorSeleccionado] = useState(null);
+
+  // Modal editar orden
+  const [modalEditarVisible, setModalEditarVisible] = useState(false);
+  const [ordenParaEditar, setOrdenParaEditar] = useState(null);
+  const [formEditar, setFormEditar] = useState({ metodo_pago: "" });
+  const [detallesEditar, setDetallesEditar] = useState([]);
+  const [editarLoading, setEditarLoading] = useState(false);
+  const [editarError, setEditarError] = useState("");
 
   // Modal eliminar orden
   const [modalEliminarVisible, setModalEliminarVisible] = useState(false);
@@ -206,6 +235,7 @@ export default function ListadoOrdenes() {
     if (s.includes("ENTREGADA")) return { bg: "#bbf7d0", text: "#14532d" };
     if (s.includes("CANCELADA")) return { bg: "#fee2e2", text: "#991b1b" };
     if (s.includes("RECHAZADA")) return { bg: "#fee2e2", text: "#b91c1c" };
+    if (s.includes("DEVUELTA")) return { bg: "#fee2e2", text: "#b91c1c" };
     return { bg: "#e0f2fe", text: "#0284c7" };
   };
 
@@ -213,6 +243,8 @@ export default function ListadoOrdenes() {
     if (!status) return { bg: "#f1f5f9", text: "#64748b" };
     const s = status.toUpperCase();
     if (s.includes("PAGADA")) return { bg: "#dcfce7", text: "#15803d" };
+    if (s.includes("PAGO EN CURSO"))
+      return { bg: "#fef9c3", text: "#854d0e" };
     return { bg: "#fff7ed", text: "#c2410c" };
   };
 
@@ -287,15 +319,12 @@ export default function ListadoOrdenes() {
       return;
     }
 
-    // 1) Si ya viene un objeto completo (por ejemplo vendedor_detalle),
-    // lo usamos directamente sin llamar a la API.
     if (typeof usuarioOrId === "object" && usuarioOrId.username) {
       setVendedorSeleccionado(usuarioOrId);
       setModalVendedorVisible(true);
       return;
     }
 
-    // 2) Caso contrario, intentamos resolver el ID
     let id = usuarioOrId;
     if (id && typeof id === "object") {
       id = id.id_usuario ?? id.id;
@@ -323,7 +352,6 @@ export default function ListadoOrdenes() {
       setModalVendedorVisible(true);
     } catch (err) {
       console.error("Error al cargar info completa del vendedor:", err);
-      // Respaldo: usar el listado local si existe
       const vendedor = vendedores.find(
         (v) => v.id_usuario === id || v.id === id
       );
@@ -530,10 +558,8 @@ export default function ListadoOrdenes() {
       let params = {};
 
       if (overrideParams) {
-        // Usar parámetros explícitos (por ejemplo, al limpiar filtros)
         params = overrideParams;
       } else {
-        // Usar los filtros actuales del estado
         if (filtros.id) params.id = filtros.id;
         if (filtros.estadoEnvio) params.estado_envio = filtros.estadoEnvio;
         if (filtros.estadoPago) params.estado_pago = filtros.estadoPago;
@@ -563,7 +589,6 @@ export default function ListadoOrdenes() {
   };
 
   const verDetallesOrden = async (idOrden) => {
-    // Toggle: Si ya está seleccionada, cerrar
     if (ordenSeleccionada && ordenSeleccionada.id_orden === idOrden) {
       cerrarDetalleOrden();
       return;
@@ -715,99 +740,251 @@ export default function ListadoOrdenes() {
     }
   }, [ordenSeleccionada]);
 
-  const abrirModalPago = (orden) => {
+  // --- LÓGICA DE GESTIÓN DE PAGOS (VENTA) ---
+
+  const currentMetodoInfoVenta = METODOS_PAGO_VENTA.find(
+    (m) => m.value === metodoPagoVenta
+  );
+  const isBolivaresVenta = currentMetodoInfoVenta?.currency === "VES";
+
+  const getValorEnUSDVenta = (montoLocal, tasa) => {
+    const monto = parseFloat(montoLocal);
+    if (!monto || monto <= 0) return 0;
+    if (!isBolivaresVenta) return monto;
+    const tasaFinal = parseFloat(tasa);
+    if (!tasaFinal || tasaFinal <= 0) return 0;
+    return monto / tasaFinal;
+  };
+
+  const fetchTasaBCVVenta = async () => {
+    try {
+      setLoadingTasaVenta(true);
+      setErrorTasaVenta("");
+      const response = await api.get(
+        `http://127.0.0.1:8000/api${API_TASA_LOCAL}`
+      );
+      const tasa = response.data.promedio || response.data.price;
+      if (tasa) {
+        setTasaBCVVenta(tasa);
+        setTasaPagoInput(String(tasa));
+      }
+    } catch (e) {
+      console.error("Error obteniendo tasa BCV para pagos de venta:", e);
+      setErrorTasaVenta(
+        "No se pudo obtener la tasa BCV automáticamente. Puedes ingresarla manualmente."
+      );
+    } finally {
+      setLoadingTasaVenta(false);
+    }
+  };
+
+  const cargarPagosVenta = async (idOrden) => {
+    try {
+      setPagosVentaLoading(true);
+      setModalPagoError("");
+      const res = await api.get(`/ordenes/${idOrden}/pagos-venta/`);
+      const data = res.data || {};
+      const historial = data.pagos || [];
+
+      const totalPagado = parseFloat(data.total_pagado || 0);
+      const saldoPendiente =
+        data.saldo_pendiente != null
+          ? parseFloat(data.saldo_pendiente)
+          : parseFloat(data.precio_final || 0) - totalPagado;
+
+      setHistorialPagosVenta(historial);
+      setSaldoOriginalUSD(parseFloat(data.precio_final || 0));
+      setTotalPagadoUSD(totalPagado);
+      setSaldoPendienteUSD(saldoPendiente);
+
+      // Actualizar la fila de la tabla y el detalle si está abierto
+      setOrdenes((prev) =>
+        prev.map((o) =>
+          o.id_orden === data.orden_id
+            ? {
+                ...o,
+                estado_de_pago: data.estado_de_pago,
+                metodo_pago: data.metodo_pago,
+              }
+            : o
+        )
+      );
+      if (ordenSeleccionada && ordenSeleccionada.id_orden === data.orden_id) {
+        setOrdenSeleccionada((prev) => ({
+          ...prev,
+          estado_de_pago: data.estado_de_pago,
+          metodo_pago: data.metodo_pago,
+        }));
+      }
+    } catch (err) {
+      console.error("Error cargando pagos de venta:", err);
+      setModalPagoError("Error al cargar los pagos de esta orden.");
+    } finally {
+      setPagosVentaLoading(false);
+    }
+  };
+
+  const abrirModalPago = async (orden) => {
     if (!usuarioActual || usuarioActual.tipo !== "VENDEDOR") {
-      setError("Solo un usuario de tipo VENDEDOR puede registrar pagos.");
+      setError("Solo un usuario de tipo VENDEDOR puede gestionar pagos.");
       return;
     }
     const estadoEnvio = (orden.estado_de_envio || "").toUpperCase();
-    if (estadoEnvio.includes("PENDIENTE") && estadoEnvio.includes("APROBACION")) {
+    if (
+      estadoEnvio.includes("PENDIENTE") &&
+      estadoEnvio.includes("APROBACION")
+    ) {
       setError("No puedes registrar pagos en órdenes pendientes por aprobación.");
       return;
     }
+
     setOrdenParaPago(orden);
     setModalPagoVisible(true);
     setModalPagoError("");
+
+    // Reset de estados del modal
+    setHistorialPagosVenta([]);
+    setSaldoOriginalUSD(Number(orden.precio_final || 0));
+    setTotalPagadoUSD(0);
+    setSaldoPendienteUSD(Number(orden.precio_final || 0));
+    setMontoPagoInput("");
+    setReferenciaPagoInput("");
+
+    // Método de pago por defecto = el de la orden (si coincide con nuestros métodos)
+    const metodoDefault =
+      METODOS_PAGO_VENTA.find((m) => m.value === orden.metodo_pago)?.value ||
+      METODOS_PAGO_VENTA[0].value;
+    setMetodoPagoVenta(metodoDefault);
+
+    // Cargar información de pagos existentes + tasa BCV
+    await Promise.all([cargarPagosVenta(orden.id_orden), fetchTasaBCVVenta()]);
   };
 
   const cerrarModalPago = () => {
     setModalPagoVisible(false);
     setOrdenParaPago(null);
     setModalPagoError("");
+    setHistorialPagosVenta([]);
+    setTotalPagadoUSD(0);
+    setSaldoPendienteUSD(0);
+    setMontoPagoInput("");
+    setReferenciaPagoInput("");
   };
 
-  const confirmarCambioPago = async () => {
+  const saldoRestanteUSD = saldoPendienteUSD;
+  const saldoRestanteLocal =
+    isBolivaresVenta && tasaPagoInput && parseFloat(tasaPagoInput) > 0
+      ? saldoRestanteUSD * parseFloat(tasaPagoInput)
+      : saldoRestanteUSD;
+
+  const handlePagarTodoVenta = () => {
+    if (saldoRestanteUSD <= 0) return;
+    if (isBolivaresVenta) {
+      if (!tasaPagoInput || parseFloat(tasaPagoInput) <= 0) {
+        setModalPagoError("Debe indicar una tasa válida para pagar en Bs.");
+        return;
+      }
+      const montoLocal = saldoRestanteUSD * parseFloat(tasaPagoInput);
+      setMontoPagoInput(montoLocal.toFixed(2));
+    } else {
+      setMontoPagoInput(saldoRestanteUSD.toFixed(2));
+    }
+  };
+
+  const registrarPagoVenta = async () => {
     if (!ordenParaPago) return;
-    const esPagada = (ordenParaPago.estado_de_pago || "")
-      .toUpperCase()
-      .includes("PAGADA");
-    const nuevoEstado = esPagada ? "PENDIENTE POR PAGO" : "PAGADA";
+
+    const montoVal = parseFloat(montoPagoInput);
+    if (!montoVal || montoVal <= 0) {
+      setModalPagoError("Ingrese un monto válido.");
+      return;
+    }
+
+    let tasaVal = null;
+    if (isBolivaresVenta) {
+      tasaVal = parseFloat(tasaPagoInput);
+      if (!tasaVal || tasaVal <= 0) {
+        setModalPagoError("Ingrese una tasa BCV válida para pagos en Bs.");
+        return;
+      }
+    }
+
+    const montoUSD = getValorEnUSDVenta(montoPagoInput, tasaPagoInput);
+    if (montoUSD > saldoRestanteUSD + 0.05) {
+      setModalPagoError(
+        `El pago excede el saldo pendiente ($${saldoRestanteUSD.toFixed(2)}).`
+      );
+      return;
+    }
 
     try {
       setIdOrdenPagoLoading(ordenParaPago.id_orden);
       setModalPagoError("");
-      const res = await api.post(
-        `/ordenes/${ordenParaPago.id_orden}/cambiar_estado_pago/`,
-        { nuevo_estado: nuevoEstado }
-      );
-      const ordenActualizada = res.data || {
-        ...ordenParaPago,
-        estado_de_pago: nuevoEstado,
+
+      const payload = {
+        metodo_pago: metodoPagoVenta,
+        monto_local: montoVal,
+        moneda: isBolivaresVenta ? "VES" : "USD",
+        tasa_cambio: isBolivaresVenta ? tasaVal : null,
+        referencia: referenciaPagoInput,
       };
 
+      const res = await api.post(
+        `/ordenes/${ordenParaPago.id_orden}/pagos-venta/`,
+        payload
+      );
+      const data = res.data || {};
+      const historial = data.pagos || [];
+
+      const totalPagado = parseFloat(data.total_pagado || 0);
+      const saldoPendiente = parseFloat(data.saldo_pendiente || 0);
+
+      setHistorialPagosVenta(historial);
+      setSaldoOriginalUSD(parseFloat(data.precio_final || saldoOriginalUSD));
+      setTotalPagadoUSD(totalPagado);
+      setSaldoPendienteUSD(saldoPendiente);
+
+      // Actualizar lista de órdenes y detalle
       setOrdenes((prev) =>
         prev.map((o) =>
-          o.id_orden === ordenParaPago.id_orden ? ordenActualizada : o
+          o.id_orden === data.orden_id
+            ? {
+                ...o,
+                estado_de_pago: data.estado_de_pago,
+                metodo_pago: data.metodo_pago,
+              }
+            : o
         )
       );
-      if (ordenSeleccionada?.id_orden === ordenParaPago.id_orden) {
+      if (ordenSeleccionada && ordenSeleccionada.id_orden === data.orden_id) {
         setOrdenSeleccionada((prev) => ({
           ...prev,
-          estado_de_pago: ordenActualizada.estado_de_pago,
+          estado_de_pago: data.estado_de_pago,
+          metodo_pago: data.metodo_pago,
         }));
       }
-      setMensaje(
-        esPagada
-          ? "Orden marcada como pendiente."
-          : "Orden marcada como PAGADA."
-      );
-      cerrarModalPago();
+
+      // Limpiar inputs de este pago
+      setMontoPagoInput("");
+      setReferenciaPagoInput("");
     } catch (err) {
-      setModalPagoError("Error al cambiar pago.");
+      console.error("Error registrando pago de venta:", err);
+      const data = err.response?.data || {};
+      const msg =
+        data.detail ||
+        data.monto_local ||
+        data.tasa_cambio ||
+        data.metodo_pago ||
+        "Error al registrar el pago.";
+      setModalPagoError(
+        typeof msg === "string" ? msg : "Error al registrar el pago."
+      );
     } finally {
       setIdOrdenPagoLoading(null);
     }
   };
 
-  useEffect(() => {
-    const usuario = obtenerUsuarioActual();
-    setUsuarioActual(usuario);
-    cargarDatosMaestros(usuario);
-    cargarOrdenes(false);
-  }, []);
-
-  const onChangeFiltro = (campo, valor) =>
-    setFiltros((prev) => ({ ...prev, [campo]: valor }));
-
-  const limpiarFiltros = () => {
-    setFiltros({
-      id: "",
-      estadoEnvio: "",
-      estadoPago: "",
-      cliente: "",
-      vendedor: "",
-      desde: "",
-      hasta: "",
-      ordering: "-fecha_orden",
-    });
-    setClienteBusqueda("");
-    setVendedorBusqueda("");
-    setPaginaActual(1);
-    cerrarDetalleOrden();
-    // Recargar inmediatamente las órdenes sin filtros adicionales
-    cargarOrdenes(false, {});
-  };
-
+  // --- VER MONTO EN BS EN EL DETALLE (MISMO COMPORTAMIENTO ANTERIOR) ---
   const totalOrdenDesdeDetalles = () => {
     if (!detallesOrdenSeleccionada.length) return 0;
     return detallesOrdenSeleccionada.reduce((acc, d) => {
@@ -819,7 +996,6 @@ export default function ListadoOrdenes() {
     }, 0);
   };
 
-  // --- Calcular monto en Bs según tasa BCV ---
   const calcularMontoBsDetalle = async () => {
     if (!ordenSeleccionada) return;
 
@@ -860,6 +1036,7 @@ export default function ListadoOrdenes() {
     }
   };
 
+  // --- FILTROS AUX ---
   const clientesFiltrados = clientes.filter((c) => {
     const term = clienteBusqueda.toLowerCase();
     const nombre = (c.nombre || "").toLowerCase();
@@ -931,7 +1108,7 @@ export default function ListadoOrdenes() {
   const fin = inicio + pageSize;
   const ordenesPagina = ordenesOrdenadas.slice(inicio, fin);
 
-  // --- PDF ---
+  // --- PDF BUSQUEDA ---
   const exportarBusquedaPDF = () => {
     if (!ordenesOrdenadas.length) {
       alert("No hay resultados.");
@@ -1025,6 +1202,34 @@ export default function ListadoOrdenes() {
       alert("Error al exportar.");
     }
   };
+
+  const onChangeFiltro = (campo, valor) =>
+    setFiltros((prev) => ({ ...prev, [campo]: valor }));
+
+  const limpiarFiltros = () => {
+    setFiltros({
+      id: "",
+      estadoEnvio: "",
+      estadoPago: "",
+      cliente: "",
+      vendedor: "",
+      desde: "",
+      hasta: "",
+      ordering: "-fecha_orden",
+    });
+    setClienteBusqueda("");
+    setVendedorBusqueda("");
+    setPaginaActual(1);
+    cerrarDetalleOrden();
+    cargarOrdenes(false, {});
+  };
+
+  useEffect(() => {
+    const usuario = obtenerUsuarioActual();
+    setUsuarioActual(usuario);
+    cargarDatosMaestros(usuario);
+    cargarOrdenes(false);
+  }, []);
 
   const puedeCobrar = usuarioActual && usuarioActual.tipo === "VENDEDOR";
 
@@ -1246,6 +1451,7 @@ export default function ListadoOrdenes() {
                 <option value="PENDIENTE POR PAGO">
                   Pendiente por pago
                 </option>
+                <option value="PAGO EN CURSO">Pago en curso</option>
               </select>
             </div>
 
@@ -1317,7 +1523,7 @@ export default function ListadoOrdenes() {
                   <th style={styles.th}>Total</th>
                   <th style={styles.th}>Envío</th>
                   <th style={styles.th}>Pago</th>
-                  <th style={styles.thAction}>Cobro</th>
+                  <th style={styles.thAction}>Gestión</th>
                   <th style={styles.thAction}>Editar</th>
                   <th style={styles.thAction}>Eliminar</th>
                   <th style={styles.thAction}>Ver</th>
@@ -1343,9 +1549,6 @@ export default function ListadoOrdenes() {
                     ordenSeleccionada?.id_orden === o.id_orden;
                   const envioStyle = getEnvioStyle(o.estado_de_envio);
                   const pagoStyle = getPagoStyle(o.estado_de_pago);
-                  const esPagada = (o.estado_de_pago || "")
-                    .toUpperCase()
-                    .includes("PAGADA");
                   const puedeEditar = puedeEditarOrden(o);
 
                   const deleteButtonStyle = {
@@ -1451,12 +1654,10 @@ export default function ListadoOrdenes() {
                         <button
                           style={{
                             ...styles.btnSmall,
-                            backgroundColor: esPagada
-                              ? "#fef9c3"
-                              : "#ecfdf5",
-                            color: esPagada ? "#854d0e" : "#166534",
+                            backgroundColor: "#ecfdf5",
+                            color: "#166534",
                             cursor: puedeCobrar ? "pointer" : "not-allowed",
-                            opacity: puedeCobrar ? 1 : 0.5,
+                            opacity: puedeCobrar ? 1 : 0.6,
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1464,7 +1665,7 @@ export default function ListadoOrdenes() {
                           }}
                           disabled={!puedeCobrar}
                         >
-                          {esPagada ? "Marcar Pendiente" : "Cobrar"}
+                          Gestionar pago
                         </button>
                       </td>
 
@@ -1805,7 +2006,6 @@ export default function ListadoOrdenes() {
                   <strong>Teléfono:</strong>{" "}
                   {clienteSeleccionado.telefono || "-"}
                 </div>
-                {/* 🚨 AGREGADO RIF */}
                 <div>
                   <strong>RIF / Cédula:</strong>{" "}
                   <span style={{ fontFamily: "monospace" }}>
@@ -1937,44 +2137,317 @@ export default function ListadoOrdenes() {
           </div>
         )}
 
-        {/* MODAL PAGO */}
+        {/* MODAL GESTIONAR PAGO VENTA */}
         {modalPagoVisible && ordenParaPago && (
           <div style={styles.modalOverlay}>
             <div style={styles.modal}>
-              <h3>Confirmar Pago Orden #{ordenParaPago.id_orden}</h3>
-              <p style={{ color: "#64748b" }}>
-                ¿Deseas cambiar el estado de pago de esta orden?
+              <h3>
+                Gestionar pago • Orden #{ordenParaPago.id_orden}
+              </h3>
+              <p style={{ color: "#64748b", marginTop: 6 }}>
+                Registra pagos fraccionados o totales para esta orden.
               </p>
+
               {modalPagoError && (
-                <div style={{ color: "red", marginBottom: 10 }}>
+                <div
+                  style={{
+                    background: "#fee2e2",
+                    color: "#991b1b",
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    marginTop: 10,
+                  }}
+                >
                   {modalPagoError}
                 </div>
               )}
+
+              {pagosVentaLoading ? (
+                <div
+                  style={{
+                    marginTop: 20,
+                    textAlign: "center",
+                    color: "#64748b",
+                  }}
+                >
+                  Cargando información de pagos...
+                </div>
+              ) : (
+                <>
+                  {/* Cards resumen */}
+                  <div style={styles.pagoCardsRow}>
+                    <div style={styles.pagoCard}>
+                      <div style={styles.pagoLabel}>Total Orden</div>
+                      <div style={styles.pagoValue}>
+                        ${saldoOriginalUSD.toFixed(2)}
+                      </div>
+                    </div>
+                    <div style={styles.pagoCard}>
+                      <div style={styles.pagoLabel}>Pagado</div>
+                      <div style={{ ...styles.pagoValue, color: "#16a34a" }}>
+                        ${totalPagadoUSD.toFixed(2)}
+                      </div>
+                    </div>
+                    <div style={styles.pagoCard}>
+                      <div style={styles.pagoLabel}>Pendiente</div>
+                      <div style={{ ...styles.pagoValue, color: "#b91c1c" }}>
+                        ${saldoPendienteUSD.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tasa BCV */}
+                  <div style={styles.tasaBarPago}>
+                    <span>
+                      🏦 <strong>Tasa BCV (ventas):</strong>{" "}
+                      {loadingTasaVenta
+                        ? "..."
+                        : tasaBCVVenta
+                        ? `Bs. ${Number(tasaBCVVenta).toFixed(2)}`
+                        : "Manual"}
+                    </span>
+                    {errorTasaVenta && (
+                      <div
+                        style={{
+                          fontSize: "0.75rem",
+                          marginTop: 4,
+                          color: "#b91c1c",
+                        }}
+                      >
+                        {errorTasaVenta}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Formulario pago */}
+                  <div style={styles.pagoFormBox}>
+                    <div style={styles.pagoFormRow}>
+                      <div style={{ flex: 2 }}>
+                        <label style={styles.label}>Método de pago</label>
+                        <select
+                          style={styles.pagoSelect}
+                          value={metodoPagoVenta}
+                          onChange={(e) =>
+                            setMetodoPagoVenta(e.target.value)
+                          }
+                        >
+                          {METODOS_PAGO_VENTA.map((m) => (
+                            <option key={m.value} value={m.value}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {isBolivaresVenta && (
+                        <div style={{ flex: 1 }}>
+                          <label style={styles.label}>Tasa BCV</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            style={styles.pagoInput}
+                            value={tasaPagoInput}
+                            onChange={(e) =>
+                              setTasaPagoInput(e.target.value)
+                            }
+                            placeholder="0.00"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={styles.pagoFormRow}>
+                      <div style={{ flex: 1 }}>
+                        <label style={styles.label}>
+                          Monto ({isBolivaresVenta ? "Bs" : "$"})
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          style={styles.pagoInput}
+                          value={montoPagoInput}
+                          onChange={(e) =>
+                            setMontoPagoInput(e.target.value)
+                          }
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={styles.label}>Referencia</label>
+                        <input
+                          type="text"
+                          style={styles.pagoInput}
+                          value={referenciaPagoInput}
+                          onChange={(e) =>
+                            setReferenciaPagoInput(e.target.value)
+                          }
+                          placeholder={
+                            metodoPagoVenta === "EFECTIVO"
+                              ? "Opcional"
+                              : "Código / Ref."
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div style={styles.pagoHelperRow}>
+                      <span
+                        style={{
+                          fontSize: "0.8rem",
+                          color: "#64748b",
+                        }}
+                      >
+                        {isBolivaresVenta &&
+                        (!tasaPagoInput ||
+                          parseFloat(tasaPagoInput) <= 0) ? (
+                          <span style={{ color: "#f59e0b" }}>
+                            ⚠️ Ingrese tasa BCV para calcular
+                          </span>
+                        ) : (
+                          <>
+                            Equivale a:{" "}
+                            <strong>
+                              $
+                              {getValorEnUSDVenta(
+                                montoPagoInput,
+                                tasaPagoInput
+                              ).toFixed(2)}
+                            </strong>
+                          </>
+                        )}
+                      </span>
+                      <div style={{ display: "flex", gap: 10 }}>
+                        <button
+                          type="button"
+                          style={styles.pagoBtnLink}
+                          onClick={handlePagarTodoVenta}
+                          disabled={saldoRestanteUSD <= 0}
+                        >
+                          Pagar todo
+                        </button>
+                        <button
+                          style={styles.pagoBtnPrimary}
+                          onClick={registrarPagoVenta}
+                          disabled={
+                            saldoRestanteUSD <= 0 ||
+                            !!idOrdenPagoLoading
+                          }
+                        >
+                          {idOrdenPagoLoading === ordenParaPago.id_orden
+                            ? "Registrando..."
+                            : "Registrar pago"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: "0.8rem",
+                        marginTop: 4,
+                        color: "#64748b",
+                      }}
+                    >
+                      Estado actual:{" "}
+                      <strong>
+                        {ordenParaPago.estado_de_pago?.replace(
+                          /_/g,
+                          " "
+                        ) || "-"}
+                      </strong>
+                      . Cada pago afecta el estado de la orden:{" "}
+                      <strong>PENDIENTE POR PAGO</strong>,{" "}
+                      <strong>PAGO EN CURSO</strong> o{" "}
+                      <strong>PAGADA</strong>, y define si el
+                      método general es único o <strong>MIXTO</strong>.
+                    </div>
+                  </div>
+
+                  {/* Historial de pagos */}
+                  <h4 style={{ ...styles.sectionTitle, marginTop: 16 }}>
+                    Historial de pagos
+                  </h4>
+                  <div style={styles.pagoTableContainer}>
+                    <table style={styles.pagoTable}>
+                      <thead>
+                        <tr>
+                          <th style={styles.pagoTh}>Fecha</th>
+                          <th style={styles.pagoTh}>Método</th>
+                          <th style={styles.pagoThRight}>Monto local</th>
+                          <th style={styles.pagoThRight}>USD</th>
+                          <th style={styles.pagoTh}>Referencia</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {historialPagosVenta.length === 0 ? (
+                          <tr>
+                            <td
+                              colSpan={5}
+                              style={{
+                                padding: 12,
+                                textAlign: "center",
+                                color: "#94a3b8",
+                              }}
+                            >
+                              Sin pagos registrados aún.
+                            </td>
+                          </tr>
+                        ) : (
+                          historialPagosVenta.map((p) => (
+                            <tr key={p.id_pagoventa}>
+                              <td style={styles.pagoTd}>
+                                {p.fecha_pago
+                                  ? String(p.fecha_pago).replace(
+                                      "T",
+                                      " "
+                                    ).slice(0, 16)
+                                  : "-"}
+                              </td>
+                              <td style={styles.pagoTd}>
+                                {p.metodo_pago?.replace(/_/g, " ") ||
+                                  "-"}
+                              </td>
+                              <td style={styles.pagoTdRight}>
+                                {p.moneda === "VES"
+                                  ? `Bs ${Number(
+                                      p.monto_local || 0
+                                    ).toFixed(2)}`
+                                  : `$ ${Number(
+                                      p.monto_local || 0
+                                    ).toFixed(2)}`}
+                              </td>
+                              <td style={styles.pagoTdRight}>
+                                ${Number(p.monto_usd || 0).toFixed(2)}
+                              </td>
+                              <td style={styles.pagoTd}>
+                                {p.referencia || "-"}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+
               <div
                 style={{
                   display: "flex",
                   justifyContent: "flex-end",
-                  gap: 10,
+                  marginTop: 18,
                 }}
               >
                 <button
-                  style={styles.btnGhost}
+                  style={styles.btnPrimary}
                   onClick={cerrarModalPago}
                 >
-                  Cancelar
-                </button>
-                <button
-                  style={styles.btnPrimary}
-                  onClick={confirmarCambioPago}
-                >
-                  Confirmar
+                  Cerrar
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* MODAL EDITAR */}
+        {/* MODAL EDITAR ORDEN */}
         {modalEditarVisible && ordenParaEditar && (
           <div style={styles.modalOverlay}>
             <div style={styles.modal}>
@@ -2067,7 +2540,7 @@ export default function ListadoOrdenes() {
   );
 }
 
-// --- ESTILOS CSS-IN-JS (Unificados) ---
+// --- ESTILOS CSS-IN-JS ---
 const styles = {
   container: {
     padding: "24px 32px",
@@ -2417,12 +2890,147 @@ const styles = {
   },
   modal: {
     width: "100%",
-    maxWidth: "520px",
+    maxWidth: "600px",
     backgroundColor: "#ffffff",
     borderRadius: "16px",
     padding: "20px 24px 18px",
     boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
     border: "1px solid #e2e8f0",
+    maxHeight: "90vh",
+    overflowY: "auto",
+  },
+
+  // Estilos específicos para el modal de pagos
+  pagoCardsRow: {
+    display: "flex",
+    gap: 10,
+    marginTop: 14,
+    marginBottom: 10,
+  },
+  pagoCard: {
+    flex: 1,
+    padding: 10,
+    borderRadius: 10,
+    border: "1px solid #e2e8f0",
+    background: "#f8fafc",
+  },
+  pagoLabel: {
+    fontSize: "0.7rem",
+    textTransform: "uppercase",
+    color: "#94a3b8",
+    marginBottom: 4,
+    fontWeight: 600,
+  },
+  pagoValue: {
+    fontSize: "1rem",
+    fontWeight: 700,
+    color: "#0f172a",
+  },
+  tasaBarPago: {
+    marginTop: 6,
+    marginBottom: 10,
+    padding: "8px 10px",
+    borderRadius: 8,
+    background: "#eff6ff",
+    color: "#1e40af",
+    border: "1px solid #bfdbfe",
+    fontSize: "0.8rem",
+  },
+  pagoFormBox: {
+    marginTop: 4,
+    padding: 12,
+    borderRadius: 10,
+    border: "1px solid #e5e7eb",
+    background: "#ffffff",
+  },
+  pagoFormRow: {
+    display: "flex",
+    gap: 10,
+    marginBottom: 10,
+  },
+  pagoInput: {
+    width: "100%",
+    height: "36px",
+    padding: "0 10px",
+    borderRadius: 8,
+    border: "1px solid #cbd5e1",
+    fontSize: "0.9rem",
+    outline: "none",
+    boxSizing: "border-box",
+  },
+  pagoSelect: {
+    width: "100%",
+    height: "36px",
+    padding: "0 10px",
+    borderRadius: 8,
+    border: "1px solid #cbd5e1",
+    fontSize: "0.9rem",
+    outline: "none",
+    background: "#fff",
+    boxSizing: "border-box",
+  },
+  pagoHelperRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 6,
+  },
+  pagoBtnLink: {
+    background: "none",
+    border: "none",
+    color: "#3b82f6",
+    fontWeight: 600,
+    cursor: "pointer",
+    fontSize: "0.8rem",
+  },
+  pagoBtnPrimary: {
+    background: "#0f172a",
+    color: "#ffffff",
+    border: "none",
+    padding: "8px 14px",
+    borderRadius: 999,
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  pagoTableContainer: {
+    borderRadius: 8,
+    border: "1px solid #e5e7eb",
+    maxHeight: 220,
+    overflowY: "auto",
+    background: "#ffffff",
+  },
+  pagoTable: {
+    width: "100%",
+    borderCollapse: "collapse",
+    fontSize: "0.8rem",
+  },
+  pagoTh: {
+    padding: "8px 10px",
+    textAlign: "left",
+    color: "#64748b",
+    fontWeight: 600,
+    borderBottom: "1px solid #e5e7eb",
+    background: "#f8fafc",
+  },
+  pagoThRight: {
+    padding: "8px 10px",
+    textAlign: "right",
+    color: "#64748b",
+    fontWeight: 600,
+    borderBottom: "1px solid #e5e7eb",
+    background: "#f8fafc",
+  },
+  pagoTd: {
+    padding: "8px 10px",
+    color: "#334155",
+    borderBottom: "1px solid #f1f5f9",
+  },
+  pagoTdRight: {
+    padding: "8px 10px",
+    textAlign: "right",
+    color: "#334155",
+    borderBottom: "1px solid #f1f5f9",
   },
 };
 

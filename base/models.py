@@ -150,3 +150,58 @@ class DetalleOrden(models.Model):
 
     def __str__(self):
         return f"Detalle Orden {self.id_detalleo}"
+    
+# ---------------------------
+#   PAGO VENTA (ABONOS DE ÓRDENES)
+# ---------------------------
+from decimal import Decimal  # Asegúrate de tener esto al inicio del archivo
+
+class PagoVenta(models.Model):
+    id_pagoventa = models.AutoField(primary_key=True)
+    orden = models.ForeignKey(
+        Orden,
+        on_delete=models.CASCADE,
+        related_name="pagos_venta"
+    )
+    fecha_pago = models.DateTimeField(auto_now_add=True)
+
+    # Debe coincidir con tus métodos de pago de ventas
+    metodo_pago = models.CharField(max_length=50)
+
+    # Moneda en la que se registró el pago
+    MONEDA_CHOICES = [
+        ("USD", "Dólar"),
+        ("VES", "Bolívares"),
+    ]
+    moneda = models.CharField(max_length=3, choices=MONEDA_CHOICES)
+
+    # Monto en la moneda local indicada (USD o VES)
+    monto_local = models.DecimalField(max_digits=12, decimal_places=2)
+
+    # Tasa usada si el pago fue en VES (BCV)
+    tasa_cambio = models.DecimalField(
+        max_digits=12,
+        decimal_places=4,
+        null=True,
+        blank=True
+    )
+
+    # Monto equivalente en USD (lo que se descuenta de la deuda)
+    monto_usd = models.DecimalField(max_digits=12, decimal_places=2)
+
+    # Código / referencia del pago (opcional para efectivo)
+    referencia = models.CharField(max_length=120, blank=True)
+
+    # Usuario que registró el pago (normalmente el vendedor)
+    id_usuario = models.ForeignKey(
+        Usuario,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True
+    )
+
+    class Meta:
+        ordering = ["-fecha_pago"]
+
+    def __str__(self):
+        return f"PagoVenta {self.id_pagoventa} - Orden {self.orden_id}"

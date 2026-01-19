@@ -1,4 +1,8 @@
 # base/serializers.py
+
+from decimal import Decimal
+from django.db.models import Sum
+from django.db.utils import ProgrammingError, OperationalError
 from rest_framework import serializers
 from .models import (
     Usuario,
@@ -8,6 +12,7 @@ from .models import (
     Envio,
     Orden,
     DetalleOrden,
+    PagoVenta,
 )
 
 ESTADO_CREACION_ENVIO = "PENDIENTE POR APROBACION"
@@ -18,13 +23,6 @@ ESTADO_CREACION_ENVIO = "PENDIENTE POR APROBACION"
 # ============================================================
 
 class UsuarioSerializer(serializers.ModelSerializer):
-    """
-    Serializador del modelo Usuario (subclase de AbstractUser).
-
-    - La contraseña se marca como write_only.
-    - En create/update se usa set_password para que quede hasheada.
-    """
-
     class Meta:
         model = Usuario
         fields = "__all__"
@@ -55,30 +53,13 @@ class UsuarioSerializer(serializers.ModelSerializer):
         return instance
 
 
-# ============================================================
-#   REGISTRO DE ACCIONES
-# ============================================================
-
 class RegistroAccionSerializer(serializers.ModelSerializer):
     class Meta:
         model = RegistroAccion
         fields = "__all__"
 
 
-# ============================================================
-#   CLIENTE
-# ============================================================
-
-# base/serializers.py
-
 class ClienteSerializer(serializers.ModelSerializer):
-    """
-    Cliente asociado a un vendedor (id_usuario).
-
-    - id_usuario se maneja en el backend según el usuario autenticado.
-    - total_ordenes y ordenes_activas vienen de las anotaciones en el queryset.
-    """
-
     total_ordenes = serializers.IntegerField(read_only=True)
     ordenes_activas = serializers.IntegerField(read_only=True)
 
@@ -103,18 +84,7 @@ class ClienteSerializer(serializers.ModelSerializer):
         ]
 
 
-# ============================================================
-#   UNIDAD (VEHÍCULO)
-# ============================================================
-
 class UnidadSerializer(serializers.ModelSerializer):
-    """
-    Unidad de transporte.
-
-    - id_unidad es solo lectura.
-    - id_usuario se escribe como PK (transportista asignado).
-    """
-
     class Meta:
         model = Unidad
         fields = [
@@ -129,22 +99,7 @@ class UnidadSerializer(serializers.ModelSerializer):
         read_only_fields = ["id_unidad"]
 
 
-# ============================================================
-#   ENVÍO
-# ============================================================
-
 class EnvioSerializer(serializers.ModelSerializer):
-    """
-    Serializador de Envío.
-
-    - id_envio es solo lectura.
-    - codigo_envio se genera automáticamente si no viene.
-    - fecha_salida se pone por defecto a "ahora" si no viene.
-    - estado se inicializa a "PENDIENTE POR APROBACION" si no viene.
-    - peso_total se deja en 0 al crear y luego se recalcula cuando se asignan órdenes.
-    - ordenes_detalle muestra un resumen de las órdenes asignadas al envío.
-    """
-
     codigo_envio = serializers.CharField(
         required=False,
         allow_blank=True,
@@ -171,28 +126,22 @@ class EnvioSerializer(serializers.ModelSerializer):
         read_only_fields = ["id_envio", "peso_total", "ordenes_detalle"]
 
     def _generar_codigo_envio(self) -> str:
-        """
-        Genera un código de envío sencillo del tipo ENV-00001, ENV-00002, etc.
-        """
         last_envio = Envio.objects.order_by("-id_envio").first()
         next_id = (last_envio.id_envio if last_envio else 0) + 1
         return f"ENV-{next_id:05d}"
 
     def create(self, validated_data):
-        # Código automático si no viene
+        from django.utils import timezone
+
         if not validated_data.get("codigo_envio"):
             validated_data["codigo_envio"] = self._generar_codigo_envio()
 
-        # Estado por defecto
         if not validated_data.get("estado"):
             validated_data["estado"] = ESTADO_CREACION_ENVIO
 
-        # Fecha de salida por defecto: ahora mismo si no viene
-        from django.utils import timezone
         if not validated_data.get("fecha_salida"):
             validated_data["fecha_salida"] = timezone.now()
 
-        # Peso total por defecto: 0 (luego se recalcula cuando se asignan órdenes)
         if "peso_total" not in validated_data or validated_data["peso_total"] is None:
             validated_data["peso_total"] = 0
 
@@ -203,14 +152,16 @@ class EnvioSerializer(serializers.ModelSerializer):
         resultado = []
         for o in qs:
             cliente_nombre = getattr(o.id_cliente, "nombre", None)
-            resultado.append({
-                "id_orden": o.id_orden,
-                "id_cliente": o.id_cliente_id, 
-                "cliente_nombre": cliente_nombre,
-                "estado_de_envio": o.estado_de_envio,
-                "peso_total": o.peso_total,      # 👈 agregado
-                "precio_final": o.precio_final,  # 👈 opcional (también ayuda)
-            })
+            resultado.append(
+                {
+                    "id_orden": o.id_orden,
+                    "id_cliente": o.id_cliente_id,
+                    "cliente_nombre": cliente_nombre,
+                    "estado_de_envio": o.estado_de_envio,
+                    "peso_total": o.peso_total,
+                    "precio_final": o.precio_final,
+                }
+            )
         return resultado
 
 
@@ -225,6 +176,7 @@ class OrdenSerializer(serializers.ModelSerializer):
     - id_usuario_username: username del usuario que creó la orden
     - id_cliente_nombre: nombre del cliente
     - vendedor_detalle: datos completos del vendedor (UsuarioSerializer)
+    - total_pagado / saldo_pendiente calculados a partir de PagoVenta
     """
 
     id_usuario_username = serializers.CharField(
@@ -236,29 +188,54 @@ class OrdenSerializer(serializers.ModelSerializer):
         read_only=True
     )
 
-    # 👇 Campo extra para que el front tenga toda la info del vendedor
     vendedor_detalle = UsuarioSerializer(
         source="id_usuario",
         read_only=True
     )
 
+    # Dejamos claro que estos campos vienen del modelo, pero los marcamos solo lectura
     peso_total = serializers.DecimalField(
         max_digits=12,
         decimal_places=2,
         read_only=True,
-        coerce_to_string=False
+        coerce_to_string=False,
     )
     precio_final = serializers.DecimalField(
         max_digits=12,
         decimal_places=2,
         read_only=True,
-        coerce_to_string=False
+        coerce_to_string=False,
     )
+
+    total_pagado = serializers.SerializerMethodField()
+    saldo_pendiente = serializers.SerializerMethodField()
 
     class Meta:
         model = Orden
         fields = "__all__"
         read_only_fields = ("id_orden", "fecha_orden")
+
+    def get_total_pagado(self, obj):
+        """
+        Suma todos los pagos asociados a la orden.
+        Si la tabla aún no existe (migración pendiente) o hay un error de BD,
+        devolvemos 0 para no romper el serializer.
+        """
+        try:
+            total = obj.pagos_venta.aggregate(total=Sum("monto_usd"))["total"] or 0
+            return total
+        except (OperationalError, ProgrammingError):
+            # Tabla de PagoVenta no creada, o error de esquema.
+            return 0
+
+    def get_saldo_pendiente(self, obj):
+        total_pagado = self.get_total_pagado(obj)
+        precio = obj.precio_final or 0
+        try:
+            return precio - total_pagado
+        except TypeError:
+            # En caso rarísimo de mezclar tipos incompatibles, devolvemos solo el precio
+            return precio
 
 
 # ============================================================
@@ -266,31 +243,21 @@ class OrdenSerializer(serializers.ModelSerializer):
 # ============================================================
 
 class DetalleOrdenSerializer(serializers.ModelSerializer):
-    """
-    Detalle de una orden.
-
-    Problema típico:
-    - Si solo serializas `id_producto` como FK (entero), el frontend no puede mostrar el nombre.
-
-    Solución:
-    - Exponemos `id_producto_nombre` para TransporteEnvios.jsx
-    - Exponemos `producto` como alias para ListadoOrdenes.jsx (compatibilidad)
-    """
-
-    # Para TransporteEnvios.jsx (usa d.id_producto_nombre || d.id_producto?.nombre)
-    id_producto_nombre = serializers.CharField(source="id_producto.nombre", read_only=True)
-
-    # Para ListadoOrdenes.jsx (usa d.id_producto?.nombre || d.producto || '-')
-    producto = serializers.CharField(source="id_producto.nombre", read_only=True)
+    id_producto_nombre = serializers.CharField(
+        source="id_producto.nombre", read_only=True
+    )
+    producto = serializers.CharField(
+        source="id_producto.nombre", read_only=True
+    )
 
     class Meta:
         model = DetalleOrden
         fields = [
             "id_detalleo",
             "id_orden",
-            "id_producto",          # se mantiene como ID para NO romper creates/updates
-            "id_producto_nombre",   # nombre del producto
-            "producto",             # alias del nombre (compatibilidad)
+            "id_producto",
+            "id_producto_nombre",
+            "producto",
             "cantidad",
             "precio_unitario",
             "subtotal",
@@ -306,4 +273,20 @@ class DetalleOrdenSerializer(serializers.ModelSerializer):
             "peso_subtotal",
             "id_producto_nombre",
             "producto",
+        )
+
+
+# ============================================================
+#   PAGO VENTA
+# ============================================================
+
+class PagoVentaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PagoVenta
+        fields = "__all__"
+        read_only_fields = (
+            "id_pagoventa",
+            "fecha_pago",
+            "monto_usd",
+            "id_usuario",
         )
