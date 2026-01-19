@@ -86,7 +86,7 @@ class Cliente(models.Model):
 class Unidad(models.Model):
     id_unidad = models.AutoField(primary_key=True)
     capacidad_carga = models.DecimalField(max_digits=12, decimal_places=2)
-    id_usuario = models.ForeignKey(Usuario, on_delete=models.PROTECT)
+    id_usuario = models.ForeignKey(Usuario, on_delete=models.PROTECT, null=True, blank=True)
     codigo_unidad = models.CharField(max_length=50)
     telefono = models.CharField(max_length=20)
     estado = models.CharField(max_length=40)

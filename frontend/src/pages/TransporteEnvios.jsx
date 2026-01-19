@@ -751,52 +751,17 @@ export default function TransporteEnvios() {
     }
   };
 
-  const toggleUnidadEstado = (unidad, targetEstado) => {
-    if (!unidad) return;
+  // Removed duplicate declaration of toggleUnidadEstado
 
-    if (unidadBloquearActivarDesactivarPorTransito(unidad.id_unidad)) {
-      toast.error("No puedes activar/desactivar: esta unidad tiene envíos activos (en tránsito/en curso/asignados).");
-      return;
-    }
-
-    openConfirm({
-      title: `${targetEstado === "INACTIVA" ? "Desactivar" : "Activar"} unidad`,
-      tone: targetEstado === "INACTIVA" ? "danger" : "primary",
-      text: (
-        <div>
-          <div style={{ marginBottom: 8 }}>
-            Unidad: <b>{unidad.codigo_unidad}</b> · Placa: <b>{unidad.placa || "-"}</b>
-          </div>
-          <div style={{ color: "#64748b" }}>
-            {targetEstado === "INACTIVA"
-              ? "La unidad quedará fuera de uso hasta que la actives nuevamente."
-              : "La unidad volverá a estar disponible para asignaciones."}
-          </div>
-        </div>
-      ),
-      onConfirm: async () => {
-        if (busyKey) return;
-        setBusyKey(`unidad:toggle:${unidad.id_unidad}`);
-        try {
-          await api.patch(`/base/unidades/${unidad.id_unidad}/`, { estado: targetEstado });
-          toast.success(`Unidad ${unidad.codigo_unidad} actualizada.`);
-          setMensaje(`Unidad ${unidad.codigo_unidad} actualizada.`);
-          await logAccion(targetEstado === "INACTIVA" ? "Desactivar unidad" : "Activar unidad", `Unidad ${unidad.codigo_unidad} => ${targetEstado}.`, unidad.id_unidad, "Unidades");
-          await cargarUnidades();
-          closeConfirm();
-        } catch (err) {
-          toast.error(getBackendMessage(err) || "No se pudo actualizar la unidad.");
-        } finally {
-          setBusyKey(null);
-        }
-      },
-    });
-  };
-
+  // Nueva lógica de eliminación y reactivación de unidades
   const eliminarUnidad = (unidad) => {
     if (!unidad) return;
-    if (!unidadPuedeGestionarse(unidad.id_unidad)) return toast.error("Solo puedes eliminar unidades sin envíos o con todos los envíos terminados.");
-
+    // Solo permitir eliminar si la unidad NO tiene ningún envío relacionado
+    const relacionados = envios.filter((e) => String(e.id_unidad) === String(unidad.id_unidad));
+    if (relacionados.length > 0) {
+      toast.error("Solo puedes eliminar unidades que no tengan ningún envío relacionado.");
+      return;
+    }
     openConfirm({
       title: "Eliminar unidad",
       tone: "danger",
@@ -806,7 +771,7 @@ export default function TransporteEnvios() {
             ¿Seguro que deseas eliminar la unidad <b>{unidad.codigo_unidad}</b>?
           </div>
           <div style={{ color: "#64748b" }}>
-            Esta acción no se puede deshacer. Solo es posible si no tiene envíos activos.
+            Esta acción no se puede deshacer. Solo es posible si la unidad no tiene ningún envío registrado (ni activos ni finalizados).
           </div>
         </div>
       ),
@@ -823,6 +788,192 @@ export default function TransporteEnvios() {
           closeConfirm();
         } catch (err) {
           toast.error(getBackendMessage(err) || "No se pudo eliminar la unidad.");
+        } finally {
+          setBusyKey(null);
+        }
+      },
+    });
+  };
+
+  // NUEVO: Lógica para desactivar y reactivar unidad, liberando/obligando asignar chofer
+  const toggleUnidadEstado = (unidad, targetEstado) => {
+    if (!unidad) return;
+    if (unidadBloquearActivarDesactivarPorTransito(unidad.id_unidad)) {
+      toast.error("No puedes activar/desactivar: esta unidad tiene envíos activos (en tránsito/en curso/asignados).");
+      return;
+    }
+
+    // Si desactivamos, liberamos el chofer (id_usuario pasa a null)
+    if (targetEstado === "INACTIVA") {
+      openConfirm({
+        title: "Desactivar unidad",
+        tone: "danger",
+        text: (
+          <div>
+            <div style={{ marginBottom: 8 }}>
+              Unidad: <b>{unidad.codigo_unidad}</b> · Placa: <b>{unidad.placa || "-"}</b>
+            </div>
+            <div style={{ color: "#64748b" }}>
+              La unidad quedará fuera de uso y el chofer asignado será liberado.
+            </div>
+          </div>
+        ),
+        onConfirm: async () => {
+          if (busyKey) return;
+          setBusyKey(`unidad:toggle:${unidad.id_unidad}`);
+          try {
+            await api.patch(`/base/unidades/${unidad.id_unidad}/`, { estado: "INACTIVA", id_usuario: null });
+            toast.success(`Unidad ${unidad.codigo_unidad} desactivada y chofer liberado.`);
+            setMensaje(`Unidad ${unidad.codigo_unidad} desactivada.`);
+            await logAccion("Desactivar unidad", `Unidad ${unidad.codigo_unidad} => INACTIVA y chofer liberado.`, unidad.id_unidad, "Unidades");
+            await cargarUnidades();
+            closeConfirm();
+          } catch (err) {
+            toast.error(getBackendMessage(err) || "No se pudo desactivar la unidad.");
+          } finally {
+            setBusyKey(null);
+          }
+        },
+      });
+      return;
+    }
+
+    // Si reactivamos, pero la unidad NO tiene chofer asignado, forzar selección de chofer disponible
+    if (targetEstado === "ACTIVA" && !unidad.id_usuario) {
+      // Modal para seleccionar chofer disponible
+      let choferId = "";
+      let modalError = "";
+      let setChoferId;
+      let setModalError;
+      function ChoferSelectorModal({ open, onClose, onConfirm }) {
+        const [localChoferId, setLocalChoferId] = useState("");
+        const [localError, setLocalError] = useState("");
+        setChoferId = setLocalChoferId;
+        setModalError = setLocalError;
+        // Solo mostrar transportistas que NO estén asignados a otra unidad activa (excepto esta)
+        const disponibles = transportistas.filter((t) => {
+          const tid = String(t.id_usuario ?? t.id);
+          // No asignado a ninguna unidad activa
+          return !unidades.some((u) =>
+            String(u.id_usuario) === tid &&
+            String(u.id_unidad) !== String(unidad.id_unidad) &&
+            normEstado(u.estado) !== "INACTIVA"
+          );
+        });
+        return (
+          <ModalShell
+            open={open}
+            title="Asignar chofer a unidad"
+            subtitle={`Selecciona un chofer disponible para la unidad ${unidad.codigo_unidad}`}
+            onClose={onClose}
+            maxWidth={400}
+          >
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!localChoferId) {
+                  setLocalError("Selecciona un chofer para asignar.");
+                  return;
+                }
+                onConfirm(localChoferId);
+              }}
+            >
+              <label style={styles.label}>Chofer disponible</label>
+              <select
+                style={styles.select}
+                value={localChoferId}
+                onChange={(e) => {
+                  setLocalChoferId(e.target.value);
+                  setLocalError("");
+                }}
+              >
+                <option value="">Selecciona chofer</option>
+                {disponibles.map((t) => {
+                  const tid = t.id_usuario ?? t.id;
+                  const nombre = `${t.first_name || ""} ${t.last_name || ""}`.trim() || t.username;
+                  return (
+                    <option key={tid} value={tid}>
+                      {nombre} ({t.username})
+                    </option>
+                  );
+                })}
+              </select>
+              {localError ? <div style={styles.errorText}>{localError}</div> : null}
+              <div style={styles.modalActions}>
+                <button type="button" style={styles.buttonGhost} onClick={onClose}>Cancelar</button>
+                <button type="submit" style={styles.buttonPrimary}>Asignar y activar</button>
+              </div>
+            </form>
+          </ModalShell>
+        );
+      }
+      // Renderizar el modal usando un estado local
+      function ChoferSelectorWrapper() {
+        const [open, setOpen] = useState(true);
+        if (!open) return null;
+        return (
+          <ChoferSelectorModal
+            open={open}
+            onClose={() => { setOpen(false); closeConfirm(); }}
+            onConfirm={async (choferIdSel) => {
+              if (!choferIdSel) {
+                setModalError && setModalError("Selecciona un chofer para asignar.");
+                return;
+              }
+              setBusyKey(`unidad:reactivate:${unidad.id_unidad}`);
+              try {
+                await api.patch(`/base/unidades/${unidad.id_unidad}/`, { estado: "ACTIVA", id_usuario: choferIdSel });
+                toast.success(`Unidad ${unidad.codigo_unidad} activada y chofer asignado.`);
+                setMensaje(`Unidad ${unidad.codigo_unidad} activada.`);
+                await logAccion("Activar unidad", `Unidad ${unidad.codigo_unidad} => ACTIVA y chofer asignado.`, unidad.id_unidad, "Unidades");
+                await cargarUnidades();
+                setOpen(false);
+                closeConfirm();
+              } catch (err) {
+                toast.error(getBackendMessage(err) || "No se pudo activar la unidad.");
+              } finally {
+                setBusyKey(null);
+              }
+            }}
+          />
+        );
+      }
+      // Usar confirm para montar el modal
+      openConfirm({
+        title: "Asignar chofer a unidad",
+        text: <ChoferSelectorWrapper />,
+        tone: "primary",
+        onConfirm: () => {},
+      });
+      return;
+    }
+
+    // Reactivación normal (unidad ya tiene chofer asignado)
+    openConfirm({
+      title: "Activar unidad",
+      tone: "primary",
+      text: (
+        <div>
+          <div style={{ marginBottom: 8 }}>
+            Unidad: <b>{unidad.codigo_unidad}</b> · Placa: <b>{unidad.placa || "-"}</b>
+          </div>
+          <div style={{ color: "#64748b" }}>
+            La unidad volverá a estar disponible para asignaciones.
+          </div>
+        </div>
+      ),
+      onConfirm: async () => {
+        if (busyKey) return;
+        setBusyKey(`unidad:toggle:${unidad.id_unidad}`);
+        try {
+          await api.patch(`/base/unidades/${unidad.id_unidad}/`, { estado: "ACTIVA" });
+          toast.success(`Unidad ${unidad.codigo_unidad} activada.`);
+          setMensaje(`Unidad ${unidad.codigo_unidad} activada.`);
+          await logAccion("Activar unidad", `Unidad ${unidad.codigo_unidad} => ACTIVA.`, unidad.id_unidad, "Unidades");
+          await cargarUnidades();
+          closeConfirm();
+        } catch (err) {
+          toast.error(getBackendMessage(err) || "No se pudo activar la unidad.");
         } finally {
           setBusyKey(null);
         }
@@ -1354,6 +1505,9 @@ export default function TransporteEnvios() {
                     const bloqueActDes = unidadBloquearActivarDesactivarPorTransito(u.id_unidad);
                     const estadoNorm = normEstado(u.estado);
                     const esActiva = estadoNorm === "ACTIVA" || estadoNorm === "DISPONIBLE";
+                    // NUEVO: Restricción para eliminar unidad si tiene envíos relacionados
+                    const tieneEnviosRelacionados = envios.some((ev) => String(ev.id_unidad) === String(u.id_unidad));
+                    const puedeEliminar = !tieneEnviosRelacionados;
 
                     return (
                       <tr key={u.id_unidad} style={{ cursor: "pointer" }} onClick={() => setUnidadSeleccionada(u)}>
@@ -1403,8 +1557,9 @@ export default function TransporteEnvios() {
 
                               <button
                                 type="button"
-                                style={{ ...styles.buttonDanger, ...(!puedeGestionar ? styles.buttonDisabled : {}) }}
-                                disabled={!puedeGestionar || !!busyKey}
+                                style={{ ...styles.buttonDanger, ...(!puedeEliminar ? styles.buttonDisabled : {}) }}
+                                disabled={!puedeEliminar || !!busyKey}
+                                title={tieneEnviosRelacionados ? "No puedes eliminar esta unidad porque tiene envíos relacionados." : "Eliminar unidad"}
                                 onClick={(e) => { e.stopPropagation(); eliminarUnidad(u); }}
                               >
                                 <IconTrash />
@@ -1931,7 +2086,7 @@ export default function TransporteEnvios() {
             <div style={{ display: "grid", gap: 6, color: "#334155" }}>
               <div><b>Estado envío:</b> {String(ordenInfo.orden?.estado_de_envio || "-").replace(/_/g, " ")}</div>
               <div><b>Fecha:</b> {formatFechaCorta(ordenInfo.orden?.fecha_orden)}</div>
-              <div><b>Total:</b> Bs {ordenInfo.orden?.precio_final ?? "-"}</div>
+              <div><b>Total:</b> $ {ordenInfo.orden?.precio_final ?? "-"}</div>
               <div><b>Peso total:</b> {ordenInfo.peso === null ? "No disponible" : formatKg(ordenInfo.peso)}</div>
               <div><b>Método de pago:</b> {ordenInfo.orden?.metodo_pago || "-"}</div>
 

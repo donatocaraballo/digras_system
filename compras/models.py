@@ -100,7 +100,7 @@ class PagoCompra(models.Model):
     METODO_PAGO_CHOICES = [
         ('TRANSFERENCIA_BS', 'Transferencia (Bs)'),
         ('PAGO_MOVIL', 'Pago Móvil (Bs)'),
-        ('EFECTIVO_BS', 'Efectivo (Bs)'),
+        ('EFECTIVO', 'Efectivo'),
         ('TRANSFERENCIA_USD', 'Transferencia ($)'),
         ('EFECTIVO_USD', 'Efectivo ($)'),
         ('ZELLE', 'Zelle ($)'),

@@ -13,6 +13,8 @@ const METODOS_PAGO = [
   "TRANSFERENCIA INTERNACIONAL",
 ];
 
+const API_TASA_LOCAL = "/base/tasa-dolar/";
+
 // --- ICONOS SVG ---
 const IconClipboard = () => (
   <svg
@@ -138,6 +140,10 @@ export default function ListadoOrdenes() {
   const [vendedorBusqueda, setVendedorBusqueda] = useState("");
   const [idOrdenPagoLoading, setIdOrdenPagoLoading] = useState(null);
   const [paginaActual, setPaginaActual] = useState(1);
+  const [tasaBCV, setTasaBCV] = useState(null);
+  const [loadingTasa, setLoadingTasa] = useState(false);
+  const [montoBsDetalle, setMontoBsDetalle] = useState(null);
+  const [errorTasa, setErrorTasa] = useState("");
   const pageSize = 10;
 
   // Modales
@@ -479,6 +485,9 @@ export default function ListadoOrdenes() {
   const cerrarDetalleOrden = () => {
     setOrdenSeleccionada(null);
     setDetallesOrdenSeleccionada([]);
+    setTasaBCV(null);
+    setMontoBsDetalle(null);
+    setErrorTasa("");
   };
 
   // --- CARGA DE DATOS ---
@@ -559,6 +568,9 @@ export default function ListadoOrdenes() {
       cerrarDetalleOrden();
       return;
     }
+    setTasaBCV(null);
+    setMontoBsDetalle(null);
+    setErrorTasa("");
     setLoadingDetalle(true);
     setErrorDetalle("");
     setOrdenSeleccionada(null);
@@ -807,6 +819,47 @@ export default function ListadoOrdenes() {
     }, 0);
   };
 
+  // --- Calcular monto en Bs según tasa BCV ---
+  const calcularMontoBsDetalle = async () => {
+    if (!ordenSeleccionada) return;
+
+    const totalUSD = Number(
+      ordenSeleccionada.precio_final ?? totalOrdenDesdeDetalles()
+    );
+
+    if (!totalUSD || isNaN(totalUSD)) {
+      setErrorTasa("No se pudo determinar el total de la orden.");
+      return;
+    }
+
+    try {
+      setLoadingTasa(true);
+      setErrorTasa("");
+      setMontoBsDetalle(null);
+      setTasaBCV(null);
+
+      const res = await api.get(
+        `http://127.0.0.1:8000/api${API_TASA_LOCAL}`
+      );
+      const data = res.data || {};
+      const tasa = data.promedio ?? data.price;
+      const tasaNum = Number(tasa);
+
+      if (!tasaNum || isNaN(tasaNum)) {
+        setErrorTasa("Tasa BCV inválida.");
+        return;
+      }
+
+      setTasaBCV(tasaNum);
+      setMontoBsDetalle(totalUSD * tasaNum);
+    } catch (err) {
+      console.error("Error obteniendo tasa BCV:", err);
+      setErrorTasa("Error al consultar la tasa BCV.");
+    } finally {
+      setLoadingTasa(false);
+    }
+  };
+
   const clientesFiltrados = clientes.filter((c) => {
     const term = clienteBusqueda.toLowerCase();
     const nombre = (c.nombre || "").toLowerCase();
@@ -891,7 +944,7 @@ export default function ListadoOrdenes() {
 
       const headers = ["ID", "Cliente"];
       if (esGerencia) headers.push("Vendedor");
-      headers.push("Fecha", "Estado", "Pago", "Total (Bs)");
+      headers.push("Fecha", "Estado", "Pago", "Total ($)");
 
       const rows = ordenesOrdenadas.map((o) => {
         const row = [o.id_orden, nombreCliente(o.id_cliente)];
@@ -1013,7 +1066,7 @@ export default function ListadoOrdenes() {
           <div style={styles.dashboardItem}>
             <span style={styles.dashboardLabel}>Ventas últimos 30 días</span>
             <span style={styles.dashboardValue}>
-              Bs {dashboardStats.ventasUltimoMes.toFixed(2)}
+              $ {dashboardStats.ventasUltimoMes.toFixed(2)}
             </span>
           </div>
           <div style={styles.dashboardItem}>
@@ -1368,7 +1421,7 @@ export default function ListadoOrdenes() {
                           : ""}
                       </td>
                       <td style={styles.tdAmount}>
-                        Bs {Number(o.precio_final || 0).toFixed(2)}
+                        $ {Number(o.precio_final || 0).toFixed(2)}
                       </td>
 
                       <td style={styles.td}>
@@ -1648,7 +1701,7 @@ export default function ListadoOrdenes() {
                             color: "#0f172a",
                           }}
                         >
-                          Bs {Number(d.subtotal).toFixed(2)}
+                          $ {Number(d.subtotal).toFixed(2)}
                         </td>
                       </tr>
                     ))}
@@ -1657,18 +1710,68 @@ export default function ListadoOrdenes() {
                 <div
                   style={{
                     textAlign: "right",
-                    fontSize: "1.2rem",
-                    fontWeight: "bold",
-                    color: "#0f172a",
                     borderTop: "2px solid #e2e8f0",
                     paddingTop: 15,
                   }}
                 >
-                  Total: Bs{" "}
-                  {Number(
-                    ordenSeleccionada.precio_final ??
-                      totalOrdenDesdeDetalles()
-                  ).toFixed(2)}
+                  <div
+                    style={{
+                      fontSize: "1.2rem",
+                      fontWeight: "bold",
+                      color: "#0f172a",
+                    }}
+                  >
+                    Total: ${" "}
+                    {Number(
+                      ordenSeleccionada.precio_final ??
+                        totalOrdenDesdeDetalles()
+                    ).toFixed(2)}
+                  </div>
+
+                  <div style={{ marginTop: 10 }}>
+                    <button
+                      style={styles.btnGhostSmall}
+                      onClick={calcularMontoBsDetalle}
+                      disabled={loadingTasa}
+                    >
+                      {loadingTasa
+                        ? "Calculando..."
+                        : "Ver monto en Bs (tasa BCV)"}
+                    </button>
+
+                    {montoBsDetalle != null && tasaBCV != null && (
+                      <div
+                        style={{
+                          marginTop: 6,
+                          fontSize: "0.9rem",
+                          color: "#0f172a",
+                        }}
+                      >
+                        ≈ Bs {montoBsDetalle.toFixed(2)}
+                        <span
+                          style={{
+                            marginLeft: 6,
+                            fontSize: "0.8rem",
+                            color: "#64748b",
+                          }}
+                        >
+                          (Tasa BCV: Bs {tasaBCV.toFixed(2)})
+                        </span>
+                      </div>
+                    )}
+
+                    {errorTasa && (
+                      <div
+                        style={{
+                          marginTop: 6,
+                          fontSize: "0.8rem",
+                          color: "#b91c1c",
+                        }}
+                      >
+                        {errorTasa}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -2132,6 +2235,19 @@ const styles = {
     fontWeight: "600",
     cursor: "pointer",
     whiteSpace: "nowrap",
+  },
+  btnGhostSmall: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "6px 12px",
+    backgroundColor: "transparent",
+    color: "#1e40af",
+    border: "1px solid #bfdbfe",
+    borderRadius: "999px",
+    fontWeight: "600",
+    cursor: "pointer",
+    fontSize: "0.8rem",
   },
 
   // Dashboard compacto

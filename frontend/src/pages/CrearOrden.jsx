@@ -1,8 +1,9 @@
 // frontend/src/pages/CrearOrden.jsx
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/api";
+import jsPDF from "jspdf";
 
 // --- ICONOS SVG (Estilo Unificado) ---
 const IconClipboard = () => (
@@ -60,6 +61,9 @@ const METODOS_PAGO = [
   "Transferencia internacional",
   "Transferencia nacional",
 ];
+
+// --- Endpoint para tasa BCV ---
+const API_TASA_LOCAL = "/base/tasa-dolar/";
 
 // --- Helper para extraer mensajes de error del backend ---
 const getErrorMessageFromResponse = (err, defaultMsg) => {
@@ -241,6 +245,19 @@ const styles = {
     alignItems: "center",
     gap: "6px",
   },
+  btnGhostSmall: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+    padding: "6px 12px",
+    backgroundColor: "transparent",
+    color: "#1e40af",
+    border: "1px solid #bfdbfe",
+    borderRadius: "999px",
+    fontWeight: "600",
+    cursor: "pointer",
+    fontSize: "0.8rem",
+  },
   btnIcon: {
     width: "40px",
     height: "40px",
@@ -379,6 +396,7 @@ const styles = {
 
 export default function CrearOrden() {
   const navigate = useNavigate();
+  const resumenRef = useRef(null);
 
   // Usuario autenticado
   const [usuario] = useState(() => {
@@ -414,11 +432,18 @@ export default function CrearOrden() {
 
   // 🔎 Buscador de clientes
   const [filtroCliente, setFiltroCliente] = useState("");
+  const [clienteError, setClienteError] = useState("");
+  // Errores por producto (por línea)
+  const [productoErrores, setProductoErrores] = useState([]);
 
   // Mensajes
   const [mensaje, setMensaje] = useState("");
   const [error, setError] = useState("");
   const [resumenOrden, setResumenOrden] = useState(null);
+  const [tasaBCVResumen, setTasaBCVResumen] = useState(null);
+  const [montoBsResumen, setMontoBsResumen] = useState(null);
+  const [loadingTasaResumen, setLoadingTasaResumen] = useState(false);
+  const [errorTasaResumen, setErrorTasaResumen] = useState("");
 
   // Nuevo cliente
   const [mostrarNuevoCliente, setMostrarNuevoCliente] = useState(false);
@@ -552,6 +577,15 @@ export default function CrearOrden() {
       copia[index] = { ...copia[index], [field]: value };
       return copia;
     });
+
+    // Si el usuario selecciona un producto, limpiamos el error específico de esa línea
+    if (field === "producto_id") {
+      setProductoErrores((prev) => {
+        const copia = [...prev];
+        copia[index] = "";
+        return copia;
+      });
+    }
   };
 
   const agregarLinea = () => {
@@ -614,6 +648,7 @@ export default function CrearOrden() {
 
       setClientes((prev) => [...prev, nuevo]);
       setClienteSeleccionado(String(nuevo.id_cliente));
+      setClienteError("");
 
       setMostrarNuevoCliente(false);
       setNuevoClienteMensaje("Cliente creado correctamente.");
@@ -637,6 +672,12 @@ export default function CrearOrden() {
     setMensaje("");
     setError("");
     setResumenOrden(null);
+    setTasaBCVResumen(null);
+    setMontoBsResumen(null);
+    setErrorTasaResumen("");
+    // Reiniciamos errores de campos antes de validar
+    setClienteError("");
+    setProductoErrores([]);
 
     if (!esVendedor) {
       setError(
@@ -646,6 +687,7 @@ export default function CrearOrden() {
     }
 
     if (!clienteSeleccionado) {
+      setClienteError("Este campo es requerido.");
       setError("Debes seleccionar un cliente para la orden.");
       return;
     }
@@ -654,8 +696,30 @@ export default function CrearOrden() {
       (c) => c.id_cliente === Number(clienteSeleccionado)
     );
     if (!clienteValido) {
+      setClienteError("El cliente seleccionado no es válido.");
       setError("El cliente seleccionado no es válido.");
       return;
+    }
+
+    // Validar que cada línea tenga producto seleccionado
+    let erroresProd = [];
+    let hayErroresProducto = false;
+
+    detalles.forEach((d, idx) => {
+      if (!d.producto_id) {
+        erroresProd[idx] = "Este campo es requerido.";
+        hayErroresProducto = true;
+      } else {
+        erroresProd[idx] = "";
+      }
+    });
+
+    if (hayErroresProducto) {
+      setProductoErrores(erroresProd);
+      setError("Hay productos sin seleccionar. Revisa los campos requeridos.");
+      return;
+    } else {
+      setProductoErrores(erroresProd);
     }
 
     // Validar que haya al menos una línea con producto seleccionado
@@ -795,6 +859,93 @@ export default function CrearOrden() {
     setNuevoClienteError("");
     setFiltroCliente("");
     setTieneCambios(false);
+    setTasaBCVResumen(null);
+    setMontoBsResumen(null);
+    setErrorTasaResumen("");
+    setClienteError("");
+  };
+
+  // Descargar resumen como PDF usando jsPDF
+  const handleDescargarResumenPDF = () => {
+    if (!resumenOrden) return;
+
+    const doc = new jsPDF();
+    let y = 20;
+
+    doc.setFontSize(16);
+    doc.text(`Orden #${resumenOrden.id_orden}`, 10, y);
+    y += 8;
+
+    doc.setFontSize(11);
+    doc.text(`Cliente: ${resumenOrden.cliente || ""}`, 10, y);
+    y += 6;
+    doc.text(`Método de pago: ${resumenOrden.metodo_pago || ""}`, 10, y);
+    y += 10;
+
+    doc.setFontSize(12);
+    doc.text("Detalle:", 10, y);
+    y += 6;
+
+    doc.setFontSize(10);
+    resumenOrden.lineas.forEach((l) => {
+      const lineText = `${l.cantidad} x ${l.nombre} - $ ${l.subtotal.toFixed(
+        2
+      )}`;
+      doc.text(lineText, 12, y);
+      y += 5;
+      if (y > 280) {
+        doc.addPage();
+        y = 20;
+      }
+    });
+
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+    } else {
+      y += 4;
+    }
+
+    doc.setFontSize(12);
+    doc.text(`TOTAL: $ ${resumenOrden.total.toFixed(2)}`, 10, y);
+
+    doc.save(`orden-${resumenOrden.id_orden}.pdf`);
+  };
+
+  // Calcular monto en Bs para el resumen usando tasa BCV
+  const calcularMontoBsResumen = async () => {
+    if (!resumenOrden) return;
+
+    const totalUSD = Number(resumenOrden.total || 0);
+    if (!totalUSD || Number.isNaN(totalUSD)) {
+      setErrorTasaResumen("No se pudo determinar el total de la orden.");
+      return;
+    }
+
+    try {
+      setLoadingTasaResumen(true);
+      setErrorTasaResumen("");
+      setMontoBsResumen(null);
+      setTasaBCVResumen(null);
+
+      const res = await api.get(`http://127.0.0.1:8000/api${API_TASA_LOCAL}`);
+      const data = res.data || {};
+      const tasa = data.promedio ?? data.price;
+      const tasaNum = Number(tasa);
+
+      if (!tasaNum || Number.isNaN(tasaNum)) {
+        setErrorTasaResumen("Tasa BCV inválida.");
+        return;
+      }
+
+      setTasaBCVResumen(tasaNum);
+      setMontoBsResumen(totalUSD * tasaNum);
+    } catch (err) {
+      console.error("Error obteniendo tasa BCV para resumen:", err);
+      setErrorTasaResumen("Error al consultar la tasa BCV.");
+    } finally {
+      setLoadingTasaResumen(false);
+    }
   };
 
   const manejarCancelar = () => {
@@ -836,6 +987,7 @@ export default function CrearOrden() {
         const primero = clientesFiltrados[0];
         marcarCambio();
         setClienteSeleccionado(String(primero.id_cliente));
+        setClienteError("");
       }
     }
   };
@@ -904,8 +1056,8 @@ export default function CrearOrden() {
                     onChange={(e) => {
                       marcarCambio();
                       setClienteSeleccionado(e.target.value);
+                      setClienteError("");
                     }}
-                    required
                     disabled={loadingDatos}
                   >
                     <option value="">-- Selecciona un Cliente --</option>
@@ -915,6 +1067,19 @@ export default function CrearOrden() {
                       </option>
                     ))}
                   </select>
+
+                  {clienteError && (
+                    <div
+                      style={{
+                        marginTop: "4px",
+                        fontSize: "0.8rem",
+                        color: "#b91c1c",
+                      }}
+                    >
+                      {clienteError}
+                    </div>
+                  )}
+
                   {clienteObj && (
                     <div
                       style={{
@@ -1094,10 +1259,22 @@ export default function CrearOrden() {
                   : 0;
                 const subtotal = calcularSubtotal(det);
 
+                // Lógica unificada de stock: mensaje único
                 let stockColor = "#64748b";
-                if (det.producto_id && existenciaActual != null) {
-                  if (existenciaActual === 0) stockColor = "#ef4444";
-                  else if (existenciaActual < 5) stockColor = "#f59e0b";
+                let stockLabel = "";
+
+                if (det.producto_id) {
+                  if (existenciaActual === 0 || existenciaActual == null) {
+                    // Mensaje ÚNICO cuando no hay stock
+                    stockColor = "#b91c1c";
+                    stockLabel =
+                      "No hay stock disponible de este producto. Existencia: 0";
+                  } else {
+                    if (existenciaActual < 5) {
+                      stockColor = "#f59e0b";
+                    }
+                    stockLabel = `Stock: ${existenciaActual}`;
+                  }
                 }
 
                 const cantidadNum = Number(det.cantidad || 0);
@@ -1174,7 +1351,6 @@ export default function CrearOrden() {
                             e.target.value
                           )
                         }
-                        required
                         disabled={loadingDatos}
                       >
                         <option value="">Seleccionar producto...</option>
@@ -1188,19 +1364,33 @@ export default function CrearOrden() {
                       {/* Info Stock y Precio */}
                       <div style={styles.infoRow}>
                         <span style={{ color: stockColor, fontWeight: "600" }}>
-                          {det.producto_id
-                            ? existenciaActual != null
-                              ? `Stock: ${existenciaActual}`
-                              : "Sin datos"
-                            : ""}
+                          {stockLabel}
                         </span>
                         {prod && (
                           <span>
                             Precio:{" "}
-                            <strong>Bs {precioUnitario.toFixed(2)}</strong>
+                            <strong>$ {precioUnitario.toFixed(2)}</strong>
                           </span>
                         )}
                       </div>
+                      {productoErrores[idx] && (
+                        <div
+                          style={{
+                            marginTop: "4px",
+                            fontSize: "0.8rem",
+                            color: "#b91c1c",
+                            paddingLeft: "4px",
+                          }}
+                        >
+                          {productoErrores[idx]}
+                        </div>
+                      )}
+
+                      {showCantidadWarning && (
+                        <div style={styles.infoRowWarning}>
+                          La cantidad supera el stock disponible.
+                        </div>
+                      )}
                     </div>
 
                     <div>
@@ -1227,14 +1417,8 @@ export default function CrearOrden() {
                           fontWeight: "700",
                         }}
                       >
-                        Bs {subtotal.toFixed(2)}
+                        $ {subtotal.toFixed(2)}
                       </div>
-
-                      {showCantidadWarning && (
-                        <div style={styles.infoRowWarning}>
-                          La cantidad supera el stock disponible.
-                        </div>
-                      )}
                     </div>
 
                     {detalles.length > 1 && (
@@ -1263,7 +1447,7 @@ export default function CrearOrden() {
               {/* Total acumulado + total ítems */}
               <div style={styles.totalRow}>
                 <div>
-                  <div>Total a Pagar: Bs {totalOrden.toFixed(2)}</div>
+                  <div>Total a Pagar: $ {totalOrden.toFixed(2)}</div>
                   <div
                     style={{
                       fontSize: "0.85rem",
@@ -1333,7 +1517,7 @@ export default function CrearOrden() {
 
         {/* RESUMEN DE ÉXITO */}
         {resumenOrden && (
-          <div style={styles.resumenCard}>
+          <div style={styles.resumenCard} ref={resumenRef}>
             <div style={styles.resumenTitle}>
               ✅ Orden #{resumenOrden.id_orden} Creada
             </div>
@@ -1357,7 +1541,7 @@ export default function CrearOrden() {
                 <span>
                   {l.cantidad} x {l.nombre}
                 </span>
-                <span>Bs {l.subtotal.toFixed(2)}</span>
+                <span>$ {l.subtotal.toFixed(2)}</span>
               </div>
             ))}
 
@@ -1377,10 +1561,71 @@ export default function CrearOrden() {
               }}
             >
               <span>TOTAL</span>
-              <span>Bs {resumenOrden.total.toFixed(2)}</span>
+              <span>$ {resumenOrden.total.toFixed(2)}</span>
             </div>
 
-            <div style={{ textAlign: "right", marginTop: "20px" }}>
+            {/* Sección para calcular y mostrar monto en Bs */}
+            <div style={{ textAlign: "right", marginTop: "10px" }}>
+              <button
+                type="button"
+                onClick={calcularMontoBsResumen}
+                style={styles.btnGhostSmall}
+                disabled={loadingTasaResumen}
+              >
+                {loadingTasaResumen
+                  ? "Calculando..."
+                  : "Ver monto en Bs (tasa BCV)"}
+              </button>
+
+              {montoBsResumen != null && tasaBCVResumen != null && (
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "0.9rem",
+                    color: "#0f172a",
+                  }}
+                >
+                  ≈ Bs {montoBsResumen.toFixed(2)}
+                  <span
+                    style={{
+                      marginLeft: "6px",
+                      fontSize: "0.8rem",
+                      color: "#64748b",
+                    }}
+                  >
+                    (Tasa BCV: Bs {tasaBCVResumen.toFixed(2)})
+                  </span>
+                </div>
+              )}
+
+              {errorTasaResumen && (
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "0.8rem",
+                    color: "#b91c1c",
+                  }}
+                >
+                  {errorTasaResumen}
+                </div>
+              )}
+            </div>
+
+            <div
+              style={{
+                marginTop: "20px",
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "10px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleDescargarResumenPDF}
+                style={styles.btnSecondary}
+              >
+                Descargar resumen (PDF)
+              </button>
               <button
                 type="button"
                 onClick={() => navigate("/")}

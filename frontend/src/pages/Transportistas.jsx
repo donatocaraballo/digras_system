@@ -725,7 +725,7 @@ export default function TransporteEnvio() {
                             >
                               Monto total:{" "}
                               <strong style={{ color: "#0f172a" }}>
-                                Bs {Number(o.precio_final || 0).toFixed(2)}
+                                $ {Number(o.precio_final || 0).toFixed(2)}
                               </strong>{" "}
                               · Peso:{" "}
                               <strong style={{ color: "#0f172a" }}>
@@ -937,7 +937,7 @@ export default function TransporteEnvio() {
                                               color: "#0f172a",
                                             }}
                                           >
-                                            Bs{" "}
+                                            ${" "}
                                             {Number(
                                               d.subtotal || 0
                                             ).toFixed(2)}

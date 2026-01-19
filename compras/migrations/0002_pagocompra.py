@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
             name='PagoCompra',
             fields=[
                 ('id_pago', models.AutoField(primary_key=True, serialize=False)),
-                ('metodo_pago', models.CharField(choices=[('TRANSFERENCIA_BS', 'Transferencia (Bs)'), ('PAGO_MOVIL', 'Pago Móvil (Bs)'), ('TRANSFERENCIA_USD', 'Transferencia en Dólares'), ('EFECTIVO_USD', 'Efectivo Divisas'), ('EFECTIVO_BS', 'Efectivo (Bs)')], max_length=50)),
+                ('metodo_pago', models.CharField(choices=[('TRANSFERENCIA_BS', 'Transferencia (Bs)'), ('PAGO_MOVIL', 'Pago Móvil (Bs)'), ('TRANSFERENCIA_USD', 'Transferencia en Dólares'), ('EFECTIVO_USD', 'Efectivo Divisas'), ('EFECTIVO', 'Efectivo')], max_length=50)),
                 ('monto', models.DecimalField(decimal_places=2, max_digits=12)),
                 ('referencia', models.CharField(blank=True, max_length=100, null=True)),
                 ('fecha_pago', models.DateField(auto_now_add=True)),

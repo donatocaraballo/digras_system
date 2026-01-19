@@ -32,6 +32,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='pagocompra',
             name='metodo_pago',
-            field=models.CharField(choices=[('TRANSFERENCIA_BS', 'Transferencia (Bs)'), ('PAGO_MOVIL', 'Pago Móvil (Bs)'), ('EFECTIVO_BS', 'Efectivo (Bs)'), ('TRANSFERENCIA_USD', 'Transferencia ($)'), ('EFECTIVO_USD', 'Efectivo ($)'), ('ZELLE', 'Zelle ($)')], max_length=50),
+            field=models.CharField(choices=[('TRANSFERENCIA_BS', 'Transferencia (Bs)'), ('PAGO_MOVIL', 'Pago Móvil (Bs)'), ('EFECTIVO', 'Efectivo'), ('TRANSFERENCIA_USD', 'Transferencia ($)'), ('EFECTIVO_USD', 'Efectivo ($)'), ('ZELLE', 'Zelle ($)')], max_length=50),
         ),
     ]

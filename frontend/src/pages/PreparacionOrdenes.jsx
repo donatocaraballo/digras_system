@@ -1133,7 +1133,7 @@ export default function PreparacionOrdenes() {
                 <th style={styles.th}>Vendedor</th>
                 <th style={styles.th}>Fecha</th>
                 <th style={styles.th}>Peso (kg)</th>
-                <th style={styles.th}>Total (Bs)</th>
+                <th style={styles.th}>Total ($)</th>
                 <th style={styles.th}>Estado</th>
                 <th style={{ ...styles.th, textAlign: "center" }}>Acción</th>
               </tr>
@@ -1418,7 +1418,7 @@ export default function PreparacionOrdenes() {
                   <strong>Peso total:</strong> {fmt2(ordenDetalle.orden.peso_total)} kg
                 </div>
                 <div style={styles.modalLine}>
-                  <strong>Total (Bs):</strong>{" "}
+                  <strong>Total ($):</strong>{" "}
                   {fmt2(ordenDetalle.orden.precio_final)}
                 </div>
 
@@ -1436,7 +1436,7 @@ export default function PreparacionOrdenes() {
                         <th style={styles.modalDetalleTh}>Cant.</th>
                         <th style={styles.modalDetalleTh}>Peso unit.</th>
                         <th style={styles.modalDetalleTh}>Peso subtotal</th>
-                        <th style={styles.modalDetalleTh}>Subtotal (Bs)</th>
+                        <th style={styles.modalDetalleTh}>Subtotal ($)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1570,7 +1570,7 @@ export default function PreparacionOrdenes() {
                           <th style={styles.modalDetalleTh}># Orden</th>
                           <th style={styles.modalDetalleTh}>Cliente</th>
                           <th style={styles.modalDetalleTh}>Peso</th>
-                          <th style={styles.modalDetalleTh}>Total (Bs)</th>
+                          <th style={styles.modalDetalleTh}>Total ($)</th>
                           <th style={styles.modalDetalleTh}>Estado</th>
                         </tr>
                       </thead>
@@ -1846,7 +1846,7 @@ export default function PreparacionOrdenes() {
                     {fmt2(ordenEnvioDetalle.orden?.peso_total)} kg
                   </div>
                   <div style={styles.modalLine}>
-                    <strong>Total (Bs):</strong>{" "}
+                    <strong>Total ($):</strong>{" "}
                     {fmt2(ordenEnvioDetalle.orden?.precio_final)}
                   </div>
                   <div style={styles.modalLine}>
@@ -1869,7 +1869,7 @@ export default function PreparacionOrdenes() {
                             <th style={styles.modalDetalleTh}>Cant.</th>
                             <th style={styles.modalDetalleTh}>Peso unit.</th>
                             <th style={styles.modalDetalleTh}>Peso subtotal</th>
-                            <th style={styles.modalDetalleTh}>Subtotal (Bs)</th>
+                            <th style={styles.modalDetalleTh}>Subtotal ($)</th>
                           </tr>
                         </thead>
                         <tbody>

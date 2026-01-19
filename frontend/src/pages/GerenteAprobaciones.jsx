@@ -946,7 +946,7 @@ export default function GerenteAprobaciones() {
     );
   };
 
-  const currencySymbol = seleccion?.tipo === "orden" ? "Bs" : "$";
+  const currencySymbol = seleccion?.tipo === "orden" ? "$" : "$";
 
   const getEntidad = (sel) => {
     if (!sel) return "—";
@@ -1251,7 +1251,7 @@ export default function GerenteAprobaciones() {
               type="number"
               min="0"
               step="0.01"
-              placeholder="Total mínimo (Bs)"
+              placeholder="Total mínimo ($)"
               value={minOrden}
               onChange={(e) => setMinOrden(e.target.value)}
             />
@@ -1260,7 +1260,7 @@ export default function GerenteAprobaciones() {
               type="number"
               min="0"
               step="0.01"
-              placeholder="Total máximo (Bs)"
+              placeholder="Total máximo ($)"
               value={maxOrden}
               onChange={(e) => setMaxOrden(e.target.value)}
             />
@@ -1331,7 +1331,7 @@ export default function GerenteAprobaciones() {
                       <td style={rowStyle}>{o.id_usuario_username || "—"}</td>
                       <td style={rowStyle}>{formatDate(o.fecha_orden)}</td>
                       <td style={rowStyle}>
-                        Bs {formatMoney(o.precio_final || 0)}
+                        $ {formatMoney(o.precio_final || 0)}
                       </td>
                       <td style={rowStyle}>
                         <span style={pillEstadoEnvio(o.estado_de_envio)}>
