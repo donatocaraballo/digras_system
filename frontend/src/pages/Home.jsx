@@ -57,13 +57,14 @@ function Home() {
                 const token = localStorage.getItem('auth_token');
                 const config = { headers: { Authorization: `Token ${token}` } };
                 
+                // ?page_size=1000 para traer TODO y evitar paginación parcial
                 const [resOrdenes, resCompras, resEnvios, resClientes, resProd, resExist] = await Promise.all([
-                    axios.get(`http://127.0.0.1:8000${API_ORDENES}`, config).catch(() => ({ data: [] })),
-                    (user.tipo === 'GERENTE' || user.tipo === 'ALMACENISTA' || user.tipo === 'ADMINISTRADOR') ? axios.get(`http://127.0.0.1:8000${API_COMPRAS}`, config).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
-                    (user.tipo === 'TRANSPORTISTA' || user.tipo === 'ALMACENISTA') ? axios.get(`http://127.0.0.1:8000${API_ENVIOS}`, config).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
-                    (user.tipo === 'VENDEDOR') ? axios.get(`http://127.0.0.1:8000${API_CLIENTES}`, config).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
-                    (user.tipo === 'GERENTE' || user.tipo === 'ALMACENISTA' || user.tipo === 'ADMINISTRADOR') ? axios.get(`http://127.0.0.1:8000${API_PRODUCTOS}`, config).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
-                    (user.tipo === 'GERENTE' || user.tipo === 'ALMACENISTA' || user.tipo === 'ADMINISTRADOR') ? axios.get(`http://127.0.0.1:8000${API_EXISTENCIAS}`, config).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+                    axios.get(`http://127.0.0.1:8000${API_ORDENES}?page_size=1000`, config).catch(() => ({ data: [] })),
+                    (user.tipo === 'GERENTE' || user.tipo === 'ALMACENISTA' || user.tipo === 'ADMINISTRADOR') ? axios.get(`http://127.0.0.1:8000${API_COMPRAS}?page_size=1000`, config).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+                    (user.tipo === 'TRANSPORTISTA' || user.tipo === 'ALMACENISTA') ? axios.get(`http://127.0.0.1:8000${API_ENVIOS}?page_size=1000`, config).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+                    (user.tipo === 'VENDEDOR') ? axios.get(`http://127.0.0.1:8000${API_CLIENTES}?page_size=1000`, config).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+                    (user.tipo === 'GERENTE' || user.tipo === 'ALMACENISTA' || user.tipo === 'ADMINISTRADOR') ? axios.get(`http://127.0.0.1:8000${API_PRODUCTOS}?page_size=1000`, config).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+                    (user.tipo === 'GERENTE' || user.tipo === 'ALMACENISTA' || user.tipo === 'ADMINISTRADOR') ? axios.get(`http://127.0.0.1:8000${API_EXISTENCIAS}?page_size=1000`, config).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
                 ]);
 
                 setRawData({
@@ -105,6 +106,34 @@ function Home() {
             });
         };
 
+        // 🚨 FUNCIÓN AUXILIAR PARA CALCULAR CRÍTICOS CORRECTAMENTE
+        // Itera sobre PRODUCTOS, no solo sobre existencias. Si no hay existencia, es crítico (0).
+        const calcularStockCritico = (productos, existencias) => {
+            // Mapa rápido de existencias: ID_PRODUCTO -> OBJETO_EXISTENCIA
+            const existenciasMap = {};
+            existencias.forEach(e => {
+                const pid = typeof e.id_producto === 'object' ? e.id_producto.id_producto : e.id_producto;
+                existenciasMap[pid] = e;
+            });
+
+            let contadorCriticos = 0;
+            
+            productos.forEach(prod => {
+                const ex = existenciasMap[prod.id_producto];
+                
+                // Si existe el registro, usamos sus datos. Si no, asumimos 0 y AGOTADO.
+                const cantidad = ex ? Number(ex.cantidad || 0) : 0;
+                const estado = ex ? (ex.estado || "").toUpperCase().trim() : 'AGOTADO';
+
+                if (cantidad < 10 || estado === 'AGOTADO') {
+                    contadorCriticos++;
+                }
+            });
+
+            return contadorCriticos;
+        };
+
+
         // --- LÓGICA POR ROL ---
         if (user.tipo === 'VENDEDOR') {
             const misOrdenes = rawData.ordenes.filter(o => o.id_usuario === (user.id_usuario || user.id));
@@ -137,8 +166,8 @@ function Home() {
             const porPreparar = rawData.ordenes.filter(o => o.estado_de_envio === 'APROBADA').length;
             const porRecibir = rawData.compras.filter(c => ['APROBADA', 'RECIBIDA_PARCIAL'].includes((c.estado_de_envio || c.estado || "").toUpperCase())).length;
             
-            let criticos = 0;
-            rawData.existencias.forEach(e => { if(e.cantidad < 10) criticos++; });
+            // 🚨 USO DE LA NUEVA LÓGICA DE CRÍTICOS
+            const criticos = calcularStockCritico(rawData.productos, rawData.existencias);
             const listos = rawData.ordenes.filter(o => o.estado_de_envio === 'PREPARADA').length;
 
             setMetrics({
@@ -178,20 +207,21 @@ function Home() {
                 .filter(o => ['APROBADA', 'PREPARADA', 'DESPACHADA', 'ENTREGADA'].includes(o.estado_de_envio))
                 .reduce((acc, curr) => acc + parseFloat(curr.precio_final || 0), 0);
 
+            // 🚨 USO DE LA NUEVA LÓGICA DE CRÍTICOS
+            const criticos = calcularStockCritico(rawData.productos, rawData.existencias);
+            
             let valorInv = 0;
-            let criticos = 0;
             const stockMap = {};
             rawData.existencias.forEach(e => {
                 const pid = typeof e.id_producto === 'object' ? e.id_producto.id_producto : e.id_producto;
-                stockMap[pid] = e.cantidad;
-                if(e.cantidad < 10) criticos++;
+                stockMap[pid] = Number(e.cantidad || 0);
             });
+            
             rawData.productos.forEach(p => {
                 const qty = stockMap[p.id_producto] || 0;
                 valorInv += parseFloat(p.precio_venta || 0) * qty;
             });
 
-            // 🚨 CÁLCULO DE PENDIENTES (DESGLOSE)
             const ventasPend = rawData.ordenes.filter(o => o.estado_de_envio === 'PENDIENTE POR APROBACIÓN').length;
             const comprasPend = rawData.compras.filter(c => c.estado_de_envio === 'PENDIENTE_APROBACION').length;
             const totalPend = ventasPend + comprasPend;
@@ -200,7 +230,6 @@ function Home() {
                 card1: { title: `Ventas (${timeRange.toUpperCase()})`, value: `$${ventasPeriodo.toLocaleString()}`, icon: "📈", color: "#2e7d32" },
                 card2: { title: "Valor Inventario", value: `$${valorInv.toLocaleString()}`, icon: "💎", color: "#0277bd" },
                 
-                // 🚨 KPICARD MEJORADA CON DESGLOSE
                 card3: { 
                     title: "Total Pendientes", 
                     value: totalPend, 
@@ -256,7 +285,6 @@ function Home() {
     if (loading) return <div style={{padding: 40, textAlign:'center', color:'#64748b'}}>Cargando Dashboard...</div>;
 
     return (
-        // 🚨 AQUÍ AGREGAMOS LA CLASE 'print-container' PARA QUE LA HOJA DE ESTILOS LA RECONOZCA
         <div style={styles.container} className="print-container responsive-container">
             {/* ---------------------------------------------------- */}
             {/* SECCIÓN OCULTA SOLO PARA IMPRESIÓN (Reporte Formal) */}
@@ -358,14 +386,12 @@ function Home() {
                         if(user.tipo==='GERENTE') navigate('/inventario');
                     }} />
                     
-                    {/* Aprobaciones */}
                     <KpiCard {...metrics.card3} onClick={() => {
                         if(user.tipo==='GERENTE' || user.tipo==='ADMINISTRADOR') navigate('/aprobaciones');
                         else if(user.tipo==='VENDEDOR') navigate('/ordenes');
                         else if(user.tipo==='ALMACENISTA') navigate('/inventario');
                     }} />
                     
-                    {/* Stock Crítico -> Inventario */}
                     <KpiCard {...metrics.card4} onClick={() => {
                         if(user.tipo==='ALMACENISTA') navigate('/envios');
                         if(user.tipo==='GERENTE' || user.tipo==='ADMINISTRADOR' || user.is_superuser) navigate('/inventario');
@@ -615,4 +641,4 @@ styleSheet.innerText = `
 `;
 document.head.appendChild(styleSheet);
 
-export default Home;
+export default Home;    

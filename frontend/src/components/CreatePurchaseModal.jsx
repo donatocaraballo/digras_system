@@ -4,8 +4,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import CreateProveedorModal from './CreateProveedorModal'; 
 import CreateProductModal from './CreateProductModal';
-import toast from 'react-hot-toast';
-import { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast'; 
+// 🚨 SIN TOASTER AQUÍ (Para evitar duplicados)
 
 // --- ICONOS SVG INLINE ---
 const IconPlus = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
@@ -19,7 +19,6 @@ const PRODUCTOS_URL = '/api/inventario/productos/';
 const PROVEEDORES_URL = '/api/compras/proveedores/';
 
 function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
-    // Estados
     const [fechaPedido, setFechaPedido] = useState(new Date().toISOString().split('T')[0]);
     const [selectedProviderId, setSelectedProviderId] = useState(''); 
     const [productsList, setProductsList] = useState([]);
@@ -31,23 +30,20 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
     const [optionsKey, setOptionsKey] = useState(0); 
     const [activeDetailIndex, setActiveDetailIndex] = useState(null);
 
-    // Carga de datos
     const fetchCatalogData = useCallback(async () => {
         try {
             const [productsRes, providersRes] = await Promise.all([
-                // 🚨 MODIFICADO: Solo productos activos
                 axios.get(PRODUCTOS_URL + '?activo=true'),
                 axios.get(PROVEEDORES_URL)
             ]);
             setProductsList(productsRes.data);
             setProveedores(providersRes.data);
-            
             if (providersRes.data.length > 0 && !selectedProviderId) {
                 setSelectedProviderId(parseInt(providersRes.data[0].id_proveedor)); 
             }
         } catch (error) {
             console.error("Error catalogo:", error);
-            toast.error("Error de conexión al cargar catálogo.");
+            toast.error("Error de conexión al cargar catálogo.", { id: 'catalogo-error' });
         }
     }, [optionsKey, selectedProviderId]);
 
@@ -58,7 +54,6 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
         }
     }, [isOpen, fetchCatalogData]);
 
-    // Handlers
     const handleProductCreated = (newId) => {
         setOptionsKey(prev => prev + 1); 
         if (activeDetailIndex !== null) handleDetailChange(activeDetailIndex, 'id_producto', newId);
@@ -77,12 +72,6 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
         const newDetalles = [...detalles];
         newDetalles[index][field] = value;
         const detalle = newDetalles[index];
-
-        if (field === 'id_producto' && value) {
-             const prod = productsList.find(p => p.id_producto === value);
-             if (prod) detalle.precio_unitario = parseFloat(prod.precio_venta);
-        }
-
         const cantidad = parseFloat(detalle.cantidad || 0);
         const precio = parseFloat(detalle.precio_unitario || 0);
         detalle.subtotal = cantidad * precio; 
@@ -90,12 +79,7 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
     };
 
     const handleAddDetail = () => {
-        setDetalles([...detalles, {
-            id_producto: "", 
-            cantidad: 1,
-            precio_unitario: 0,
-            subtotal: 0,
-        }]);
+        setDetalles([...detalles, { id_producto: "", cantidad: 1, precio_unitario: 0, subtotal: 0 }]);
     };
 
     const handleRemoveDetail = (index) => {
@@ -106,10 +90,10 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
     
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+        toast.dismiss(); // Limpiamos toasts previos
+
         if (detalles.length === 0 || !selectedProviderId) {
-             toast.error("Complete los campos requeridos.");
-             return;
+             return toast.error("Complete los campos requeridos.");
         }
 
         const productIds = detalles.map(d => d.id_producto);
@@ -118,6 +102,39 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
         const uniqueIds = new Set(productIds);
         if (uniqueIds.size !== productIds.length) return toast.error("No puede duplicar productos. Sume la cantidad en una sola línea.");
         
+        // 🚨 VALIDACIÓN DE COSTO
+        const detalleConError = detalles.find(d => {
+            const prod = productsList.find(p => p.id_producto === parseInt(d.id_producto));
+            if (!prod) return false;
+            const costoCompra = parseFloat(d.precio_unitario);
+            const precioVenta = parseFloat(prod.precio_venta);
+            return costoCompra >= precioVenta;
+        });
+
+        if (detalleConError) {
+            const prod = productsList.find(p => p.id_producto === parseInt(detalleConError.id_producto));
+            const costo = parseFloat(detalleConError.precio_unitario);
+            const venta = parseFloat(prod.precio_venta);
+
+            // Toast personalizado y persistente
+            toast.error(
+                (t) => (
+                    <div style={{ textAlign: 'center' }}>
+                        <div style={{fontWeight: '800', marginBottom: '5px', fontSize:'1rem', color:'#b91c1c'}}>🚫 Acción Bloqueada</div>
+                        <div style={{marginBottom:'4px', color:'#1f2937'}}>El costo de <b>"{prod.nombre}"</b> (${costo})</div>
+                        <div style={{color:'#1f2937'}}>es mayor/igual a su venta (${venta}).</div>
+                        <div style={{fontSize: '0.8rem', marginTop: '8px', color: '#6b7280'}}>El negocio perdería dinero. Ajuste el costo.</div>
+                    </div>
+                ),
+                { 
+                    duration: 6000,
+                    style: { border: '1px solid #ef4444', padding: '16px', background: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' },
+                    id: 'cost-error' // ID único
+                }
+            );
+            return; 
+        }
+
         setIsSubmitting(true);
         const loadingToast = toast.loading("Procesando Orden...");
 
@@ -160,10 +177,7 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
 
     return (
         <div style={styles.overlay}>
-            <Toaster position="top-center" />
             <div style={styles.modal}>
-                
-                {/* HEADER */}
                 <div style={styles.header}>
                     <div>
                         <h2 style={styles.title}>Nueva Orden de Compra</h2>
@@ -173,29 +187,19 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
                 </div>
 
                 <form onSubmit={handleSubmit} style={styles.formContent}>
-                    
-                    {/* SECCIÓN 1: DATOS GENERALES */}
                     <div style={styles.sectionCard}>
                         <div style={styles.gridHeader}>
                             <div style={{flex: 2}}>
                                 <label style={styles.label}>Proveedor</label>
                                 <div style={styles.inputGroup}>
-                                    <select 
-                                        value={selectedProviderId} 
-                                        onChange={(e) => setSelectedProviderId(parseInt(e.target.value))} 
-                                        required 
-                                        style={styles.select}
-                                    >
+                                    <select value={selectedProviderId} onChange={(e) => setSelectedProviderId(parseInt(e.target.value))} required style={styles.select}>
                                         {proveedores.map(p => (
                                             <option key={p.id_proveedor} value={p.id_proveedor}>{p.nombre}</option>
                                         ))}
                                     </select>
-                                    <button type="button" onClick={() => setIsProveedorModalOpen(true)} style={styles.miniBtn} title="Crear Proveedor">
-                                        <IconPlus />
-                                    </button>
+                                    <button type="button" onClick={() => setIsProveedorModalOpen(true)} style={styles.miniBtn} title="Crear Proveedor"><IconPlus /></button>
                                 </div>
                             </div>
-
                             <div style={{flex: 1}}>
                                 <label style={styles.label}>Fecha Pedido</label>
                                 <input type="date" value={fechaPedido} onChange={(e) => setFechaPedido(e.target.value)} required style={styles.input} />
@@ -203,42 +207,31 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
                         </div>
                     </div>
 
-                    {/* SECCIÓN 2: DETALLES */}
                     <div style={styles.detailsContainer}>
                         <div style={styles.detailsHeader}>
                             <h4 style={{margin:0, color:'#444'}}>Productos ({detalles.length})</h4>
-                            <button type="button" onClick={handleAddDetail} style={styles.addBtn} disabled={productsList.length === 0}>
-                                <IconPlus /> Agregar Línea
-                            </button>
+                            <button type="button" onClick={handleAddDetail} style={styles.addBtn} disabled={productsList.length === 0}><IconPlus /> Agregar Línea</button>
                         </div>
 
-                        {detalles.length === 0 && (
-                            <div style={styles.emptyState}>No hay productos agregados. Pulse "Agregar Línea".</div>
-                        )}
+                        {detalles.length === 0 && <div style={styles.emptyState}>No hay productos agregados. Pulse "Agregar Línea".</div>}
 
                         {detalles.map((detalle, index) => {
-                            const selectedProductObj = productsList.find(p => p.id_producto === detalle.id_producto);
+                            const selectedProductObj = productsList.find(p => p.id_producto === parseInt(detalle.id_producto));
+                            const costo = parseFloat(detalle.precio_unitario || 0);
+                            const precioVenta = selectedProductObj ? parseFloat(selectedProductObj.precio_venta) : 99999999;
+                            const isCostError = costo >= precioVenta;
 
                             return (
                                 <div key={index} style={styles.detailRow}>
                                     <div style={styles.lineNumber}>{index + 1}</div>
-                                    
                                     <div style={{flex: 3}}>
                                         <label style={styles.miniLabel}>Producto</label>
                                         <div style={styles.inputGroup}>
-                                            <select 
-                                                value={detalle.id_producto} 
-                                                onChange={(e) => handleDetailChange(index, 'id_producto', e.target.value ? Number(e.target.value) : "")} 
-                                                required 
-                                                style={styles.select}
-                                            >
+                                            <select value={detalle.id_producto} onChange={(e) => handleDetailChange(index, 'id_producto', e.target.value ? Number(e.target.value) : "")} required style={styles.select}>
                                                 <option value="">-- Seleccionar --</option>
                                                 {productsList.map(p => {
                                                     const isSelectedElsewhere = detalles.some((d, i) => String(d.id_producto) === String(p.id_producto) && i !== index);
-                                                    
-                                                    // 🏷️ AQUÍ AGREGAMOS LA MARCA AL TEXTO DE LA OPCIÓN
                                                     const brandLabel = p.id_marca_nombre ? ` — ${p.id_marca_nombre}` : '';
-                                                    
                                                     return (
                                                         <option key={p.id_producto} value={p.id_producto} disabled={isSelectedElsewhere} style={isSelectedElsewhere ? {color:'#bbb'} : {}}>
                                                             {p.nombre}{brandLabel} ({p.sku}) {isSelectedElsewhere ? '(Agregado)' : ''}
@@ -246,147 +239,74 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
                                                     );
                                                 })}
                                             </select>
-                                            <button 
-                                                type="button" 
-                                                onClick={() => { setActiveDetailIndex(index); setIsProductModalOpen(true); }} 
-                                                style={styles.miniBtnSec} 
-                                                title="Nuevo Producto"
-                                            >
-                                                <IconPlus />
-                                            </button>
+                                            <button type="button" onClick={() => { setActiveDetailIndex(index); setIsProductModalOpen(true); }} style={styles.miniBtnSec} title="Nuevo Producto"><IconPlus /></button>
                                         </div>
-                                        
-                                        {/* 🏷️ AQUÍ MOSTRAMOS LA MARCA EN EL BADGE VISUAL */}
                                         {selectedProductObj && (
                                             <div style={styles.skuBadge}>
-                                                <IconTag />
-                                                <strong>SKU:</strong> {selectedProductObj.sku}
-                                                
-                                                {/* Separador */}
+                                                <IconTag /><strong>SKU:</strong> {selectedProductObj.sku}
                                                 <span style={styles.badgeSeparator}>|</span>
-                                                
-                                                {/* Marca Resaltada */}
-                                                <strong style={{color: '#0f172a'}}>
-                                                    {selectedProductObj.id_marca_nombre || 'Sin Marca'}
-                                                </strong>
-
-                                                {selectedProductObj.id_categoria_nombre && (
-                                                    <>
-                                                        <span style={styles.badgeSeparator}>|</span>
-                                                        <span style={{color: '#64748b'}}>{selectedProductObj.id_categoria_nombre}</span>
-                                                    </>
-                                                )}
+                                                <span style={{color: '#64748b'}}>Venta: ${selectedProductObj.precio_venta}</span>
                                             </div>
                                         )}
                                     </div>
-
                                     <div style={{flex: 1}}>
                                         <label style={styles.miniLabel}>Cant.</label>
                                         <input type="number" min="1" value={detalle.cantidad} onChange={(e) => handleDetailChange(index, 'cantidad', e.target.value)} required style={styles.inputCenter} />
                                     </div>
-
                                     <div style={{flex: 1.2}}>
-                                        <label style={styles.miniLabel}>Costo Unit.</label>
-                                        <input type="number" step="0.01" value={detalle.precio_unitario} onChange={(e) => handleDetailChange(index, 'precio_unitario', e.target.value)} required style={styles.inputRight} />
+                                        <label style={{...styles.miniLabel, color: isCostError ? '#ef4444' : '#94a3b8'}}>Costo Unit. {isCostError && '(!)'}</label>
+                                        <input type="number" step="0.01" value={detalle.precio_unitario} onChange={(e) => handleDetailChange(index, 'precio_unitario', e.target.value)} required style={{...styles.inputRight, borderColor: isCostError ? '#ef4444' : '#e2e8f0', color: isCostError ? '#ef4444' : '#0f172a', backgroundColor: isCostError ? '#fef2f2' : '#fff'}} />
                                     </div>
-
                                     <div style={{flex: 1.2, textAlign: 'right'}}>
                                         <label style={styles.miniLabel}>Subtotal</label>
                                         <div style={styles.subtotalText}>${(detalle.subtotal || 0).toFixed(2)}</div>
                                     </div>
-
-                                    <button type="button" onClick={() => handleRemoveDetail(index)} style={styles.removeBtn}>
-                                        <IconTrash />
-                                    </button>
+                                    <button type="button" onClick={() => handleRemoveDetail(index)} style={styles.removeBtn}><IconTrash /></button>
                                 </div>
                             );
                         })}
                     </div>
 
-                    {/* FOOTER */}
                     <div style={styles.footer}>
                         <div style={styles.totalSection}>
                             <span style={{color: '#666', fontSize: '0.9em'}}>Total de la Orden:</span>
                             <span style={styles.totalAmount}>${finalPrice.toFixed(2)}</span>
                         </div>
-                        
                         <div style={styles.actionButtons}>
                             <button type="button" onClick={onClose} style={styles.btnCancel} disabled={isSubmitting}>Cancelar</button>
-                            <button type="submit" style={styles.btnSubmit} disabled={isSubmitting || detalles.length === 0}>
-                                {isSubmitting ? 'Procesando...' : 'Crear Orden'}
-                            </button>
+                            <button type="submit" style={styles.btnSubmit} disabled={isSubmitting || detalles.length === 0}>{isSubmitting ? 'Procesando...' : 'Crear Orden'}</button>
                         </div>
                     </div>
-
                 </form>
             </div>
-
-            {/* MODALES HIJOS */}
             <CreateProveedorModal isOpen={isProveedorModalOpen} onClose={() => setIsProveedorModalOpen(false)} onProveedorCreated={handleProveedorCreated} />
             <CreateProductModal isOpen={isProductModalOpen} onClose={() => setIsProductModalOpen(false)} onProductCreated={handleProductCreated} />
         </div>
     );
 }
 
-// --- ESTILOS MODERNOS ---
 const styles = {
-    overlay: {
-        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)',
-        display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000,
-        animation: 'fadeIn 0.2s ease-out'
-    },
-    modal: {
-        backgroundColor: '#ffffff', width: '950px', maxHeight: '90vh', // Un poco más ancho para caber todo
-        borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        border: '1px solid #f1f5f9'
-    },
-    header: {
-        padding: '20px 24px', borderBottom: '1px solid #e2e8f0',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        backgroundColor: '#f8fafc'
-    },
+    overlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000, animation: 'fadeIn 0.2s ease-out' },
+    modal: { backgroundColor: '#ffffff', width: '950px', maxHeight: '90vh', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid #f1f5f9' },
+    header: { padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', backgroundColor: '#f8fafc' },
     title: { margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' },
     subtitle: { margin: '4px 0 0', fontSize: '0.875rem', color: '#64748b' },
-    closeBtn: {
-        background: 'transparent', border: 'none', cursor: 'pointer',
-        color: '#94a3b8', padding: '4px', borderRadius: '50%',
-        transition: 'all 0.2s', display: 'flex', alignItems: 'center'
-    },
+    closeBtn: { background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px', borderRadius: '50%', transition: 'all 0.2s', display: 'flex', alignItems: 'center' },
     formContent: { display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' },
-    
-    // Sección Inputs
     sectionCard: { padding: '20px 24px', backgroundColor: '#fff' },
     gridHeader: { display: 'flex', gap: '24px' },
-    
     label: { display: 'block', fontSize: '0.75rem', fontWeight: '600', color: '#475569', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.025em' },
     input: { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', color: '#1e293b', outline: 'none', transition: 'border-color 0.2s', boxSizing: 'border-box' },
     select: { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.9rem', color: '#1e293b', outline: 'none', backgroundColor: '#fff', cursor: 'pointer', boxSizing: 'border-box' },
     inputGroup: { display: 'flex', gap: '8px' },
-    
     miniBtn: { padding: '0 12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
     miniBtnSec: { padding: '0 10px', backgroundColor: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' },
-
-    // Detalles
     detailsContainer: { flex: 1, overflowY: 'auto', padding: '0 24px 20px', borderTop: '1px solid #e2e8f0', backgroundColor: '#f8fafc' },
     detailsHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0', position: 'sticky', top: 0, backgroundColor: '#f8fafc', zIndex: 10 },
     addBtn: { backgroundColor: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a', padding: '8px 16px', borderRadius: '50px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' },
-    
-    detailRow: { 
-        display: 'flex', gap: '12px', alignItems: 'flex-start', backgroundColor: '#fff', 
-        padding: '12px 16px', borderRadius: '10px', marginBottom: '8px', 
-        border: '1px solid #e2e8f0', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)',
-        transition: 'transform 0.1s'
-    },
-    skuBadge: {
-        fontSize: '0.75rem', color: '#475569', marginTop: '6px', 
-        display: 'flex', alignItems: 'center', fontFamily: 'monospace',
-        backgroundColor: '#f1f5f9', width: 'fit-content', padding: '4px 10px', borderRadius: '6px',
-        border: '1px solid #e2e8f0'
-    },
+    detailRow: { display: 'flex', gap: '12px', alignItems: 'flex-start', backgroundColor: '#fff', padding: '12px 16px', borderRadius: '10px', marginBottom: '8px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)', transition: 'transform 0.1s' },
+    skuBadge: { fontSize: '0.75rem', color: '#475569', marginTop: '6px', display: 'flex', alignItems: 'center', fontFamily: 'monospace', backgroundColor: '#f1f5f9', width: 'fit-content', padding: '4px 10px', borderRadius: '6px', border: '1px solid #e2e8f0' },
     badgeSeparator: { margin: '0 8px', color: '#cbd5e1' },
-    
     lineNumber: { fontSize: '0.75rem', fontWeight: '700', color: '#94a3b8', width: '20px', paddingTop: '12px' },
     miniLabel: { fontSize: '0.65rem', color: '#94a3b8', marginBottom: '2px', display: 'block' },
     inputCenter: { width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e2e8f0', textAlign: 'center', fontSize: '0.9rem', boxSizing: 'border-box' },
@@ -394,8 +314,6 @@ const styles = {
     subtotalText: { fontSize: '0.95rem', fontWeight: '700', color: '#0f172a', padding: '8px 0' },
     removeBtn: { background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '8px', display: 'flex', alignItems: 'center', opacity: 0.7, marginTop: '5px' },
     emptyState: { textAlign: 'center', padding: '40px', color: '#94a3b8', fontStyle: 'italic' },
-
-    // Footer
     footer: { padding: '20px 24px', backgroundColor: '#fff', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
     totalSection: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start' },
     totalAmount: { fontSize: '1.5rem', fontWeight: '800', color: '#059669', lineHeight: 1 },

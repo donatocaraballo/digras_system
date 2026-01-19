@@ -2,74 +2,195 @@
 
 import React, { useState } from 'react';
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const PROVEEDORES_URL = '/api/compras/proveedores/';
 
+const IconEdit = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>;
+const IconClose = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
+
 function EditProviderModal({ provider, onClose, onSave }) {
-    const [nombre, setNombre] = useState(provider.nombre);
-    const [rif, setRif] = useState(provider.rif || ''); // 🚨 NUEVO
-    const [direccion, setDireccion] = useState(provider.direccion);
-    const [correo, setCorreo] = useState(provider.correo);
-    const [telefono, setTelefono] = useState(provider.telefono);
-    const [status, setStatus] = useState('');
+    const [formData, setFormData] = useState({
+        nombre: provider.nombre || '',
+        rif: provider.rif || '',
+        direccion: provider.direccion || '',
+        correo: provider.correo || '',
+        telefono: provider.telefono || ''
+    });
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setStatus('Guardando cambios...');
+        setIsSubmitting(true);
+        const loadingToast = toast.loading('Guardando cambios...');
+
         try {
-            // Incluir RIF en el payload
-            const updateData = { nombre, rif, direccion, correo, telefono };
-            // PATCH: /api/compras/proveedores/{id}/
-            await axios.patch(`${PROVEEDORES_URL}${provider.id_proveedor}/`, updateData);
+            await axios.patch(`${PROVEEDORES_URL}${provider.id_proveedor}/`, formData);
             
-            setStatus('✅ Proveedor actualizado.');
-            onSave(); // Recargar lista
-            setTimeout(onClose, 1000);
+            toast.dismiss(loadingToast);
+            // El mensaje de éxito se maneja en el padre (onSave) para evitar doble toast, 
+            // pero si prefieres aquí: toast.success('Proveedor actualizado');
+            
+            onSave(); // Refrescar tabla
             
         } catch (error) {
+            toast.dismiss(loadingToast);
             const msg = error.response ? JSON.stringify(error.response.data) : error.message;
-            setStatus('❌ Error: ' + msg);
+            toast.error('Error al actualizar: ' + msg);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     return (
-        <div style={modalOverlayStyle}>
-            <div style={modalContentStyle}>
-                <h3>Editar Proveedor: {provider.nombre}</h3>
-                <form onSubmit={handleSubmit}>
-                    <label style={labelStyle}>Nombre:</label>
-                    <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} required style={inputStyle} />
-                    
-                    {/* 🚨 INPUT RIF */}
-                    <label style={labelStyle}>RIF / Cédula:</label>
-                    <input type="text" value={rif} onChange={(e) => setRif(e.target.value)} placeholder="J-12345678-9" style={inputStyle} />
-
-                    <label style={labelStyle}>Dirección:</label>
-                    <input type="text" value={direccion} onChange={(e) => setDireccion(e.target.value)} style={inputStyle} />
-                    
-                    <label style={labelStyle}>Correo:</label>
-                    <input type="email" value={correo} onChange={(e) => setCorreo(e.target.value)} style={inputStyle} />
-                    
-                    <label style={labelStyle}>Teléfono:</label>
-                    <input type="text" value={telefono} onChange={(e) => setTelefono(e.target.value)} style={inputStyle} />
-
-                    <div style={{textAlign: 'right', marginTop: '20px'}}>
-                        <button type="submit" style={saveButtonStyle}>Guardar</button>
-                        <button type="button" onClick={onClose} style={cancelButtonStyle}>Cancelar</button>
+        <div style={styles.overlay}>
+            <div style={styles.modal}>
+                
+                {/* Header */}
+                <div style={styles.header}>
+                    <div style={{display:'flex', alignItems:'center', gap:'12px'}}>
+                        <div style={styles.iconBox}><IconEdit /></div>
+                        <div>
+                            <h3 style={styles.title}>Editar Proveedor</h3>
+                            <p style={styles.subtitle}>Modifique los datos del socio comercial.</p>
+                        </div>
                     </div>
-                    {status && <p style={{marginTop: '10px'}}>{status}</p>}
+                    <button onClick={onClose} style={styles.closeBtn}><IconClose /></button>
+                </div>
+
+                <form onSubmit={handleSubmit} style={styles.formContent}>
+                    <div style={styles.formGrid}>
+                        <div style={{gridColumn: 'span 2'}}>
+                            <label style={styles.label}>Razón Social / Nombre <span style={{color:'red'}}>*</span></label>
+                            <input 
+                                name="nombre" 
+                                value={formData.nombre} 
+                                onChange={handleChange} 
+                                style={styles.input} 
+                                required 
+                            />
+                        </div>
+
+                        <div>
+                            <label style={styles.label}>RIF / Cédula <span style={{color:'red'}}>*</span></label>
+                            <input 
+                                name="rif" 
+                                value={formData.rif} 
+                                onChange={handleChange} 
+                                style={styles.input} 
+                                required 
+                            />
+                        </div>
+
+                        <div>
+                            <label style={styles.label}>Teléfono</label>
+                            <input 
+                                name="telefono" 
+                                value={formData.telefono} 
+                                onChange={handleChange} 
+                                style={styles.input} 
+                            />
+                        </div>
+
+                        <div style={{gridColumn: 'span 2'}}>
+                            <label style={styles.label}>Correo Electrónico</label>
+                            <input 
+                                name="correo" 
+                                type="email"
+                                value={formData.correo} 
+                                onChange={handleChange} 
+                                style={styles.input} 
+                            />
+                        </div>
+
+                        <div style={{gridColumn: 'span 2'}}>
+                            <label style={styles.label}>Dirección Fiscal</label>
+                            <textarea 
+                                name="direccion" 
+                                value={formData.direccion} 
+                                onChange={handleChange} 
+                                style={{...styles.input, resize: 'vertical', minHeight: '80px'}} 
+                            />
+                        </div>
+                    </div>
+
+                    <div style={styles.footer}>
+                        <button type="button" onClick={onClose} style={styles.btnCancel} disabled={isSubmitting}>Cancelar</button>
+                        <button type="submit" style={styles.btnSubmit} disabled={isSubmitting}>
+                            {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
     );
 }
 
-// Estilos (Consistentes con tu diseño)
-const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 };
-const modalContentStyle = { backgroundColor: 'white', padding: '30px', borderRadius: '8px', width: '400px' };
-const labelStyle = { display: 'block', fontWeight: 'bold', marginTop: '10px' };
-const inputStyle = { width: '100%', padding: '8px', margin: '5px 0', boxSizing: 'border-box', border: '1px solid #ccc' };
-const saveButtonStyle = { padding: '8px 15px', backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '10px' };
-const cancelButtonStyle = { padding: '8px 15px', backgroundColor: '#9e9e9e', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' };
+// --- ESTILOS PREMIUM ---
+const styles = {
+    overlay: {
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)',
+        display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000,
+        animation: 'fadeIn 0.2s ease-out'
+    },
+    modal: {
+        backgroundColor: '#ffffff', width: '600px', maxHeight: '90vh',
+        borderRadius: '20px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        border: '1px solid #f1f5f9'
+    },
+    header: {
+        padding: '24px', borderBottom: '1px solid #e2e8f0',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+        backgroundColor: '#f8fafc'
+    },
+    iconBox: {
+        width: '40px', height: '40px', borderRadius: '10px', background: '#e0f2fe',
+        color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center'
+    },
+    title: { margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' },
+    subtitle: { margin: '4px 0 0', fontSize: '0.875rem', color: '#64748b' },
+    closeBtn: {
+        background: 'transparent', border: 'none', cursor: 'pointer',
+        color: '#94a3b8', padding: '4px', borderRadius: '50%',
+        transition: 'all 0.2s', display: 'flex', alignItems: 'center'
+    },
+    formContent: { padding: '24px', overflowY: 'auto' },
+    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' },
+    
+    label: { display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#475569', marginBottom: '6px' },
+    input: {
+        width: '100%', padding: '12px', borderRadius: '10px',
+        border: '1px solid #cbd5e1', fontSize: '0.95rem', color: '#1e293b',
+        outline: 'none', transition: 'border-color 0.2s, box-shadow 0.2s',
+        boxSizing: 'border-box'
+    },
+    
+    footer: {
+        padding: '20px 24px', backgroundColor: '#fff', borderTop: '1px solid #e2e8f0',
+        display: 'flex', justifyContent: 'flex-end', gap: '12px'
+    },
+    btnCancel: {
+        padding: '12px 24px', border: 'none', backgroundColor: '#f1f5f9',
+        color: '#475569', borderRadius: '10px', cursor: 'pointer', fontWeight: '600'
+    },
+    btnSubmit: {
+        padding: '12px 24px', border: 'none', backgroundColor: '#0f172a',
+        color: '#fff', borderRadius: '10px', cursor: 'pointer', fontWeight: '600',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+    }
+};
+
+const styleSheet = document.createElement("style");
+styleSheet.innerText = `
+    @keyframes fadeIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+    input:focus, textarea:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important; }
+`;
+document.head.appendChild(styleSheet);
 
 export default EditProviderModal;

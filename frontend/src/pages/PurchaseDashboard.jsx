@@ -7,9 +7,9 @@ import CreatePurchaseModal from '../components/CreatePurchaseModal';
 import PurchaseHistoryTable from '../components/PurchaseHistoryTable';
 import EditCompraModal from '../components/EditCompraModal';
 import RegisterPaymentModal from '../components/RegisterPaymentModal';
-import toast, { Toaster } from 'react-hot-toast'; // 🚨 IMPORTANTE: Importar Toaster
+import toast, { Toaster } from 'react-hot-toast'; // 🚨 IMPORTAMOS TOASTER AQUÍ
 
-// --- ICONOS SVG ---
+// ... (Los Iconos se mantienen igual que tu código original)
 const IconCart = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>;
 const IconPlus = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
 const IconDownload = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>;
@@ -83,8 +83,14 @@ function PurchaseDashboard({ refreshTrigger, onUpdate, testIds }) {
 
     return (
         <div style={styles.container}>
-            {/* 🚨 TOASTER CENTRALIZADO AQUÍ PARA QUE FUNCIONE SIEMPRE */}
-            <Toaster position="top-right" />
+            {/* 🚨 TOASTER CONFIGURADO CORRECTAMENTE */}
+            <Toaster 
+                position="top-center" 
+                containerStyle={{
+                    top: 100, // Bajamos 100px para que no tape el Navbar
+                    zIndex: 99999999, // Super alto para estar encima del modal
+                }}
+            />
 
             <div style={styles.header}>
                 <div style={styles.titleGroup}>
@@ -236,6 +242,7 @@ function PurchaseDashboard({ refreshTrigger, onUpdate, testIds }) {
             )}
 
             <CreatePurchaseModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onUpdate={onUpdate} userId={testIds?.userId} />
+            
             {compraToEdit && (<EditCompraModal compra={compraToEdit} onClose={() => setCompraToEdit(null)} onSave={handleModalSave} />)}
             
             {showPaymentModal && compraSeleccionada && (

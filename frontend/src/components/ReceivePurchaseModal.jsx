@@ -40,6 +40,9 @@ export default function ReceivePurchaseModal({ compra, onClose, onSuccess }) {
     
     const [showConfirmView, setShowConfirmView] = useState(false);
 
+    // 🚨 Obtener fecha actual en formato YYYY-MM-DD para el atributo min
+    const today = new Date().toISOString().split('T')[0];
+
     useEffect(() => {
         const fetchDetails = async () => {
             if (!compra?.id_compra) return;
@@ -102,7 +105,14 @@ export default function ReceivePurchaseModal({ compra, onClose, onSuccess }) {
         // 🚨 VALIDACIÓN: Exigir fecha de vencimiento si se recibe algo
         const missingDate = items.find(i => !i.devolver && !i.fecha_vencimiento);
         if (missingDate) {
-            toast.error(`Falta la fecha de caducidad para: "${missingDate.display_nombre}". Es obligatoria para la trazabilidad.`);
+            toast.error(`Falta la fecha de caducidad para: "${missingDate.display_nombre}". Es obligatoria.`);
+            return;
+        }
+
+        // 🚨 VALIDACIÓN EXTRA: Asegurar que la fecha no sea anterior a hoy
+        const invalidDateItem = items.find(i => !i.devolver && i.fecha_vencimiento && i.fecha_vencimiento < today);
+        if (invalidDateItem) {
+            toast.error(`Error en "${invalidDateItem.display_nombre}": La fecha de vencimiento no puede ser anterior a hoy.`);
             return;
         }
 
@@ -191,6 +201,7 @@ export default function ReceivePurchaseModal({ compra, onClose, onSuccess }) {
                                             <span style={modalStyles.label}>Vencimiento <span style={{color:'#ef4444'}}>*</span></span>
                                             <input 
                                                 type="date" 
+                                                min={today} // 🚨 RESTRICCIÓN DE FECHA MÍNIMA (HOY)
                                                 value={item.fecha_vencimiento} 
                                                 onChange={(e) => handleChange(index, 'fecha_vencimiento', e.target.value)} 
                                                 style={{
@@ -198,7 +209,7 @@ export default function ReceivePurchaseModal({ compra, onClose, onSuccess }) {
                                                     borderColor: (!isReturned && !item.fecha_vencimiento) ? '#ef4444' : '#cbd5e1'
                                                 }} 
                                                 disabled={isReturned} 
-                                                required // HTML5 validation hint
+                                                required 
                                             />
                                         </div>
 
@@ -271,4 +282,4 @@ export default function ReceivePurchaseModal({ compra, onClose, onSuccess }) {
 // Inyección de estilos de animación
 const styleSheet = document.createElement("style");
 styleSheet.innerText = "@keyframes scaleUp { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }";
-document.head.appendChild(styleSheet);  
+document.head.appendChild(styleSheet);
