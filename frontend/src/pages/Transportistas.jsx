@@ -75,16 +75,18 @@ export default function TransporteEnvio() {
 
   // filtros
   const [filtroTexto, setFiltroTexto] = useState("");
-  const [ordenSort, setOrdenSort] = useState(""); // "", "PESADAS", "LIVIANAS"
+  // ordenSort: "", "PESADAS", "LIVIANAS", "PRECIO_MAYOR", "PRECIO_MENOR"
+  const [ordenSort, setOrdenSort] = useState("");
 
-  // orden seleccionada
+  // orden seleccionada (para expandir info)
   const [ordenSeleccionada, setOrdenSeleccionada] = useState(null);
 
-  // modal nota (no entrega / devolución)
-  const [modalNotaVisible, setModalNotaVisible] = useState(false);
-  const [tipoAccionNota, setTipoAccionNota] = useState(null); // "NO_ENTREGADA" | "DEVUELTA"
-  const [nota, setNota] = useState("");
-  const [modalError, setModalError] = useState("");
+  // MODAL DEVOLUCIÓN
+  const [modalDevolucionVisible, setModalDevolucionVisible] = useState(false);
+  const [ordenDevolucion, setOrdenDevolucion] = useState(null);
+  const [lineasDevolucion, setLineasDevolucion] = useState([]);
+  const [notaDevolucion, setNotaDevolucion] = useState("");
+  const [errorDevolucion, setErrorDevolucion] = useState("");
 
   const cargarOrdenes = async () => {
     try {
@@ -158,13 +160,26 @@ export default function TransporteEnvio() {
 
   const iniciarViaje = async () => {
     if (!envio) return;
+
+    const estadoActual = (envio.estado || "").toUpperCase();
+
+    // 👉 Bloqueamos cuando el envío está solo ASIGNADO (almacenista aún no lo ha preparado)
+    if (estadoActual !== "LISTO_PARA_SALIR") {
+      setError(
+        "El almacenista aún no ha preparado el envío. Solo puedes iniciar el viaje cuando el envío esté marcado como LISTO_PARA_SALIR."
+      );
+      setMensaje("");
+      return;
+    }
+
     setLoadingAccion(true);
     setError("");
     setMensaje("");
     try {
       const res = await api.post("base/transporte/mi-envio/iniciar-viaje/");
       setMensaje(res.data?.mensaje || "Viaje iniciado.");
-      // 👇 Volvemos a cargar envío; ahora debería estar EN CURSO y se cargarán las órdenes
+      // 👇 Al iniciar viaje, el backend debe poner el envío EN CURSO
+      // y las órdenes en estado EN CURSO. Volvemos a cargar todo.
       await cargarEnvio();
     } catch (err) {
       console.error(err);
@@ -229,53 +244,127 @@ export default function TransporteEnvio() {
     }
   };
 
-  const abrirModalNota = (orden, tipoAccion) => {
-    setOrdenSeleccionada(orden);
-    setTipoAccionNota(tipoAccion); // "NO_ENTREGADA" o "DEVUELTA"
-    setNota("");
-    setModalError("");
-    setModalNotaVisible(true);
-  };
-
-  const cerrarModalNota = () => {
-    setModalNotaVisible(false);
-    setOrdenSeleccionada(null);
-    setTipoAccionNota(null);
-    setNota("");
-    setModalError("");
-  };
-
-  const confirmarAccionConNota = async () => {
-    if (!ordenSeleccionada || !tipoAccionNota) return;
-    if (!nota.trim()) {
-      setModalError("Debes escribir una nota explicando la situación.");
-      return;
-    }
+  // NO ENTREGADA: ya no requiere nota, la orden vuelve a estado pendiente
+  const marcarNoEntregada = async (orden) => {
+    if (!orden) return;
+    const confirmar = window.confirm(
+      `¿Marcar la orden #${orden.id_orden} como NO ENTREGADA? La orden volverá a estado pendiente para ser reprogramada.`
+    );
+    if (!confirmar) return;
 
     setLoadingAccion(true);
-    setModalError("");
     setError("");
     setMensaje("");
 
-    let endpoint = "";
-    if (tipoAccionNota === "NO_ENTREGADA") {
-      endpoint = `base/transporte/${ordenSeleccionada.id_orden}/marcar-no-entregada/`;
-    } else if (tipoAccionNota === "DEVUELTA") {
-      endpoint = `base/transporte/${ordenSeleccionada.id_orden}/marcar-devuelta/`;
-    }
-
     try {
-      const res = await api.post(endpoint, { nota });
-      setMensaje(res.data?.mensaje || "Acción aplicada correctamente.");
-      cerrarModalNota();
+      const res = await api.post(
+        `base/transporte/${orden.id_orden}/marcar-no-entregada/`,
+        {}
+      );
+      setMensaje(
+        res.data?.mensaje ||
+          "Orden marcada como NO ENTREGADA y devuelta a estado pendiente."
+      );
       await cargarOrdenes();
     } catch (err) {
       console.error(err);
       const backendMsg =
         err.response?.data?.detail ||
         err.response?.data?.error ||
-        "No se pudo aplicar la acción.";
-      setModalError(backendMsg);
+        "No se pudo marcar la orden como NO ENTREGADA.";
+      setError(backendMsg);
+    } finally {
+      setLoadingAccion(false);
+    }
+  };
+
+  // ---------- MODAL DEVOLUCIÓN ----------
+  const abrirModalDevolucion = (orden) => {
+    if (!orden) return;
+
+    const detalles = Array.isArray(orden.detalles) ? orden.detalles : [];
+    const lineas = detalles.map((d) => ({
+      id_detalleo: d.id_detalleo || d.id_detalleo || d.id_detalle || d.id,
+      producto: d.producto || d.id_producto_nombre || "Producto",
+      cantidadOriginal: Number(d.cantidad || 0),
+      cantidadDevuelta: 0,
+      selected: false,
+    }));
+
+    setOrdenDevolucion(orden);
+    setLineasDevolucion(lineas);
+    setNotaDevolucion("");
+    setErrorDevolucion("");
+    setModalDevolucionVisible(true);
+  };
+
+  const cerrarModalDevolucion = () => {
+    setModalDevolucionVisible(false);
+    setOrdenDevolucion(null);
+    setLineasDevolucion([]);
+    setNotaDevolucion("");
+    setErrorDevolucion("");
+  };
+
+  const confirmarDevolucion = async () => {
+    if (!ordenDevolucion) return;
+
+    const seleccionadas = lineasDevolucion.filter(
+      (l) => l.selected && l.cantidadDevuelta > 0
+    );
+
+    if (!seleccionadas.length) {
+      setErrorDevolucion(
+        "Selecciona al menos un producto y una cantidad devuelta mayor a 0."
+      );
+      return;
+    }
+
+    for (const l of seleccionadas) {
+      if (l.cantidadDevuelta > l.cantidadOriginal) {
+        setErrorDevolucion(
+          "La cantidad devuelta no puede ser mayor a la cantidad original."
+        );
+        return;
+      }
+    }
+
+    if (!notaDevolucion.trim()) {
+      setErrorDevolucion("Escribe una nota explicando la devolución.");
+      return;
+    }
+
+    const payload = {
+      devoluciones: seleccionadas.map((l) => ({
+        id_detalleo: l.id_detalleo,
+        cantidad_devolvida: l.cantidadDevuelta,
+      })),
+      nota: notaDevolucion.trim(),
+    };
+
+    setLoadingAccion(true);
+    setErrorDevolucion("");
+    setError("");
+    setMensaje("");
+
+    try {
+      const res = await api.post(
+        `base/transporte/${ordenDevolucion.id_orden}/marcar-devuelta/`,
+        payload
+      );
+      setMensaje(
+        res.data?.mensaje || "Devolución registrada correctamente en la orden."
+      );
+      cerrarModalDevolucion();
+      // Recalcular totales de orden y del envío (backend) y refrescar UI
+      await cargarEnvio();
+    } catch (err) {
+      console.error(err);
+      const backendMsg =
+        err.response?.data?.detail ||
+        err.response?.data?.error ||
+        "No se pudo registrar la devolución.";
+      setErrorDevolucion(backendMsg);
     } finally {
       setLoadingAccion(false);
     }
@@ -286,15 +375,19 @@ export default function TransporteEnvio() {
     const s = estado.toUpperCase();
     if (s.includes("PREPARADA")) return { bg: "#dbeafe", text: "#1d4ed8" };
     if (s.includes("ENTREGADA")) return { bg: "#dcfce7", text: "#15803d" };
-    if (s.includes("DEVUELTA")) return { bg: "#fee2e2", text: "#b91c1c" };
+    if (s.includes("DEVUELTA") || s.includes("PARCIALMENTE")) {
+      return { bg: "#fee2e2", text: "#b91c1c" };
+    }
     if (s.includes("NO ENTREGADA"))
       return { bg: "#fef9c3", text: "#854d0e" };
     return { bg: "#e2e8f0", text: "#475569" };
   };
 
+  const estadoEnvio = (envio?.estado || "").toUpperCase();
+
   // Helper para mostrar botón "Iniciar viaje"
-  const puedeIniciarViaje =
-    envio && envio.estado !== "EN CURSO" && envio.estado !== "TERMINADO";
+  const puedeIniciarViaje = estadoEnvio === "LISTO_PARA_SALIR";
+  const envioAsignadoNoListo = estadoEnvio === "ASIGNADO";
 
   // Cantidad de órdenes asignadas al envío (probar diferentes campos del backend)
   const totalOrdenesAsignadas = envio
@@ -316,7 +409,7 @@ export default function TransporteEnvio() {
       ? Math.min(100, (pesoEnvio / capacidadMaxima) * 100)
       : null;
 
-  // Ordenar por peso (más pesadas / más livianas)
+  // Ordenar por peso y por precio (más pesadas / livianas / mayor precio / menor precio)
   const ordenesOrdenadas = useMemo(() => {
     const copia = [...ordenes];
     if (ordenSort === "PESADAS") {
@@ -327,6 +420,14 @@ export default function TransporteEnvio() {
       copia.sort(
         (a, b) => Number(a.peso_total || 0) - Number(b.peso_total || 0)
       );
+    } else if (ordenSort === "PRECIO_MAYOR") {
+      copia.sort(
+        (a, b) => Number(b.precio_final || 0) - Number(a.precio_final || 0)
+      );
+    } else if (ordenSort === "PRECIO_MENOR") {
+      copia.sort(
+        (a, b) => Number(a.precio_final || 0) - Number(b.precio_final || 0)
+      );
     }
     return copia;
   }, [ordenes, ordenSort]);
@@ -334,7 +435,7 @@ export default function TransporteEnvio() {
   // Detectar cuando todas las órdenes están en estado final
   const todasEntregasCompletas = useMemo(() => {
     if (!ordenes || ordenes.length === 0) return false;
-    const finales = ["ENTREGADA", "NO ENTREGADA", "DEVUELTA"];
+    const finales = ["ENTREGADA", "NO ENTREGADA", "DEVUELTA", "PARCIALMENTE DEVUELTA"];
     return ordenes.every((o) =>
       finales.includes((o.estado_de_envio || "").toUpperCase())
     );
@@ -417,9 +518,7 @@ export default function TransporteEnvio() {
                 <p style={{ margin: "4px 0", color: "#64748b" }}>
                   Unidad asignada:{" "}
                   <strong>
-                    {envio.unidad_codigo ||
-                      envio.unidad ||
-                      "Sin unidad asignada"}
+                    {envio.unidad_codigo || envio.unidad || "Sin unidad asignada"}
                   </strong>
                 </p>
                 <p style={{ margin: "2px 0", color: "#64748b" }}>
@@ -448,10 +547,7 @@ export default function TransporteEnvio() {
                       }}
                     >
                       Uso de capacidad:{" "}
-                      <strong>
-                        {porcentajeCapacidad.toFixed(1)}
-                        %
-                      </strong>
+                      <strong>{porcentajeCapacidad.toFixed(1)}%</strong>
                     </div>
                     <div
                       style={{
@@ -504,10 +600,18 @@ export default function TransporteEnvio() {
               </div>
 
               <div style={{ display: "flex", gap: 10 }}>
-                {puedeIniciarViaje && (
+                {estadoEnvio !== "EN CURSO" && estadoEnvio !== "TERMINADO" && (
                   <button
-                    style={styles.btnPrimary}
-                    disabled={loadingAccion}
+                    style={{
+                      ...styles.btnPrimary,
+                      opacity:
+                        !puedeIniciarViaje || loadingAccion ? 0.6 : 1,
+                      cursor:
+                        !puedeIniciarViaje || loadingAccion
+                          ? "not-allowed"
+                          : "pointer",
+                    }}
+                    disabled={!puedeIniciarViaje || loadingAccion}
                     onClick={iniciarViaje}
                   >
                     {loadingAccion ? "Procesando..." : "Iniciar viaje"}
@@ -529,6 +633,25 @@ export default function TransporteEnvio() {
               </div>
             </div>
 
+            {/* Mensaje específico cuando el envío está ASIGNADO pero aún no LISTO_PARA_SALIR */}
+            {envioAsignadoNoListo && (
+              <div
+                style={{
+                  padding: 14,
+                  borderRadius: 10,
+                  backgroundColor: "#fffbeb",
+                  border: "1px solid #facc15",
+                  color: "#854d0e",
+                  fontSize: "0.9rem",
+                  marginBottom: 12,
+                }}
+              >
+                El envío está asignado, pero el almacenista aún no lo ha
+                preparado. Podrás iniciar el viaje cuando el envío esté marcado
+                como <strong>LISTO_PARA_SALIR</strong>.
+              </div>
+            )}
+
             {/* MENSAJE BLOQUEO SI AÚN NO HA INICIADO */}
             {envio.estado !== "EN CURSO" && (
               <div
@@ -542,7 +665,8 @@ export default function TransporteEnvio() {
                 }}
               >
                 Para ver y gestionar las órdenes de este envío, primero debes
-                pulsar <strong>"Iniciar viaje"</strong>.
+                pulsar <strong>"Iniciar viaje"</strong> (cuando el envío esté
+                listo para salir).
               </div>
             )}
 
@@ -583,7 +707,7 @@ export default function TransporteEnvio() {
                       />
                     </div>
                     <div>
-                      <label style={styles.label}>Ordenar por peso</label>
+                      <label style={styles.label}>Ordenar por</label>
                       <select
                         style={styles.select}
                         value={ordenSort}
@@ -592,6 +716,12 @@ export default function TransporteEnvio() {
                         <option value="">Sin orden especial</option>
                         <option value="PESADAS">Más pesadas primero</option>
                         <option value="LIVIANAS">Más livianas primero</option>
+                        <option value="PRECIO_MAYOR">
+                          Mayor precio primero
+                        </option>
+                        <option value="PRECIO_MENOR">
+                          Menor precio primero
+                        </option>
                       </select>
                     </div>
                   </div>
@@ -640,6 +770,12 @@ export default function TransporteEnvio() {
                           o.telefono ||
                           o.cliente_telefono ||
                           "Sin teléfono registrado";
+                        const rifCliente =
+                          o.rif_cedula ||
+                          o.cliente_rif_cedula ||
+                          o.id_cliente_rif_cedula ||
+                          o.rif ||
+                          "Sin RIF / Cédula";
 
                         return (
                           <div
@@ -767,7 +903,7 @@ export default function TransporteEnvio() {
                                 disabled={loadingAccion}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  abrirModalNota(o, "NO_ENTREGADA");
+                                  marcarNoEntregada(o);
                                 }}
                               >
                                 No entregada
@@ -782,7 +918,7 @@ export default function TransporteEnvio() {
                                 disabled={loadingAccion}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  abrirModalNota(o, "DEVUELTA");
+                                  abrirModalDevolucion(o);
                                 }}
                               >
                                 Devolución
@@ -824,6 +960,15 @@ export default function TransporteEnvio() {
                                     marginBottom: 2,
                                   }}
                                 >
+                                  <strong>RIF / Cédula:</strong> {rifCliente}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: "0.82rem",
+                                    color: "#0f172a",
+                                    marginBottom: 2,
+                                  }}
+                                >
                                   <strong>Dirección:</strong>{" "}
                                   {o.direccion || "Sin dirección registrada"}
                                 </div>
@@ -834,8 +979,7 @@ export default function TransporteEnvio() {
                                     marginBottom: 8,
                                   }}
                                 >
-                                  <strong>Teléfono:</strong>{" "}
-                                  {telefonoCliente}
+                                  <strong>Teléfono:</strong> {telefonoCliente}
                                 </div>
 
                                 {/* Detalle de productos */}
@@ -968,14 +1112,12 @@ export default function TransporteEnvio() {
               </>
             )}
 
-            {/* MODAL NOTA */}
-            {modalNotaVisible && ordenSeleccionada && (
+            {/* MODAL DEVOLUCIÓN */}
+            {modalDevolucionVisible && ordenDevolucion && (
               <div style={styles.modalOverlay}>
                 <div style={styles.modal}>
                   <h3 style={{ marginTop: 0, marginBottom: 10 }}>
-                    {tipoAccionNota === "NO_ENTREGADA"
-                      ? `Marcar orden #${ordenSeleccionada.id_orden} como NO ENTREGADA`
-                      : `Marcar orden #${ordenSeleccionada.id_orden} como DEVUELTA`}
+                    Registrar devolución · Orden #{ordenDevolucion.id_orden}
                   </h3>
                   <p
                     style={{
@@ -984,9 +1126,120 @@ export default function TransporteEnvio() {
                       marginBottom: 12,
                     }}
                   >
-                    Escribe una nota explicando la situación. Esta información
-                    quedará registrada en el sistema.
+                    Marca los productos devueltos, indica la cantidad devuelta
+                    de cada uno y escribe una nota explicando la situación. El
+                    sistema recalculará los montos de la orden y devolverá el
+                    stock de los productos seleccionados.
                   </p>
+
+                  <div
+                    style={{
+                      maxHeight: "260px",
+                      overflowY: "auto",
+                      marginBottom: 12,
+                      paddingRight: 4,
+                    }}
+                  >
+                    {lineasDevolucion.length === 0 && (
+                      <div
+                        style={{
+                          fontSize: "0.85rem",
+                          color: "#94a3b8",
+                        }}
+                      >
+                        Esta orden no tiene productos para devolución.
+                      </div>
+                    )}
+
+                    {lineasDevolucion.map((l, idx) => (
+                      <div
+                        key={l.id_detalleo || idx}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 10,
+                          padding: "8px 0",
+                          borderBottom:
+                            idx === lineasDevolucion.length - 1
+                              ? "none"
+                              : "1px solid #e5e7eb",
+                        }}
+                      >
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            flex: 1,
+                            cursor: "pointer",
+                            fontSize: "0.85rem",
+                            color: "#0f172a",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={l.selected}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setLineasDevolucion((prev) =>
+                                prev.map((x, i) =>
+                                  i === idx
+                                    ? {
+                                        ...x,
+                                        selected: checked,
+                                        // si se activa por primera vez, sugerimos cantidad 1
+                                        cantidadDevuelta:
+                                          checked && x.cantidadDevuelta === 0
+                                            ? 1
+                                            : x.cantidadDevuelta,
+                                      }
+                                    : x
+                                )
+                              );
+                            }}
+                          />
+                          <span>
+                            {l.producto}{" "}
+                            <span
+                              style={{
+                                fontSize: "0.78rem",
+                                color: "#64748b",
+                                marginLeft: 4,
+                              }}
+                            >
+                              (Cant. original: {l.cantidadOriginal})
+                            </span>
+                          </span>
+                        </label>
+
+                        <input
+                          type="number"
+                          min={0}
+                          max={l.cantidadOriginal}
+                          value={l.cantidadDevuelta}
+                          disabled={!l.selected}
+                          onChange={(e) => {
+                            const value = Number(e.target.value || 0);
+                            setLineasDevolucion((prev) =>
+                              prev.map((x, i) =>
+                                i === idx ? { ...x, cantidadDevuelta: value } : x
+                              )
+                            );
+                          }}
+                          style={{
+                            width: "90px",
+                            height: "32px",
+                            borderRadius: 8,
+                            border: "1px solid #cbd5e1",
+                            fontSize: "0.85rem",
+                            padding: "0 8px",
+                            textAlign: "right",
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
 
                   <textarea
                     style={{
@@ -999,12 +1252,12 @@ export default function TransporteEnvio() {
                       resize: "vertical",
                       outline: "none",
                     }}
-                    value={nota}
-                    onChange={(e) => setNota(e.target.value)}
-                    placeholder="Ejemplo: Cliente no se encontraba en la dirección..."
+                    value={notaDevolucion}
+                    onChange={(e) => setNotaDevolucion(e.target.value)}
+                    placeholder="Ejemplo: Cliente devolvió parcialmente la mercancía por producto defectuoso..."
                   />
 
-                  {modalError && (
+                  {errorDevolucion && (
                     <div
                       style={{
                         marginTop: 10,
@@ -1015,7 +1268,7 @@ export default function TransporteEnvio() {
                         fontSize: "0.8rem",
                       }}
                     >
-                      {modalError}
+                      {errorDevolucion}
                     </div>
                   )}
 
@@ -1029,17 +1282,17 @@ export default function TransporteEnvio() {
                   >
                     <button
                       style={styles.btnGhost}
-                      onClick={cerrarModalNota}
+                      onClick={cerrarModalDevolucion}
                       disabled={loadingAccion}
                     >
                       Cancelar
                     </button>
                     <button
                       style={styles.btnPrimary}
-                      onClick={confirmarAccionConNota}
+                      onClick={confirmarDevolucion}
                       disabled={loadingAccion}
                     >
-                      {loadingAccion ? "Procesando..." : "Confirmar"}
+                      {loadingAccion ? "Procesando..." : "Confirmar devolución"}
                     </button>
                   </div>
                 </div>
