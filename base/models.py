@@ -69,6 +69,7 @@ class Cliente(models.Model):
     direccion = models.TextField(blank=True)
     correo = models.CharField(max_length=120, blank=True)
     telefono = models.CharField(max_length=20, blank=True)
+    rif_cedula = models.CharField("RIF / Cédula", max_length=20, blank=True)
 
     # 👇 Nuevo campo: activo por defecto
     activo = models.BooleanField(default=True)

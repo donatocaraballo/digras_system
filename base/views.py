@@ -237,10 +237,21 @@ class ClienteViewSet(BaseViewSet):
 
         return base_qs.annotate(
             total_ordenes=Count("orden", distinct=True),
+
             ordenes_activas=Count(
                 "orden",
                 filter=Q(
                     orden__estado_de_envio__in=estados_activos,
+                    orden__cancelacion=False,
+                ),
+                distinct=True,
+            ),
+
+            # 👇 NUEVO: órdenes pendientes por pagar (incluye PENDIENTE y PAGO EN CURSO)
+            ordenes_pendientes_pago=Count(
+                "orden",
+                filter=Q(
+                    orden__estado_de_pago__in=["PENDIENTE POR PAGO", "PAGO EN CURSO"],
                     orden__cancelacion=False,
                 ),
                 distinct=True,

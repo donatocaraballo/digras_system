@@ -448,9 +448,12 @@ export default function CrearOrden() {
   // Nuevo cliente
   const [mostrarNuevoCliente, setMostrarNuevoCliente] = useState(false);
   const [nuevoClienteNombre, setNuevoClienteNombre] = useState("");
-  const [nuevoClienteDireccion, setNuevoClienteDireccion] = useState("");
+  const [nuevoClienteEstado, setNuevoClienteEstado] = useState("");
+  const [nuevoClienteCiudad, setNuevoClienteCiudad] = useState("");
+  const [nuevoClienteDireccionEspecifica, setNuevoClienteDireccionEspecifica] = useState("");
   const [nuevoClienteCorreo, setNuevoClienteCorreo] = useState("");
   const [nuevoClienteTelefono, setNuevoClienteTelefono] = useState("");
+  const [nuevoClienteRif, setNuevoClienteRif] = useState("");
   const [nuevoClienteMensaje, setNuevoClienteMensaje] = useState("");
   const [nuevoClienteError, setNuevoClienteError] = useState("");
 
@@ -615,27 +618,33 @@ export default function CrearOrden() {
 
     if (
       !nuevoClienteNombre ||
-      !nuevoClienteDireccion ||
-      !nuevoClienteCorreo ||
-      !nuevoClienteTelefono
+      !nuevoClienteTelefono ||
+      !nuevoClienteEstado ||
+      !nuevoClienteCiudad ||
+      !nuevoClienteDireccionEspecifica
     ) {
-      setNuevoClienteError("Completa todos los datos del nuevo cliente.");
+      setNuevoClienteError(
+        "Completa los campos obligatorios: nombre, teléfono y dirección (estado, ciudad y dirección específica)."
+      );
       return;
     }
 
-    // Validación sencilla de correo
+    // Validación sencilla de correo (solo si se proporciona)
     const emailRegex = /.+@.+\..+/;
-    if (!emailRegex.test(nuevoClienteCorreo)) {
+    if (nuevoClienteCorreo && !emailRegex.test(nuevoClienteCorreo)) {
       setNuevoClienteError("Ingresa un correo electrónico válido.");
       return;
     }
 
     try {
+      const direccionCompuesta = `${nuevoClienteEstado} - ${nuevoClienteCiudad} - ${nuevoClienteDireccionEspecifica}`;
+
       const payload = {
         nombre: nuevoClienteNombre,
-        direccion: nuevoClienteDireccion,
-        correo: nuevoClienteCorreo,
+        direccion: direccionCompuesta,
+        correo: nuevoClienteCorreo || "",
         telefono: nuevoClienteTelefono,
+        rif_cedula: nuevoClienteRif || "",
       };
 
       const token = localStorage.getItem("auth_token");
@@ -653,9 +662,12 @@ export default function CrearOrden() {
       setMostrarNuevoCliente(false);
       setNuevoClienteMensaje("Cliente creado correctamente.");
       setNuevoClienteNombre("");
-      setNuevoClienteDireccion("");
+      setNuevoClienteEstado("");
+      setNuevoClienteCiudad("");
+      setNuevoClienteDireccionEspecifica("");
       setNuevoClienteCorreo("");
       setNuevoClienteTelefono("");
+      setNuevoClienteRif("");
     } catch (err) {
       console.error("Error al crear cliente:", err);
       const backendMsg = getErrorMessageFromResponse(
@@ -852,9 +864,12 @@ export default function CrearOrden() {
     setResumenOrden(null);
     setMostrarNuevoCliente(false);
     setNuevoClienteNombre("");
-    setNuevoClienteDireccion("");
+    setNuevoClienteEstado("");
+    setNuevoClienteCiudad("");
+    setNuevoClienteDireccionEspecifica("");
     setNuevoClienteCorreo("");
     setNuevoClienteTelefono("");
+    setNuevoClienteRif("");
     setNuevoClienteMensaje("");
     setNuevoClienteError("");
     setFiltroCliente("");
@@ -1133,7 +1148,7 @@ export default function CrearOrden() {
                     >
                       <input
                         style={styles.input}
-                        placeholder="Nombre completo"
+                        placeholder="Nombre completo *"
                         value={nuevoClienteNombre}
                         onChange={(e) => {
                           marcarCambio();
@@ -1142,16 +1157,43 @@ export default function CrearOrden() {
                       />
                       <input
                         style={styles.input}
-                        placeholder="Dirección"
-                        value={nuevoClienteDireccion}
+                        placeholder="Estado *"
+                        value={nuevoClienteEstado}
                         onChange={(e) => {
                           marcarCambio();
-                          setNuevoClienteDireccion(e.target.value);
+                          setNuevoClienteEstado(e.target.value);
                         }}
                       />
                       <input
                         style={styles.input}
-                        placeholder="Correo"
+                        placeholder="Ciudad *"
+                        value={nuevoClienteCiudad}
+                        onChange={(e) => {
+                          marcarCambio();
+                          setNuevoClienteCiudad(e.target.value);
+                        }}
+                      />
+                      <input
+                        style={styles.input}
+                        placeholder="Dirección específica *"
+                        value={nuevoClienteDireccionEspecifica}
+                        onChange={(e) => {
+                          marcarCambio();
+                          setNuevoClienteDireccionEspecifica(e.target.value);
+                        }}
+                      />
+                      <input
+                        style={styles.input}
+                        placeholder="RIF / Cédula"
+                        value={nuevoClienteRif}
+                        onChange={(e) => {
+                          marcarCambio();
+                          setNuevoClienteRif(e.target.value);
+                        }}
+                      />
+                      <input
+                        style={styles.input}
+                        placeholder="Correo (opcional)"
                         value={nuevoClienteCorreo}
                         onChange={(e) => {
                           marcarCambio();
@@ -1160,7 +1202,7 @@ export default function CrearOrden() {
                       />
                       <input
                         style={styles.input}
-                        placeholder="Teléfono"
+                        placeholder="Teléfono *"
                         value={nuevoClienteTelefono}
                         onChange={(e) => {
                           marcarCambio();
@@ -1268,7 +1310,7 @@ export default function CrearOrden() {
                     // Mensaje ÚNICO cuando no hay stock
                     stockColor = "#b91c1c";
                     stockLabel =
-                      "No hay stock disponible de este producto. Existencia: 0";
+                      "No hay existencia de este producto. Existencia: 0";
                   } else {
                     if (existenciaActual < 5) {
                       stockColor = "#f59e0b";

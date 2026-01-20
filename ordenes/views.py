@@ -166,7 +166,7 @@ class OrdenViewSet(BaseViewSet):
         for pid, qty_needed in required.items():
             ex = exist_map.get(pid)
             if ex is None:
-                return Response({"detail": f"No existe existencia para el producto {pid}."}, status=400)
+                return Response({"detail": f"No hay existencia para el producto {pid}."}, status=400)
             if ex.cantidad < qty_needed:
                 return Response({"detail": f"Stock insuficiente para producto {pid}. Disponible: {ex.cantidad}"}, status=400)
 
@@ -376,7 +376,7 @@ class OrdenViewSet(BaseViewSet):
                         # Necesitamos consumir más unidades
                         if ex is None:
                             return Response(
-                                {"detail": f"No existe existencia para el producto {pid}."},
+                                {"detail": f"No hay existencia para el producto {pid}."},
                                 status=status.HTTP_400_BAD_REQUEST
                             )
                         Existencia.objects.filter(pk=ex.pk).update(

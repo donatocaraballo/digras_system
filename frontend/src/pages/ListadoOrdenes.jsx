@@ -140,7 +140,7 @@ export default function ListadoOrdenes() {
     vendedor: "",
     desde: "",
     hasta: "",
-    ordering: "-fecha_orden",
+    ordering: "-id_orden",
   });
 
   const [usuarioActual, setUsuarioActual] = useState(null);
@@ -1042,10 +1042,12 @@ export default function ListadoOrdenes() {
     const nombre = (c.nombre || "").toLowerCase();
     const correo = (c.correo || "").toLowerCase();
     const telefono = (c.telefono || "").toLowerCase();
+    const rif = (c.rif_cedula || "").toLowerCase();
     return (
       nombre.includes(term) ||
       correo.includes(term) ||
-      telefono.includes(term)
+      telefono.includes(term) ||
+      rif.includes(term)
     );
   });
 
@@ -1090,14 +1092,31 @@ export default function ListadoOrdenes() {
     const desc = ordering.startsWith("-");
     const field = desc ? ordering.slice(1) : ordering;
     const sorted = [...lista].sort((a, b) => {
-      const av = a[field],
-        bv = b[field];
+      const av = a[field];
+      const bv = b[field];
+
       if (av === undefined || av === null) return 1;
       if (bv === undefined || bv === null) return -1;
-      if (typeof av === "string") return av.localeCompare(bv);
-      return av > bv ? 1 : -1;
+
+      if (typeof av === "string" && typeof bv === "string") {
+        const cmp = av.localeCompare(bv);
+        return desc ? -cmp : cmp;
+      }
+
+      const numA = Number(av);
+      const numB = Number(bv);
+
+      if (!isNaN(numA) && !isNaN(numB)) {
+        if (numA === numB) return 0;
+        return desc ? (numB - numA) : (numA - numB);
+      }
+
+      // Fallback for other types
+      if (av === bv) return 0;
+      return desc ? (av > bv ? -1 : 1) : (av > bv ? 1 : -1);
     });
-    return desc ? sorted.reverse() : sorted;
+
+    return sorted;
   };
 
   const ordenesOrdenadas = sortOrdenes(ordenes, filtros.ordering);
@@ -1215,7 +1234,7 @@ export default function ListadoOrdenes() {
       vendedor: "",
       desde: "",
       hasta: "",
-      ordering: "-fecha_orden",
+      ordering: "-id_orden",
     });
     setClienteBusqueda("");
     setVendedorBusqueda("");
@@ -1452,6 +1471,21 @@ export default function ListadoOrdenes() {
                   Pendiente por pago
                 </option>
                 <option value="PAGO EN CURSO">Pago en curso</option>
+              </select>
+            </div>
+            <div style={{ minWidth: 200, flex: "1 1 200px" }}>
+              <label style={styles.label}>Ordenar por</label>
+              <select
+                style={styles.select}
+                value={filtros.ordering}
+                onChange={(e) => onChangeFiltro("ordering", e.target.value)}
+              >
+                <option value="-id_orden">Más reciente</option>
+                <option value="id_orden">Más antigua</option>
+                <option value="-precio_final">Mayor precio</option>
+                <option value="precio_final">Menor precio</option>
+                <option value="-peso_total">Mayor peso</option>
+                <option value="peso_total">Menor peso</option>
               </select>
             </div>
 
@@ -1915,6 +1949,21 @@ export default function ListadoOrdenes() {
                     paddingTop: 15,
                   }}
                 >
+                  {/* Peso total de la orden */}
+                  <div
+                    style={{
+                      fontSize: "0.95rem",
+                      color: "#64748b",
+                      marginBottom: 4,
+                    }}
+                  >
+                    Peso total:{" "}
+                    <strong>
+                      {Number(ordenSeleccionada.peso_total || 0).toFixed(2)} kg
+                    </strong>
+                  </div>
+
+                  {/* Total monetario */}
                   <div
                     style={{
                       fontSize: "1.2rem",
@@ -2009,7 +2058,7 @@ export default function ListadoOrdenes() {
                 <div>
                   <strong>RIF / Cédula:</strong>{" "}
                   <span style={{ fontFamily: "monospace" }}>
-                    {clienteSeleccionado.rif || "No registrado"}
+                    {clienteSeleccionado.rif_cedula || "No registrado"}
                   </span>
                 </div>
                 {typeof clienteSeleccionado.total_ordenes !==
@@ -2024,6 +2073,12 @@ export default function ListadoOrdenes() {
                   <div>
                     <strong>Órdenes activas:</strong>{" "}
                     {clienteSeleccionado.ordenes_activas}
+                  </div>
+                )}
+                {typeof clienteSeleccionado.ordenes_pendientes_pago !== "undefined" && (
+                  <div>
+                    <strong>Órdenes pendientes por pagar:</strong>{" "}
+                    {clienteSeleccionado.ordenes_pendientes_pago}
                   </div>
                 )}
               </div>
