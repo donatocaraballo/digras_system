@@ -21,6 +21,7 @@ import TransporteEnvios from './pages/TransporteEnvios';
 import Usuarios from './pages/Usuarios';
 import RegistroAcciones from './pages/RegistroAcciones';
 import Transportistas from './pages/Transportistas';
+import Notificaciones from './pages/Notificaciones';
 
 // 🚨 COMPONENTE DE ESTILOS FUTURISTAS
 import GlobalStyles from './components/GlobalStyles';
@@ -120,7 +121,7 @@ function App() {
           <Route path="/envios" element={<RutasProtegidas><TransporteEnvios /></RutasProtegidas>} />
           <Route path="/usuarios" element={<RutasProtegidas><Usuarios /></RutasProtegidas>} />
           <Route path="/registros" element={<RutasProtegidas><RegistroAcciones /></RutasProtegidas>} />
-
+          <Route path="/notificaciones" element={<RutasProtegidas><Notificaciones /></RutasProtegidas>} />
           <Route path="/transporte" element={<RutasProtegidas><Transportistas /></RutasProtegidas>} />
 
           <Route path="*" element={<h2 style={{textAlign:'center', marginTop: 100, color:'#64748b'}}>404 | Página no encontrada</h2>} />
