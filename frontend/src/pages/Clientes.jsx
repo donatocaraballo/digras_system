@@ -3,8 +3,8 @@
 import React, { useEffect, useState } from "react";
 import api from "../api/api";
 import { useAuth } from "../AuthContext";
-import jsPDF from "jspdf"; // ➕ Importación para PDF
-import autoTable from "jspdf-autotable"; // ➕ Importación para Tablas PDF
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 // --- ICONOS SVG ---
 const IconUser = () => (
@@ -44,7 +44,7 @@ const IconRefresh = () => (
     <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
   </svg>
 );
-// ➕ Icono Imprimir (Definición Agregada)
+// ➕ Icono Imprimir
 const IconPrint = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="6 9 6 2 18 2 18 9"></polyline>
@@ -52,7 +52,7 @@ const IconPrint = () => (
     <rect x="6" y="14" width="12" height="8"></rect>
   </svg>
 );
-// ➕ Icono Descargar (Definición Agregada)
+// ➕ Icono Descargar
 const IconDownload = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -144,7 +144,7 @@ const styles = {
     fontWeight: "600",
     cursor: "pointer",
     fontSize: "0.95rem",
-    transition: "transform 0.1s",
+    transition: "transform 0.1s, opacity 0.1s",
   },
   btnGhost: {
     display: "flex",
@@ -158,6 +158,7 @@ const styles = {
     fontWeight: "600",
     cursor: "pointer",
     fontSize: "0.9rem",
+    transition: "opacity 0.1s",
   },
   btnSecondary: {
     background: "#eff6ff",
@@ -171,6 +172,7 @@ const styles = {
     display: "inline-flex",
     alignItems: "center",
     gap: "6px",
+    transition: "opacity 0.1s",
   },
   btnIcon: {
     width: "40px",
@@ -183,6 +185,7 @@ const styles = {
     color: "#ef4444",
     borderRadius: "8px",
     cursor: "pointer",
+    transition: "opacity 0.1s",
   },
 
   tableWrapper: {
@@ -324,6 +327,9 @@ export default function Clientes() {
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
+  const [filterEstado, setFilterEstado] = useState("todos");
+  const [ordenamiento, setOrdenamiento] = useState("");
+
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
 
   const [showFormModal, setShowFormModal] = useState(false);
@@ -335,10 +341,12 @@ export default function Clientes() {
 
   const [formData, setFormData] = useState({
     nombre: "",
-    rif: "",
+    rif_cedula: "",
     telefono: "",
     correo: "",
-    direccion: "",
+    direccionEstado: "",
+    direccionCiudad: "",
+    direccionEspecifica: "",
   });
 
   const esGerencia =
@@ -369,7 +377,9 @@ export default function Clientes() {
           : resUsuarios.data.results || [];
         setUsuarios(dataUsuarios);
       }
-      setMensaje(`Se encontraron ${dataClientes.length} cliente(s).`);
+      // El mensaje final ahora lo controla el efecto según filtros,
+      // así que aquí no seteamos un texto definitivo basado solo en el total.
+      setMensaje(`Se encontraron ${dataClientes.length} cliente(s) en total.`);
     } catch (err) {
       console.error("Error cargando datos:", err);
       setError("No se pudieron cargar los datos.");
@@ -389,29 +399,103 @@ export default function Clientes() {
     return u ? `@${u.username}` : `ID: ${id}`;
   };
 
+  // Helpers de conteo de órdenes
+  const getTotalOrdenes = (cli) =>
+    Number(cli.ordenes_totales ?? cli.total_ordenes ?? 0);
+
+  const getOrdenesActivas = (cli) =>
+    Number(cli.ordenes_activas ?? cli.total_ordenes_activas ?? 0);
+
+  const getOrdenesPendientesPago = (cli) =>
+    Number(
+      cli.ordenes_pendientes_pago ??
+        cli.ordenes_pendientes_por_pagar ??
+        cli.total_ordenes_pendientes ??
+        0
+    );
+
   const filtrados = clientes.filter((c) => {
     const texto = (search || "").toLowerCase();
-    if (!texto) return true;
-    let matchVendedor = false;
-    if (esGerencia && c.id_usuario) {
-      const nombreVend = getNombreVendedor(c.id_usuario).toLowerCase();
-      matchVendedor = nombreVend.includes(texto);
+    if (texto) {
+      let matchVendedor = false;
+      if (esGerencia && c.id_usuario) {
+        const nombreVend = getNombreVendedor(c.id_usuario).toLowerCase();
+        matchVendedor = nombreVend.includes(texto);
+      }
+      const coincideTexto =
+        (c.nombre || "").toLowerCase().includes(texto) ||
+        (c.rif_cedula || "").toLowerCase().includes(texto) ||
+        (c.correo || "").toLowerCase().includes(texto) ||
+        (c.telefono || "").toLowerCase().includes(texto) ||
+        (c.direccion || "").toLowerCase().includes(texto) ||
+        matchVendedor;
+
+      if (!coincideTexto) return false;
     }
-    return (
-      (c.nombre || "").toLowerCase().includes(texto) ||
-      (c.rif || "").toLowerCase().includes(texto) ||
-      (c.correo || "").toLowerCase().includes(texto) ||
-      (c.telefono || "").toLowerCase().includes(texto) ||
-      matchVendedor
-    );
+
+    // Filtro por estado (activo / inactivo)
+    const activoFlag =
+      c.activo !== undefined && c.activo !== null ? c.activo : true;
+
+    if (filterEstado === "activo" && !activoFlag) return false;
+    if (filterEstado === "inactivo" && activoFlag) return false;
+
+    return true;
   });
 
-  // --- ➕ NUEVAS FUNCIONES PDF ---
-  
-  // 1. Exportar la tabla completa (filtrada)
+  // Ordenamiento avanzado
+  const filtradosOrdenados = React.useMemo(() => {
+    const arr = [...filtrados];
+    if (!ordenamiento) return arr;
+
+    return arr.sort((a, b) => {
+      const idA = a.id_cliente ?? a.id ?? 0;
+      const idB = b.id_cliente ?? b.id ?? 0;
+
+      const totA = getTotalOrdenes(a);
+      const totB = getTotalOrdenes(b);
+      const actA = getOrdenesActivas(a);
+      const actB = getOrdenesActivas(b);
+      const pendA = getOrdenesPendientesPago(a);
+      const pendB = getOrdenesPendientesPago(b);
+
+      switch (ordenamiento) {
+        case "mas_recientes":
+          return idB - idA;
+        case "mas_antiguos":
+          return idA - idB;
+        case "mas_ordenes":
+          return totB - totA;
+        case "menos_ordenes":
+          return totA - totB;
+        case "mas_activas":
+          return actB - actA;
+        case "menos_activas":
+          return actA - actB;
+        case "mas_pend_pago":
+          return pendB - pendA;
+        case "menos_pend_pago":
+          return pendA - pendB;
+        default:
+          return 0;
+      }
+    });
+  }, [filtrados, ordenamiento]);
+
+  // 🔔 Actualizar indicador de cantidad de clientes cada vez que cambian filtros/búsqueda
+  useEffect(() => {
+    if (!loading) {
+      setMensaje(
+        `Se encontraron ${filtradosOrdenados.length} cliente(s) con los filtros actuales.`
+      );
+    }
+  }, [loading, filtradosOrdenados.length]);
+
+  // --- FUNCIONES PDF ---
   const exportarListadoPDF = () => {
-    if (filtrados.length === 0) return alert("No hay datos para exportar.");
-    
+    if (filtradosOrdenados.length === 0)
+      return alert("No hay datos para exportar.");
+
     const doc = new jsPDF();
     doc.setFontSize(14);
     doc.text("Reporte de Clientes - DIGRAS", 14, 15);
@@ -421,31 +505,30 @@ export default function Clientes() {
     const headers = ["ID", "Nombre", "RIF/Cédula", "Teléfono", "Correo", "Estado"];
     if (esGerencia) headers.splice(3, 0, "Vendedor");
 
-    const rows = filtrados.map(c => {
-        const row = [
-            c.id_cliente,
-            c.nombre,
-            c.rif || "-",
-            c.telefono || "-",
-            c.correo || "-",
-            c.activo ? "ACTIVO" : "INACTIVO"
-        ];
-        if (esGerencia) row.splice(3, 0, getNombreVendedor(c.id_usuario));
-        return row;
+    const rows = filtradosOrdenados.map((c) => {
+      const row = [
+        c.id_cliente,
+        c.nombre,
+        c.rif_cedula || "-",
+        c.telefono || "-",
+        c.correo || "-",
+        c.activo ? "ACTIVO" : "INACTIVO",
+      ];
+      if (esGerencia) row.splice(3, 0, getNombreVendedor(c.id_usuario));
+      return row;
     });
 
     autoTable(doc, {
-        head: [headers],
-        body: rows,
-        startY: 30,
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [15, 23, 42] }
+      head: [headers],
+      body: rows,
+      startY: 30,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [15, 23, 42] },
     });
 
     doc.save("listado_clientes.pdf");
   };
 
-  // 2. Exportar la ficha individual del cliente seleccionado
   const exportarFichaClientePDF = (cliente) => {
     if (!cliente) return;
     const doc = new jsPDF();
@@ -456,36 +539,40 @@ export default function Clientes() {
     doc.setFontSize(18);
     doc.setTextColor(30, 64, 175); // #1e40af
     doc.text("Ficha de Cliente", 14, 25);
-    
+
     doc.setFontSize(10);
     doc.setTextColor(0, 0, 0);
     doc.text("DIGRAS C.A.", 195, 25, { align: "right" });
 
-    // Datos
+    const totalOrdenes = getTotalOrdenes(cliente);
+    const ordenesActivas = getOrdenesActivas(cliente);
+    const ordenesPendPago = getOrdenesPendientesPago(cliente);
+
     const dataBody = [
-      ['ID Cliente', `#${cliente.id_cliente}`],
-      ['Nombre / Razón Social', cliente.nombre],
-      ['RIF / Cédula', cliente.rif || "No registrado"],
-      ['Teléfono', cliente.telefono || "-"],
-      ['Correo', cliente.correo || "-"],
-      ['Dirección', cliente.direccion || "-"],
-      ['Estado', cliente.activo ? "ACTIVO" : "INACTIVO"],
+      ["ID Cliente", `#${cliente.id_cliente}`],
+      ["Nombre / Razón Social", cliente.nombre],
+      ["RIF / Cédula", cliente.rif_cedula || "No registrado"],
+      ["Teléfono", cliente.telefono || "-"],
+      ["Correo", cliente.correo || "-"],
+      ["Dirección", cliente.direccion || "-"],
+      ["Estado", cliente.activo ? "ACTIVO" : "INACTIVO"],
     ];
 
     if (esGerencia) {
-      dataBody.push(['Vendedor Asignado', getNombreVendedor(cliente.id_usuario)]);
+      dataBody.push(["Vendedor Asignado", getNombreVendedor(cliente.id_usuario)]);
     }
 
-    dataBody.push(['Órdenes Históricas', cliente.ordenes_totales ?? cliente.total_ordenes ?? 0]);
-    dataBody.push(['Órdenes Activas', cliente.ordenes_activas ?? cliente.total_ordenes_activas ?? 0]);
+    dataBody.push(["Órdenes Históricas", totalOrdenes]);
+    dataBody.push(["Órdenes Activas", ordenesActivas]);
+    dataBody.push(["Órdenes Pendientes por Pago", ordenesPendPago]);
 
     autoTable(doc, {
-        startY: 50,
-        head: [['Campo', 'Valor']],
-        body: dataBody,
-        theme: 'grid',
-        headStyles: { fillColor: [30, 64, 175] },
-        columnStyles: { 0: { fontStyle: 'bold', width: 60 } }
+      startY: 50,
+      head: [["Campo", "Valor"]],
+      body: dataBody,
+      theme: "grid",
+      headStyles: { fillColor: [30, 64, 175] },
+      columnStyles: { 0: { fontStyle: "bold", width: 60 } },
     });
 
     doc.save(`cliente_${cliente.id_cliente}.pdf`);
@@ -497,10 +584,12 @@ export default function Clientes() {
     setClienteSeleccionado(null);
     setFormData({
       nombre: "",
-      rif: "",
+      rif_cedula: "",
       telefono: "",
       correo: "",
-      direccion: "",
+      direccionEstado: "",
+      direccionCiudad: "",
+      direccionEspecifica: "",
     });
     setFormError("");
     setShowFormModal(true);
@@ -514,14 +603,40 @@ export default function Clientes() {
       return;
     }
 
+    // Parsear dirección en estado/ciudad/detalle
+    const direccionCompleta = cliente.direccion || "";
+    let direccionEstado = "";
+    let direccionCiudad = "";
+    let direccionEspecifica = "";
+
+    if (direccionCompleta) {
+      const partes = direccionCompleta
+        .split("-")
+        .map((p) => p.trim())
+        .filter(Boolean);
+
+      if (partes.length === 1) {
+        direccionEspecifica = partes[0];
+      } else if (partes.length === 2) {
+        direccionEstado = partes[0];
+        direccionCiudad = partes[1];
+      } else if (partes.length >= 3) {
+        direccionEstado = partes[0];
+        direccionCiudad = partes[1];
+        direccionEspecifica = partes.slice(2).join(" - ");
+      }
+    }
+
     setFormMode("editar");
     setClienteSeleccionado(cliente);
     setFormData({
       nombre: cliente.nombre || "",
-      rif: cliente.rif || "",
+      rif_cedula: cliente.rif_cedula || "",
       telefono: cliente.telefono || "",
       correo: cliente.correo || "",
-      direccion: cliente.direccion || "",
+      direccionEstado,
+      direccionCiudad,
+      direccionEspecifica,
     });
     setFormError("");
     setShowFormModal(true);
@@ -535,18 +650,51 @@ export default function Clientes() {
     setFormError("");
     setFormLoading(true);
     try {
-      if (!formData.nombre) {
-        setFormError("El nombre es obligatorio.");
+      if (!formData.nombre.trim()) {
+        setFormError("El campo NOMBRE es obligatorio.");
         setFormLoading(false);
         return;
       }
 
+      if (!formData.telefono.trim()) {
+        setFormError("El campo TELÉFONO es obligatorio.");
+        setFormLoading(false);
+        return;
+      }
+
+      if (
+        !formData.direccionEstado.trim() ||
+        !formData.direccionCiudad.trim() ||
+        !formData.direccionEspecifica.trim()
+      ) {
+        setFormError(
+          "Los campos ESTADO, CIUDAD y DIRECCIÓN ESPECÍFICA son obligatorios."
+        );
+        setFormLoading(false);
+        return;
+      }
+
+      const partesDireccion = [
+        formData.direccionEstado.trim(),
+        formData.direccionCiudad.trim(),
+        formData.direccionEspecifica.trim(),
+      ];
+      const direccionCombinada = partesDireccion.join(" - ");
+
+      const payload = {
+        nombre: formData.nombre,
+        rif_cedula: formData.rif_cedula,
+        telefono: formData.telefono,
+        correo: formData.correo,
+        direccion: direccionCombinada,
+      };
+
       if (formMode === "crear") {
-        await api.post("/base/clientes/", formData);
+        await api.post("/base/clientes/", payload);
       } else if (formMode === "editar" && clienteSeleccionado) {
         await api.patch(
           `/base/clientes/${clienteSeleccionado.id_cliente}/`,
-          formData
+          payload
         );
       }
 
@@ -635,13 +783,13 @@ export default function Clientes() {
 
   const tieneOrdenesTotales = (cli) => {
     if (!cli) return false;
-    const totales = cli.ordenes_totales ?? cli.total_ordenes ?? 0;
+    const totales = getTotalOrdenes(cli);
     return Number(totales) > 0;
   };
 
   const tieneOrdenesActivas = (cli) => {
     if (!cli) return false;
-    const activas = cli.ordenes_activas ?? cli.total_ordenes_activas ?? 0;
+    const activas = getOrdenesActivas(cli);
     return Number(activas) > 0;
   };
 
@@ -650,20 +798,22 @@ export default function Clientes() {
     : false;
 
   const totalOrdenesCliente = clienteSeleccionado
-    ? Number(
-        clienteSeleccionado.ordenes_totales ??
-          clienteSeleccionado.total_ordenes ??
-          0
-      )
+    ? getTotalOrdenes(clienteSeleccionado)
     : 0;
 
   const ordenesActivasCliente = clienteSeleccionado
-    ? Number(
-        clienteSeleccionado.ordenes_activas ??
-          clienteSeleccionado.total_ordenes_activas ??
-          0
-      )
+    ? getOrdenesActivas(clienteSeleccionado)
     : 0;
+
+  const ordenesPendientesPagoCliente = clienteSeleccionado
+    ? getOrdenesPendientesPago(clienteSeleccionado)
+    : 0;
+
+  const limpiarFiltros = () => {
+    setSearch("");
+    setFilterEstado("todos");
+    setOrdenamiento("");
+  };
 
   return (
     <div style={styles.container} className="responsive-container">
@@ -688,7 +838,7 @@ export default function Clientes() {
         {mensaje && <div style={styles.statusOk}>{mensaje}</div>}
         {error && <div style={styles.statusError}>{error}</div>}
 
-        {/* BUSCADOR */}
+        {/* BUSCADOR + FILTROS */}
         <div style={styles.searchSection} className="responsive-search">
           <div
             style={{
@@ -717,21 +867,63 @@ export default function Clientes() {
                 ...styles.input,
                 paddingLeft: "38px",
               }}
-              placeholder="Buscar por nombre, RIF, correo o vendedor..."
+              placeholder="Buscar por nombre, RIF, dirección, correo o vendedor..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+
           <div
             style={{
               display: "flex",
               gap: 10,
               width: "100%",
               justifyContent: "flex-end",
+              flexWrap: "wrap",
             }}
             className="responsive-buttons"
           >
-            {/* ➕ BOTÓN PDF LISTA */}
+            {/* Filtro Activo / Inactivo */}
+            <select
+              style={{
+                ...styles.input,
+                maxWidth: "170px",
+                height: "42px",
+              }}
+              value={filterEstado}
+              onChange={(e) => setFilterEstado(e.target.value)}
+            >
+              <option value="todos">Todos</option>
+              <option value="activo">Solo activos</option>
+              <option value="inactivo">Solo inactivos</option>
+            </select>
+
+            {/* Ordenamiento */}
+            <select
+              style={{
+                ...styles.input,
+                maxWidth: "260px",
+                height: "42px",
+              }}
+              value={ordenamiento}
+              onChange={(e) => setOrdenamiento(e.target.value)}
+            >
+              <option value="">Orden por defecto</option>
+              <option value="mas_recientes">Más recientes</option>
+              <option value="mas_antiguos">Más antiguos</option>
+              <option value="mas_ordenes">Más órdenes</option>
+              <option value="menos_ordenes">Menos órdenes</option>
+              <option value="mas_activas">Más órdenes activas</option>
+              <option value="menos_activas">Menos órdenes activas</option>
+              <option value="mas_pend_pago">
+                Más órdenes pendientes por pagar
+              </option>
+              <option value="menos_pend_pago">
+                Menos órdenes pendientes por pagar
+              </option>
+            </select>
+
+            {/* BOTÓN PDF LISTA */}
             <button
               type="button"
               style={styles.btnGhost}
@@ -744,7 +936,7 @@ export default function Clientes() {
             <button
               type="button"
               style={styles.btnGhost}
-              onClick={() => setSearch("")}
+              onClick={limpiarFiltros}
             >
               <IconRefresh /> Limpiar
             </button>
@@ -787,7 +979,7 @@ export default function Clientes() {
 
               {!loading &&
                 clientes.length > 0 &&
-                filtrados.length === 0 && (
+                filtradosOrdenados.length === 0 && (
                   <tr>
                     <td
                       style={{
@@ -803,7 +995,7 @@ export default function Clientes() {
                   </tr>
                 )}
 
-              {filtrados.map((c, idx) => {
+              {filtradosOrdenados.map((c, idx) => {
                 const isSelected =
                   clienteSeleccionado?.id_cliente === c.id_cliente;
                 const rowBase = {
@@ -847,7 +1039,15 @@ export default function Clientes() {
                       #{c.id_cliente}
                     </td>
                     <td style={rowBase}>{c.nombre}</td>
-                    <td style={{...rowBase, fontFamily: 'monospace', color: '#475569'}}>{c.rif || "-"}</td>
+                    <td
+                      style={{
+                        ...rowBase,
+                        fontFamily: "monospace",
+                        color: "#475569",
+                      }}
+                    >
+                      {c.rif_cedula || "-"}
+                    </td>
                     {esGerencia && (
                       <td
                         style={{
@@ -900,7 +1100,7 @@ export default function Clientes() {
                     RIF / Cédula
                   </span>
                   <span style={{ fontFamily: "monospace", fontWeight: "bold" }}>
-                    {clienteSeleccionado.rif || "No registrado"}
+                    {clienteSeleccionado.rif_cedula || "No registrado"}
                   </span>
                 </div>
 
@@ -956,24 +1156,32 @@ export default function Clientes() {
                   </span>
                   <span>{ordenesActivasCliente}</span>
                 </div>
+                <div style={styles.resumenLine}>
+                  <span style={{ fontWeight: "600", color: "#64748b" }}>
+                    Órdenes pendientes por pagar
+                  </span>
+                  <span>{ordenesPendientesPagoCliente}</span>
+                </div>
               </div>
             </div>
 
             {deshabilitarAccionesPorOrdenesActivas && (
               <div
                 style={{
-                  marginTop: "15px",
-                  padding: "10px 12px",
+                  marginTop: "12px",
+                  padding: "6px 10px",
                   borderRadius: "8px",
-                  backgroundColor: "#fef3c7",
-                  border: "1px solid #fde68a",
-                  fontSize: "0.85rem",
-                  color: "#92400e",
+                  backgroundColor: "#f1f5f9",
+                  fontSize: "0.8rem",
+                  color: "#475569",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  opacity: 0.8,
                 }}
               >
-                ⚠ Este cliente tiene órdenes activas. No se puede editar ni
-                desactivar hasta que todas sus órdenes estén marcadas como
-                ENTREGADAS, DEVUELTAS o CANCELADAS.
+                ⚠ Este cliente tiene órdenes activas. Algunas acciones se
+                encuentran deshabilitadas.
               </div>
             )}
 
@@ -986,7 +1194,7 @@ export default function Clientes() {
                 flexWrap: "wrap",
               }}
             >
-              {/* ➕ BOTÓN PDF FICHA */}
+              {/* BOTÓN PDF FICHA */}
               <button
                 type="button"
                 style={styles.btnSecondary}
@@ -996,61 +1204,94 @@ export default function Clientes() {
                 <IconDownload /> Ficha PDF
               </button>
 
-              <button
-                type="button"
-                style={styles.btnSecondary}
-                onClick={() => abrirEditar(clienteSeleccionado)}
-                disabled={
-                  deshabilitarAccionesPorOrdenesActivas || accionLoading
-                }
-                title={
-                  deshabilitarAccionesPorOrdenesActivas
-                    ? "No se puede editar: el cliente tiene órdenes activas."
-                    : "Editar cliente"
-                }
-              >
-                <IconEdit /> Editar
-              </button>
-              <button
-                type="button"
-                style={styles.btnGhost}
-                onClick={() =>
-                  cambiarEstadoCliente(!clienteSeleccionado.activo)
-                }
-                disabled={
+              {(() => {
+                const editarDeshabilitado =
+                  deshabilitarAccionesPorOrdenesActivas || accionLoading;
+                const editarStyle = {
+                  ...styles.btnSecondary,
+                  opacity: editarDeshabilitado ? 0.5 : 1,
+                  cursor: editarDeshabilitado ? "not-allowed" : "pointer",
+                };
+                return (
+                  <button
+                    type="button"
+                    style={editarStyle}
+                    onClick={() => abrirEditar(clienteSeleccionado)}
+                    disabled={editarDeshabilitado}
+                    title={
+                      deshabilitarAccionesPorOrdenesActivas
+                        ? "No se puede editar: el cliente tiene órdenes activas."
+                        : "Editar cliente"
+                    }
+                  >
+                    <IconEdit /> Editar
+                  </button>
+                );
+              })()}
+
+              {(() => {
+                const desactivarBloqueado =
                   accionLoading ||
                   (clienteSeleccionado.activo &&
-                    deshabilitarAccionesPorOrdenesActivas)
-                }
-                title={
-                  clienteSeleccionado.activo && deshabilitarAccionesPorOrdenesActivas
-                    ? "No se puede desactivar: el cliente tiene órdenes activas."
-                    : clienteSeleccionado.activo
-                    ? "Desactivar cliente"
-                    : "Activar cliente"
-                }
-              >
-                {accionLoading
-                  ? "Procesando..."
-                  : clienteSeleccionado.activo === false
-                  ? "Activar"
-                  : "Desactivar"}
-              </button>
-              <button
-                type="button"
-                style={styles.btnIcon}
-                onClick={eliminarCliente}
-                disabled={accionLoading}
-                title={
-                  accionLoading
-                    ? "Procesando..."
-                    : tieneOrdenesTotales(clienteSeleccionado)
-                    ? "No se puede eliminar: tiene órdenes registradas."
-                    : "Eliminar cliente"
-                }
-              >
-                <IconTrash />
-              </button>
+                    deshabilitarAccionesPorOrdenesActivas);
+                const desactivarStyle = {
+                  ...styles.btnGhost,
+                  opacity: desactivarBloqueado ? 0.5 : 1,
+                  cursor: desactivarBloqueado ? "not-allowed" : "pointer",
+                };
+                return (
+                  <button
+                    type="button"
+                    style={desactivarStyle}
+                    onClick={() =>
+                      cambiarEstadoCliente(!clienteSeleccionado.activo)
+                    }
+                    disabled={desactivarBloqueado}
+                    title={
+                      clienteSeleccionado.activo &&
+                      deshabilitarAccionesPorOrdenesActivas
+                        ? "No se puede desactivar: el cliente tiene órdenes activas."
+                        : clienteSeleccionado.activo
+                        ? "Desactivar cliente"
+                        : "Activar cliente"
+                    }
+                  >
+                    {accionLoading
+                      ? "Procesando..."
+                      : clienteSeleccionado.activo === false
+                      ? "Activar"
+                      : "Desactivar"}
+                  </button>
+                );
+              })()}
+
+              {(() => {
+                const eliminarDeshabilitado =
+                  accionLoading || tieneOrdenesTotales(clienteSeleccionado);
+                const eliminarStyle = {
+                  ...styles.btnIcon,
+                  opacity: eliminarDeshabilitado ? 0.5 : 1,
+                  cursor: eliminarDeshabilitado ? "not-allowed" : "pointer",
+                  borderColor: eliminarDeshabilitado ? "#fecaca66" : "#fecaca",
+                };
+                return (
+                  <button
+                    type="button"
+                    style={eliminarStyle}
+                    onClick={eliminarCliente}
+                    disabled={eliminarDeshabilitado}
+                    title={
+                      accionLoading
+                        ? "Procesando..."
+                        : tieneOrdenesTotales(clienteSeleccionado)
+                        ? "No se puede eliminar: tiene órdenes registradas."
+                        : "Eliminar cliente"
+                    }
+                  >
+                    <IconTrash />
+                  </button>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -1097,8 +1338,7 @@ export default function Clientes() {
               {formMode === "crear" ? "Nuevo Cliente" : "Editar Cliente"}
             </div>
             <div style={styles.subtitle}>
-              Completa los datos del cliente. El campo marcado con * es
-              obligatorio.
+              Completa los datos del cliente. Los campos con * son obligatorios.
             </div>
 
             <form onSubmit={guardarCliente}>
@@ -1114,21 +1354,21 @@ export default function Clientes() {
                     placeholder="Nombre del cliente"
                   />
                 </div>
-                
+
                 <div>
                   <label style={styles.label}>RIF / Cédula</label>
                   <input
                     style={styles.input}
-                    value={formData.rif}
+                    value={formData.rif_cedula}
                     onChange={(e) =>
-                      handleFormChange("rif", e.target.value)
+                      handleFormChange("rif_cedula", e.target.value)
                     }
                     placeholder="J-12345678-9 o V-12345678"
                   />
                 </div>
 
                 <div>
-                  <label style={styles.label}>Teléfono</label>
+                  <label style={styles.label}>Teléfono *</label>
                   <input
                     style={styles.input}
                     value={formData.telefono}
@@ -1150,8 +1390,32 @@ export default function Clientes() {
                     placeholder="cliente@correo.com"
                   />
                 </div>
+
+                {/* Direccion subdividida */}
                 <div>
-                  <label style={styles.label}>Dirección</label>
+                  <label style={styles.label}>Estado *</label>
+                  <input
+                    style={styles.input}
+                    value={formData.direccionEstado}
+                    onChange={(e) =>
+                      handleFormChange("direccionEstado", e.target.value)
+                    }
+                    placeholder="Estado"
+                  />
+                </div>
+                <div>
+                  <label style={styles.label}>Ciudad *</label>
+                  <input
+                    style={styles.input}
+                    value={formData.direccionCiudad}
+                    onChange={(e) =>
+                      handleFormChange("direccionCiudad", e.target.value)
+                    }
+                    placeholder="Ciudad"
+                  />
+                </div>
+                <div>
+                  <label style={styles.label}>Dirección específica *</label>
                   <textarea
                     style={{
                       ...styles.input,
@@ -1160,11 +1424,11 @@ export default function Clientes() {
                       resize: "vertical",
                       fontFamily: "inherit",
                     }}
-                    value={formData.direccion}
+                    value={formData.direccionEspecifica}
                     onChange={(e) =>
-                      handleFormChange("direccion", e.target.value)
+                      handleFormChange("direccionEspecifica", e.target.value)
                     }
-                    placeholder="Dirección fiscal"
+                    placeholder="Calle, avenida, edificio, referencia..."
                   />
                 </div>
               </div>
@@ -1205,7 +1469,11 @@ export default function Clientes() {
                 </button>
                 <button
                   type="submit"
-                  style={styles.btnPrimary}
+                  style={{
+                    ...styles.btnPrimary,
+                    opacity: formLoading ? 0.7 : 1,
+                    cursor: formLoading ? "progress" : "pointer",
+                  }}
                   disabled={formLoading}
                 >
                   {formLoading
@@ -1228,7 +1496,7 @@ export default function Clientes() {
           .responsive-header { flex-direction: column; align-items: flex-start; gap: 15px; }
           .responsive-search { flex-direction: column; gap: 15px; }
           .responsive-buttons { width: 100%; justify-content: space-between; }
-          .responsive-buttons button { flex: 1; }
+          .responsive-buttons button, .responsive-buttons select { flex: 1; min-width: 0; }
         }
       `}</style>
     </div>

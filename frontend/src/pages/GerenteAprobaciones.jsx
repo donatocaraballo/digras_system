@@ -1229,19 +1229,14 @@ export default function GerenteAprobaciones() {
             </select>
 
             {/* ORDENAMIENTO */}
-            <div style={styles.selectWithIcon}>
-              <div style={styles.selectIconLeft}>
-                <IconSort />
-              </div>
-              <select
-                style={styles.selectPadded}
-                value={sortOrden}
-                onChange={(e) => setSortOrden(e.target.value)}
-              >
-                <option value="recientes">Más recientes primero</option>
-                <option value="antiguas">Más antiguas primero</option>
-              </select>
-            </div>
+            <select
+              style={styles.selectSmall}
+              value={sortOrden}
+              onChange={(e) => setSortOrden(e.target.value)}
+            >
+              <option value="recientes">Más recientes</option>
+              <option value="antiguas">Más antiguas</option>
+            </select>
           </div>
 
           {/* Filtro por rango total */}
@@ -1404,19 +1399,14 @@ export default function GerenteAprobaciones() {
             </select>
 
             {/* ORDENAMIENTO */}
-            <div style={styles.selectWithIcon}>
-              <div style={styles.selectIconLeft}>
-                <IconSort />
-              </div>
-              <select
-                style={styles.selectPadded}
-                value={sortCompra}
-                onChange={(e) => setSortCompra(e.target.value)}
-              >
-                <option value="recientes">Más recientes primero</option>
-                <option value="antiguas">Más antiguas primero</option>
-              </select>
-            </div>
+            <select
+              style={styles.selectSmall}
+              value={sortCompra}
+              onChange={(e) => setSortCompra(e.target.value)}
+            >
+              <option value="recientes">Más recientes</option>
+              <option value="antiguas">Más antiguas</option>
+            </select>
           </div>
 
           {/* Filtro por rango total */}
@@ -1826,6 +1816,7 @@ export default function GerenteAprobaciones() {
                 {infoEntidad.tipo === "cliente" ? (
                   <>
                     <div><b>Nombre:</b> {infoEntidad.data.nombre || "—"}</div>
+                    <div><b>RIF / Cédula:</b> {infoEntidad.data.rif_cedula || "—"}</div>
                     <div><b>Teléfono:</b> {infoEntidad.data.telefono || "—"}</div>
                     <div><b>Correo:</b> {infoEntidad.data.correo || "—"}</div>
                     <div><b>Dirección:</b> {infoEntidad.data.direccion || "—"}</div>

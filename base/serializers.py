@@ -63,6 +63,9 @@ class ClienteSerializer(serializers.ModelSerializer):
     total_ordenes = serializers.IntegerField(read_only=True)
     ordenes_activas = serializers.IntegerField(read_only=True)
 
+    # 👇 NUEVO: este viene de la anotación en el queryset
+    ordenes_pendientes_pago = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = Cliente
         fields = [
@@ -73,14 +76,17 @@ class ClienteSerializer(serializers.ModelSerializer):
             "telefono",
             "activo",
             "id_usuario",
+            "rif_cedula",  
             "total_ordenes",
             "ordenes_activas",
+            "ordenes_pendientes_pago",  # 👈 agregar aquí
         ]
         read_only_fields = [
             "id_cliente",
             "id_usuario",
             "total_ordenes",
             "ordenes_activas",
+            "ordenes_pendientes_pago",  # 👈 y aquí
         ]
 
 
