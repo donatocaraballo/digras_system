@@ -95,8 +95,6 @@ const getErrorMessageFromResponse = (err, defaultMsg) => {
 
 // --- ESTILOS PREMIUM DIGRAS (Responsive) ---
 const styles = {
-  // page-container y card-responsive manejan el layout principal
-
   // Header
   header: {
     display: "flex",
@@ -104,7 +102,7 @@ const styles = {
     alignItems: "center",
     marginBottom: "32px",
     flexWrap: "wrap",
-    gap: "15px"
+    gap: "15px",
   },
   titleGroup: { display: "flex", alignItems: "center", gap: "16px" },
   iconCircle: {
@@ -170,7 +168,6 @@ const styles = {
     boxSizing: "border-box",
   },
 
-  // formGrid ahora es form-grid-responsive
   section: {
     backgroundColor: "#f8fafc",
     padding: "20px",
@@ -200,7 +197,7 @@ const styles = {
     cursor: "pointer",
     fontSize: "0.95rem",
     transition: "transform 0.1s, opacity 0.1s",
-    whiteSpace: "nowrap"
+    whiteSpace: "nowrap",
   },
   btnGhost: {
     display: "flex",
@@ -214,7 +211,7 @@ const styles = {
     fontWeight: "600",
     cursor: "pointer",
     fontSize: "0.9rem",
-    whiteSpace: "nowrap"
+    whiteSpace: "nowrap",
   },
   btnSecondary: {
     background: "#eff6ff",
@@ -228,7 +225,7 @@ const styles = {
     display: "inline-flex",
     alignItems: "center",
     gap: "6px",
-    whiteSpace: "nowrap"
+    whiteSpace: "nowrap",
   },
   btnGhostSmall: {
     display: "inline-flex",
@@ -242,7 +239,7 @@ const styles = {
     fontWeight: "600",
     cursor: "pointer",
     fontSize: "0.8rem",
-    whiteSpace: "nowrap"
+    whiteSpace: "nowrap",
   },
   btnIcon: {
     width: "40px",
@@ -269,10 +266,9 @@ const styles = {
     alignItems: "center",
     gap: "16px",
     marginBottom: "20px",
-    flexWrap: "wrap"
+    flexWrap: "wrap",
   },
 
-  // Fila de producto responsive
   productRow: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
@@ -285,7 +281,6 @@ const styles = {
     border: "1px solid #f1f5f9",
   },
 
-  // Info extra
   infoRow: {
     display: "flex",
     justifyContent: "space-between",
@@ -294,7 +289,7 @@ const styles = {
     marginTop: "8px",
     paddingLeft: "4px",
     flexWrap: "wrap",
-    gap: "5px"
+    gap: "5px",
   },
   infoRowWarning: {
     display: "flex",
@@ -320,7 +315,6 @@ const styles = {
     flexWrap: "wrap",
   },
 
-  // Mensajes y Badges
   statusOk: {
     padding: "12px",
     background: "#dcfce7",
@@ -349,7 +343,6 @@ const styles = {
     fontSize: "0.85rem",
   },
 
-  // Modal Interno (Nuevo Cliente)
   nestedCard: {
     marginTop: "15px",
     padding: "20px",
@@ -359,7 +352,6 @@ const styles = {
     boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
   },
 
-  // Resumen Final
   resumenCard: {
     marginTop: "30px",
     padding: "30px",
@@ -375,15 +367,14 @@ const styles = {
     borderBottom: "1px solid #e2e8f0",
     paddingBottom: "10px",
   },
-  // 🚨 AJUSTE DE ESTILO PARA EVITAR DESBORDAMIENTO
   resumenLine: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "flex-start", // Alineación superior
+    alignItems: "flex-start",
     marginBottom: "10px",
     fontSize: "0.95rem",
     color: "#334155",
-    gap: "15px"
+    gap: "15px",
   },
 };
 
@@ -423,10 +414,9 @@ export default function CrearOrden() {
     { producto_id: "", cantidad: 1, filtro: "" },
   ]);
 
-  // 🔎 Buscador de clientes
+  // Buscador de clientes
   const [filtroCliente, setFiltroCliente] = useState("");
   const [clienteError, setClienteError] = useState("");
-  // Errores por producto (por línea)
   const [productoErrores, setProductoErrores] = useState([]);
 
   // Mensajes
@@ -443,10 +433,13 @@ export default function CrearOrden() {
   const [nuevoClienteNombre, setNuevoClienteNombre] = useState("");
   const [nuevoClienteEstado, setNuevoClienteEstado] = useState("");
   const [nuevoClienteCiudad, setNuevoClienteCiudad] = useState("");
-  const [nuevoClienteDireccionEspecifica, setNuevoClienteDireccionEspecifica] = useState("");
+  const [nuevoClienteDireccionEspecifica, setNuevoClienteDireccionEspecifica] =
+    useState("");
   const [nuevoClienteCorreo, setNuevoClienteCorreo] = useState("");
   const [nuevoClienteTelefono, setNuevoClienteTelefono] = useState("");
-  const [nuevoClienteRif, setNuevoClienteRif] = useState("");
+  // Documento de identidad del nuevo cliente
+  const [nuevoClienteTipoDoc, setNuevoClienteTipoDoc] = useState("V");
+  const [nuevoClienteNumDoc, setNuevoClienteNumDoc] = useState("");
   const [nuevoClienteMensaje, setNuevoClienteMensaje] = useState("");
   const [nuevoClienteError, setNuevoClienteError] = useState("");
 
@@ -619,10 +612,66 @@ export default function CrearOrden() {
       return;
     }
 
+    // Documento de identidad: prefijo + número
+    const docRaw = (nuevoClienteNumDoc || "").trim();
+    if (!docRaw) {
+      setNuevoClienteError("El campo RIF / Cédula es obligatorio.");
+      return;
+    }
+    const docClean = docRaw.replace(/-/g, "");
+    if (docClean.length < 6 || docClean.length > 10) {
+      setNuevoClienteError(
+        "El RIF / Cédula debe tener entre 6 y 10 dígitos."
+      );
+      return;
+    }
+    const rifFinal = `${nuevoClienteTipoDoc}-${docRaw}`;
+
     const emailRegex = /.+@.+\..+/;
     if (nuevoClienteCorreo && !emailRegex.test(nuevoClienteCorreo)) {
       setNuevoClienteError("Ingresa un correo electrónico válido.");
       return;
+    }
+
+    const telefonoTarget = (nuevoClienteTelefono || "").trim();
+    const correoTarget = (nuevoClienteCorreo || "").trim().toLowerCase();
+    const rifTarget = rifFinal.trim().toLowerCase();
+
+    // Unicidad de RIF/Cédula
+    const rifDuplicado = clientes.some(
+      (cli) => (cli.rif_cedula || "").trim().toLowerCase() === rifTarget
+    );
+    if (rifDuplicado) {
+      setNuevoClienteError(
+        "Ya existe un cliente con el mismo RIF / Cédula."
+      );
+      return;
+    }
+
+    // Unicidad de teléfono
+    if (telefonoTarget) {
+      const telDuplicado = clientes.some(
+        (cli) => (cli.telefono || "").trim() === telefonoTarget
+      );
+      if (telDuplicado) {
+        setNuevoClienteError(
+          "Ya existe un cliente con el mismo número de teléfono."
+        );
+        return;
+      }
+    }
+
+    // Unicidad de correo
+    if (correoTarget) {
+      const correoDuplicado = clientes.some(
+        (cli) => (cli.correo || "").trim().toLowerCase() === correoTarget
+      );
+      if (correoDuplicado) {
+        setNuevoClienteError(
+          "Ya existe un cliente con el mismo correo electrónico."
+        );
+        return;
+      }
     }
 
     try {
@@ -633,7 +682,7 @@ export default function CrearOrden() {
         direccion: direccionCompuesta,
         correo: nuevoClienteCorreo || "",
         telefono: nuevoClienteTelefono,
-        rif_cedula: nuevoClienteRif || "",
+        rif_cedula: rifFinal,
       };
 
       const token = localStorage.getItem("auth_token");
@@ -656,7 +705,8 @@ export default function CrearOrden() {
       setNuevoClienteDireccionEspecifica("");
       setNuevoClienteCorreo("");
       setNuevoClienteTelefono("");
-      setNuevoClienteRif("");
+      setNuevoClienteTipoDoc("V");
+      setNuevoClienteNumDoc("");
     } catch (err) {
       console.error("Error al crear cliente:", err);
       const backendMsg = getErrorMessageFromResponse(
@@ -796,11 +846,17 @@ export default function CrearOrden() {
         const precio = prod ? Number(prod.precio_venta || 0) : 0;
         const cant = Number(d.cantidad || 0);
         const subtotal = precio * cant;
+        const sku = prod ? prod.sku || "" : "";
+        const pesoUnitarioResumen = prod ? Number(prod.peso_unidad || 0) : 0;
+        const pesoTotalResumen = pesoUnitarioResumen * cant;
         return {
           nombre: prod ? prod.nombre : "(Producto desconocido)",
           cantidad: cant,
           precio,
           subtotal,
+          sku,
+          peso_unidad: pesoUnitarioResumen,
+          peso_total: pesoTotalResumen,
         };
       });
       const totalResumen = lineasResumen.reduce(
@@ -851,7 +907,8 @@ export default function CrearOrden() {
     setNuevoClienteDireccionEspecifica("");
     setNuevoClienteCorreo("");
     setNuevoClienteTelefono("");
-    setNuevoClienteRif("");
+    setNuevoClienteTipoDoc("V");
+    setNuevoClienteNumDoc("");
     setNuevoClienteMensaje("");
     setNuevoClienteError("");
     setFiltroCliente("");
@@ -884,9 +941,10 @@ export default function CrearOrden() {
 
     doc.setFontSize(10);
     resumenOrden.lineas.forEach((l) => {
-      const lineText = `${l.cantidad} x ${l.nombre} - $ ${l.subtotal.toFixed(
-        2
-      )}`;
+      const pesoTotalTexto = (l.peso_total || 0).toFixed(2);
+      const lineText = `${l.cantidad} x ${l.nombre} (SKU: ${
+        l.sku || "N/D"
+      }, Peso total: ${pesoTotalTexto} kg) - $ ${l.subtotal.toFixed(2)}`;
       doc.text(lineText, 12, y);
       y += 5;
       if (y > 280) {
@@ -987,7 +1045,6 @@ export default function CrearOrden() {
   };
 
   return (
-    // 🚨 CLASE GLOBAL RESPONSIVA
     <div className="page-container">
       {/* HEADER */}
       <div style={styles.header}>
@@ -1002,7 +1059,6 @@ export default function CrearOrden() {
         </div>
       </div>
 
-      {/* 🚨 CLASE CARD RESPONSIVA */}
       <div className="card-responsive">
         {permisoError && <div style={styles.statusError}>{permisoError}</div>}
         {mensaje && <div style={styles.statusOk}>{mensaje}</div>}
@@ -1026,8 +1082,10 @@ export default function CrearOrden() {
         ) : (
           <form onSubmit={handleSubmit}>
             {/* GRID: CLIENTE Y PAGO */}
-            {/* 🚨 FORMULARIO GRID RESPONSIVO */}
-            <div className="form-grid-responsive" style={{marginBottom: '30px'}}>
+            <div
+              className="form-grid-responsive"
+              style={{ marginBottom: "30px" }}
+            >
               {/* SECCION 1: CLIENTE */}
               <div style={styles.section}>
                 <div style={styles.sectionTitle}>1. Datos del Cliente</div>
@@ -1065,15 +1123,30 @@ export default function CrearOrden() {
                   </select>
 
                   {clienteError && (
-                    <div style={{ marginTop: "4px", fontSize: "0.8rem", color: "#b91c1c" }}>
+                    <div
+                      style={{
+                        marginTop: "4px",
+                        fontSize: "0.8rem",
+                        color: "#b91c1c",
+                      }}
+                    >
                       {clienteError}
                     </div>
                   )}
 
                   {clienteObj && (
-                    <div style={{ marginTop: "8px", fontSize: "0.8rem", color: "#64748b" }}>
-                      <strong>Contacto:</strong> {clienteObj.telefono || "Sin teléfono"}{" "}
-                      {clienteObj.correo ? `· ${clienteObj.correo}` : "· Sin correo"}
+                    <div
+                      style={{
+                        marginTop: "8px",
+                        fontSize: "0.8rem",
+                        color: "#64748b",
+                      }}
+                    >
+                      <strong>Contacto:</strong>{" "}
+                      {clienteObj.telefono || "Sin teléfono"}{" "}
+                      {clienteObj.correo
+                        ? `· ${clienteObj.correo}`
+                        : "· Sin correo"}
                     </div>
                   )}
                 </div>
@@ -1084,10 +1157,17 @@ export default function CrearOrden() {
                     marcarCambio();
                     setMostrarNuevoCliente((v) => !v);
                   }}
-                  style={{ ...styles.btnGhost, padding: 0, fontSize: "0.8rem", color: "#2563eb" }}
+                  style={{
+                    ...styles.btnGhost,
+                    padding: 0,
+                    fontSize: "0.8rem",
+                    color: "#2563eb",
+                  }}
                   disabled={loadingDatos || loadingSubmit}
                 >
-                  {mostrarNuevoCliente ? "Cancelar registro" : "+ Registrar nuevo cliente"}
+                  {mostrarNuevoCliente
+                    ? "Cancelar registro"
+                    : "+ Registrar nuevo cliente"}
                 </button>
 
                 {/* FORMULARIO NUEVO CLIENTE (ANIDADO) */}
@@ -1096,57 +1176,148 @@ export default function CrearOrden() {
                     <div style={{ ...styles.sectionTitle, borderBottom: "none" }}>
                       Nuevo Cliente
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "10px",
+                      }}
+                    >
                       <input
                         style={styles.input}
                         placeholder="Nombre completo *"
                         value={nuevoClienteNombre}
-                        onChange={(e) => { marcarCambio(); setNuevoClienteNombre(e.target.value); }}
+                        onChange={(e) => {
+                          marcarCambio();
+                          setNuevoClienteNombre(e.target.value);
+                        }}
                       />
                       <input
                         style={styles.input}
                         placeholder="Estado *"
                         value={nuevoClienteEstado}
-                        onChange={(e) => { marcarCambio(); setNuevoClienteEstado(e.target.value); }}
+                        onChange={(e) => {
+                          marcarCambio();
+                          setNuevoClienteEstado(e.target.value);
+                        }}
                       />
                       <input
                         style={styles.input}
                         placeholder="Ciudad *"
                         value={nuevoClienteCiudad}
-                        onChange={(e) => { marcarCambio(); setNuevoClienteCiudad(e.target.value); }}
+                        onChange={(e) => {
+                          marcarCambio();
+                          setNuevoClienteCiudad(e.target.value);
+                        }}
                       />
                       <input
                         style={styles.input}
                         placeholder="Dirección específica *"
                         value={nuevoClienteDireccionEspecifica}
-                        onChange={(e) => { marcarCambio(); setNuevoClienteDireccionEspecifica(e.target.value); }}
+                        onChange={(e) => {
+                          marcarCambio();
+                          setNuevoClienteDireccionEspecifica(e.target.value);
+                        }}
                       />
-                      <input
-                        style={styles.input}
-                        placeholder="RIF / Cédula"
-                        value={nuevoClienteRif}
-                        onChange={(e) => { marcarCambio(); setNuevoClienteRif(e.target.value); }}
-                      />
+
+                      {/* Documento de identidad: prefijo + número */}
+                      <div>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "10px",
+                            alignItems: "center",
+                          }}
+                        >
+                          <div style={{ width: "80px" }}>
+                            <select
+                              style={{
+                                ...styles.input,
+                                paddingLeft: "10px",
+                                textAlign: "center",
+                                fontWeight: "bold",
+                                cursor: "pointer",
+                              }}
+                              value={nuevoClienteTipoDoc}
+                              onChange={(e) => {
+                                marcarCambio();
+                                setNuevoClienteTipoDoc(e.target.value);
+                              }}
+                            >
+                              <option value="V">V</option>
+                              <option value="E">E</option>
+                              <option value="J">J</option>
+                              <option value="G">G</option>
+                              <option value="P">P</option>
+                            </select>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <input
+                              style={styles.input}
+                              placeholder={
+                                ["J", "G"].includes(nuevoClienteTipoDoc)
+                                  ? "12345678-9"
+                                  : "12345678"
+                              }
+                              value={nuevoClienteNumDoc}
+                              onChange={(e) => {
+                                marcarCambio();
+                                const maxChars = 10;
+                                const val = e.target.value.replace(
+                                  /[^0-9-]/g,
+                                  ""
+                                );
+                                if (val.length <= maxChars) {
+                                  setNuevoClienteNumDoc(val);
+                                }
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <p
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#64748b",
+                            marginTop: "4px",
+                          }}
+                        >
+                          Registrando:{" "}
+                          <strong>{`${nuevoClienteTipoDoc}-${
+                            nuevoClienteNumDoc || "..."
+                          }`}</strong>
+                        </p>
+                      </div>
+
                       <input
                         style={styles.input}
                         placeholder="Correo (opcional)"
                         value={nuevoClienteCorreo}
-                        onChange={(e) => { marcarCambio(); setNuevoClienteCorreo(e.target.value); }}
+                        onChange={(e) => {
+                          marcarCambio();
+                          setNuevoClienteCorreo(e.target.value);
+                        }}
                       />
                       <input
                         style={styles.input}
                         placeholder="Teléfono *"
                         value={nuevoClienteTelefono}
-                        onChange={(e) => { marcarCambio(); setNuevoClienteTelefono(e.target.value); }}
+                        onChange={(e) => {
+                          marcarCambio();
+                          setNuevoClienteTelefono(e.target.value);
+                        }}
                       />
 
                       {nuevoClienteError && (
-                        <div style={{ color: "#ef4444", fontSize: "0.8rem" }}>
+                        <div
+                          style={{ color: "#ef4444", fontSize: "0.8rem" }}
+                        >
                           {nuevoClienteError}
                         </div>
                       )}
                       {nuevoClienteMensaje && (
-                        <div style={{ color: "#10b981", fontSize: "0.8rem" }}>
+                        <div
+                          style={{ color: "#10b981", fontSize: "0.8rem" }}
+                        >
                           {nuevoClienteMensaje}
                         </div>
                       )}
@@ -1154,7 +1325,12 @@ export default function CrearOrden() {
                       <button
                         type="button"
                         onClick={crearNuevoCliente}
-                        style={{ ...styles.btnPrimary, padding: "8px 16px", fontSize: "0.85rem", alignSelf: "flex-end" }}
+                        style={{
+                          ...styles.btnPrimary,
+                          padding: "8px 16px",
+                          fontSize: "0.85rem",
+                          alignSelf: "flex-end",
+                        }}
                         disabled={loadingDatos || loadingSubmit}
                       >
                         Guardar Cliente
@@ -1191,8 +1367,14 @@ export default function CrearOrden() {
 
             {/* SECCIÓN 3: PRODUCTOS */}
             <div style={styles.productsSection}>
-              <div style={{...styles.productsHeader, flexWrap: 'wrap'}}>
-                <h3 style={{ ...styles.title, fontSize: "1.1rem", margin: 0 }}>
+              <div style={{ ...styles.productsHeader, flexWrap: "wrap" }}>
+                <h3
+                  style={{
+                    ...styles.title,
+                    fontSize: "1.1rem",
+                    margin: 0,
+                  }}
+                >
                   3. Productos
                 </h3>
                 <button
@@ -1206,10 +1388,18 @@ export default function CrearOrden() {
               </div>
 
               {detalles.map((det, idx) => {
-                const prodIdNumber = det.producto_id ? Number(det.producto_id) : null;
-                const existenciaActual = prodIdNumber != null ? existencias[prodIdNumber] : null;
+                const prodIdNumber = det.producto_id
+                  ? Number(det.producto_id)
+                  : null;
+                const existenciaActual =
+                  prodIdNumber != null ? existencias[prodIdNumber] : null;
                 const prod = obtenerProducto(det.producto_id);
-                const precioUnitario = prod ? Number(prod.precio_venta || 0) : 0;
+                const precioUnitario = prod
+                  ? Number(prod.precio_venta || 0)
+                  : 0;
+                const pesoUnitario = prod
+                  ? Number(prod.peso_unidad || 0)
+                  : 0;
                 const subtotal = calcularSubtotal(det);
 
                 let stockColor = "#64748b";
@@ -1217,7 +1407,8 @@ export default function CrearOrden() {
                 if (det.producto_id) {
                   if (existenciaActual === 0 || existenciaActual == null) {
                     stockColor = "#b91c1c";
-                    stockLabel = "No hay existencia de este producto. Existencia: 0";
+                    stockLabel =
+                      "No hay existencia de este producto. Existencia: 0";
                   } else {
                     if (existenciaActual < 5) {
                       stockColor = "#f59e0b";
@@ -1227,7 +1418,10 @@ export default function CrearOrden() {
                 }
 
                 const cantidadNum = Number(det.cantidad || 0);
-                const showCantidadWarning = det.producto_id && existenciaActual != null && cantidadNum > existenciaActual;
+                const showCantidadWarning =
+                  det.producto_id &&
+                  existenciaActual != null &&
+                  cantidadNum > existenciaActual;
                 const filtroTexto = det.filtro || "";
                 let productosFiltrados = filtroTexto
                   ? productos.filter((p) => {
@@ -1240,8 +1434,16 @@ export default function CrearOrden() {
 
                 if (det.producto_id) {
                   const seleccionado = obtenerProducto(det.producto_id);
-                  if (seleccionado && !productosFiltrados.some((p) => p.id_producto === seleccionado.id_producto)) {
-                    productosFiltrados = [seleccionado, ...productosFiltrados];
+                  if (
+                    seleccionado &&
+                    !productosFiltrados.some(
+                      (p) => p.id_producto === seleccionado.id_producto
+                    )
+                  ) {
+                    productosFiltrados = [
+                      seleccionado,
+                      ...productosFiltrados,
+                    ];
                   }
                 }
 
@@ -1250,46 +1452,107 @@ export default function CrearOrden() {
                     e.preventDefault();
                     if (productosFiltrados.length > 0) {
                       const primero = productosFiltrados[0];
-                      handleChangeDetalle(idx, "producto_id", String(primero.id_producto));
+                      handleChangeDetalle(
+                        idx,
+                        "producto_id",
+                        String(primero.id_producto)
+                      );
                     }
                   }
                 };
 
                 return (
-                  // 🚨 FILA DE PRODUCTO RESPONSIVA
-                  <div key={idx} style={{...styles.productRow, gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))'}}>
+                  <div
+                    key={idx}
+                    style={{
+                      ...styles.productRow,
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(200px, 1fr))",
+                    }}
+                  >
                     <div>
                       <label style={styles.label}>Producto</label>
                       <input
                         style={styles.inputSmall}
                         placeholder="Buscar por nombre o código..."
                         value={det.filtro || ""}
-                        onChange={(e) => handleChangeDetalle(idx, "filtro", e.target.value)}
+                        onChange={(e) =>
+                          handleChangeDetalle(
+                            idx,
+                            "filtro",
+                            e.target.value
+                          )
+                        }
                         onKeyDown={manejarEnterFiltro}
                         disabled={loadingDatos}
                       />
                       <select
                         style={styles.select}
                         value={det.producto_id || ""}
-                        onChange={(e) => handleChangeDetalle(idx, "producto_id", e.target.value)}
+                        onChange={(e) =>
+                          handleChangeDetalle(
+                            idx,
+                            "producto_id",
+                            e.target.value
+                          )
+                        }
                         disabled={loadingDatos}
                       >
                         <option value="">Seleccionar producto...</option>
-                        {productosFiltrados.map((p) => (
-                          <option key={p.id_producto} value={p.id_producto}>
-                            {p.nombre}
-                          </option>
-                        ))}
+                        {productosFiltrados.map((p) => {
+                          const pesoLabel =
+                            p.peso_unidad != null &&
+                            p.peso_unidad !== undefined
+                              ? `${Number(
+                                  p.peso_unidad || 0
+                                ).toFixed(2)} kg`
+                              : "s/peso";
+                          const skuLabel = p.sku || "s/SKU";
+                          const label = `${p.nombre} · SKU: ${skuLabel} · Peso: ${pesoLabel}`;
+                          return (
+                            <option
+                              key={p.id_producto}
+                              value={p.id_producto}
+                            >
+                              {label}
+                            </option>
+                          );
+                        })}
                       </select>
 
                       <div style={styles.infoRow}>
-                        <span style={{ color: stockColor, fontWeight: "600" }}>{stockLabel}</span>
+                        <span
+                          style={{
+                            color: stockColor,
+                            fontWeight: "600",
+                          }}
+                        >
+                          {stockLabel}
+                        </span>
                         {prod && (
-                          <span>Precio: <strong>$ {precioUnitario.toFixed(2)}</strong></span>
+                          <span>
+                            Precio:{" "}
+                            <strong>
+                              $ {precioUnitario.toFixed(2)}
+                            </strong>{" "}
+                            · Peso unit.:{" "}
+                            <strong>
+                              {pesoUnitario.toFixed(2)} kg
+                            </strong>{" "}
+                            · SKU:{" "}
+                            <strong>{prod.sku || "N/D"}</strong>
+                          </span>
                         )}
                       </div>
                       {productoErrores[idx] && (
-                        <div style={{ marginTop: "4px", fontSize: "0.8rem", color: "#b91c1c", paddingLeft: "4px" }}>
+                        <div
+                          style={{
+                            marginTop: "4px",
+                            fontSize: "0.8rem",
+                            color: "#b91c1c",
+                            paddingLeft: "4px",
+                          }}
+                        >
                           {productoErrores[idx]}
                         </div>
                       )}
@@ -1305,20 +1568,62 @@ export default function CrearOrden() {
                       <input
                         type="number"
                         min="1"
-                        max={existenciaActual != null ? existenciaActual : undefined}
+                        max={
+                          existenciaActual != null
+                            ? existenciaActual
+                            : undefined
+                        }
                         style={styles.input}
                         value={det.cantidad}
-                        onChange={(e) => handleChangeDetalle(idx, "cantidad", e.target.value)}
+                        onChange={(e) =>
+                          handleChangeDetalle(
+                            idx,
+                            "cantidad",
+                            e.target.value
+                          )
+                        }
                         required
                         disabled={loadingDatos}
                       />
-                      <div style={{ ...styles.infoRow, justifyContent: "flex-end", color: "#0f172a", fontWeight: "700" }}>
-                        $ {subtotal.toFixed(2)}
+                      <div
+                        style={{
+                          ...styles.infoRow,
+                          justifyContent: "flex-end",
+                          color: "#0f172a",
+                          fontWeight: "700",
+                          flexDirection: "column",
+                          alignItems: "flex-end",
+                        }}
+                      >
+                        <span>$ {subtotal.toFixed(2)}</span>
+                        <span
+                          style={{
+                            fontSize: "0.8rem",
+                            color: "#64748b",
+                            fontWeight: "500",
+                          }}
+                        >
+                          Peso línea:{" "}
+                          <strong>
+                            {(
+                              pesoUnitario *
+                              (Number(det.cantidad || 0) || 0)
+                            ).toFixed(2)}{" "}
+                            kg
+                          </strong>
+                        </span>
                       </div>
                     </div>
 
                     {detalles.length > 1 && (
-                      <div style={{ display: "flex", alignItems: "flex-end", height: "100%", paddingBottom: "22px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-end",
+                          height: "100%",
+                          paddingBottom: "22px",
+                        }}
+                      >
                         <button
                           type="button"
                           style={styles.btnIcon}
@@ -1336,17 +1641,41 @@ export default function CrearOrden() {
               <div style={styles.totalRow}>
                 <div>
                   <div>Total a Pagar: $ {totalOrden.toFixed(2)}</div>
-                  <div style={{ fontSize: "0.85rem", color: "#0f172a", marginTop: "4px" }}>
-                    Ítems totales: <strong>{Number.isNaN(totalItems) ? 0 : totalItems}</strong>
+                  <div
+                    style={{
+                      fontSize: "0.85rem",
+                      color: "#0f172a",
+                      marginTop: "4px",
+                    }}
+                  >
+                    Ítems totales:{" "}
+                    <strong>
+                      {Number.isNaN(totalItems) ? 0 : totalItems}
+                    </strong>
                   </div>
                 </div>
-                <div style={{ fontSize: "0.8rem", color: "#64748b", textAlign: "right" }}>
-                  Verifica cantidades y existencias antes de confirmar la orden.
+                <div
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#64748b",
+                    textAlign: "right",
+                  }}
+                >
+                  Verifica cantidades y existencias antes de confirmar la
+                  orden.
                 </div>
               </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "space-between", gap: "15px", marginTop: "30px", flexWrap: "wrap" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "15px",
+                marginTop: "30px",
+                flexWrap: "wrap",
+              }}
+            >
               <div style={{ display: "flex", gap: "10px" }}>
                 <button
                   type="button"
@@ -1388,28 +1717,93 @@ export default function CrearOrden() {
             </div>
 
             <div style={styles.resumenLine}>
-              <span style={{fontWeight:600, color:'#64748b'}}>Cliente:</span> 
-              <strong style={{textAlign:'right', wordBreak:'break-word', flex:1, marginLeft:'10px'}}>{resumenOrden.cliente}</strong>
+              <span style={{ fontWeight: 600, color: "#64748b" }}>
+                Cliente:
+              </span>
+              <strong
+                style={{
+                  textAlign: "right",
+                  wordBreak: "break-word",
+                  flex: 1,
+                  marginLeft: "10px",
+                }}
+              >
+                {resumenOrden.cliente}
+              </strong>
             </div>
             <div style={styles.resumenLine}>
-              <span style={{fontWeight:600, color:'#64748b'}}>Pago:</span> 
-              <strong style={{textAlign:'right', flex:1}}>{resumenOrden.metodo_pago}</strong>
+              <span style={{ fontWeight: 600, color: "#64748b" }}>
+                Pago:
+              </span>
+              <strong style={{ textAlign: "right", flex: 1 }}>
+                {resumenOrden.metodo_pago}
+              </strong>
             </div>
 
-            <div style={{ margin: "20px 0", borderTop: "1px dashed #cbd5e1" }}></div>
+            <div
+              style={{
+                margin: "20px 0",
+                borderTop: "1px dashed #cbd5e1",
+              }}
+            ></div>
 
             {resumenOrden.lineas.map((l, idx) => (
-              <div key={idx} style={styles.resumenLine}>
-                <span>
-                  {l.cantidad} x {l.nombre}
-                </span>
-                <span>$ {l.subtotal.toFixed(2)}</span>
+              <div
+                key={idx}
+                style={{
+                  ...styles.resumenLine,
+                  flexDirection: "column",
+                  alignItems: "stretch",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "10px",
+                  }}
+                >
+                  <span>
+                    {l.cantidad} x {l.nombre}
+                  </span>
+                  <span>$ {l.subtotal.toFixed(2)}</span>
+                </div>
+                <div
+                  style={{
+                    marginTop: "2px",
+                    fontSize: "0.8rem",
+                    color: "#64748b",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "10px",
+                  }}
+                >
+                  <span>SKU: {l.sku || "N/D"}</span>
+                  <span>
+                    Peso total:{" "}
+                    <strong>
+                      {(l.peso_total || 0).toFixed(2)} kg
+                    </strong>
+                  </span>
+                </div>
               </div>
             ))}
 
-            <div style={{ margin: "20px 0", borderTop: "2px solid #e2e8f0" }}></div>
+            <div
+              style={{
+                margin: "20px 0",
+                borderTop: "2px solid #e2e8f0",
+              }}
+            ></div>
 
-            <div style={{ ...styles.resumenLine, fontSize: "1.2rem", fontWeight: "800", color: "#0f172a" }}>
+            <div
+              style={{
+                ...styles.resumenLine,
+                fontSize: "1.2rem",
+                fontWeight: "800",
+                color: "#0f172a",
+              }}
+            >
               <span>TOTAL</span>
               <span>$ {resumenOrden.total.toFixed(2)}</span>
             </div>
@@ -1421,26 +1815,54 @@ export default function CrearOrden() {
                 style={styles.btnGhostSmall}
                 disabled={loadingTasaResumen}
               >
-                {loadingTasaResumen ? "Calculando..." : "Ver monto en Bs (tasa BCV)"}
+                {loadingTasaResumen
+                  ? "Calculando..."
+                  : "Ver monto en Bs (tasa BCV)"}
               </button>
 
               {montoBsResumen != null && tasaBCVResumen != null && (
-                <div style={{ marginTop: "6px", fontSize: "0.9rem", color: "#0f172a" }}>
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "0.9rem",
+                    color: "#0f172a",
+                  }}
+                >
                   ≈ Bs {montoBsResumen.toFixed(2)}
-                  <span style={{ marginLeft: "6px", fontSize: "0.8rem", color: "#64748b" }}>
+                  <span
+                    style={{
+                      marginLeft: "6px",
+                      fontSize: "0.8rem",
+                      color: "#64748b",
+                    }}
+                  >
                     (Tasa BCV: Bs {tasaBCVResumen.toFixed(2)})
                   </span>
                 </div>
               )}
 
               {errorTasaResumen && (
-                <div style={{ marginTop: "6px", fontSize: "0.8rem", color: "#b91c1c" }}>
+                <div
+                  style={{
+                    marginTop: "6px",
+                    fontSize: "0.8rem",
+                    color: "#b91c1c",
+                  }}
+                >
                   {errorTasaResumen}
                 </div>
               )}
             </div>
 
-            <div style={{ marginTop: "20px", display: "flex", justifyContent: "flex-end", gap: "10px", flexWrap:'wrap' }}>
+            <div
+              style={{
+                marginTop: "20px",
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "10px",
+                flexWrap: "wrap",
+              }}
+            >
               <button
                 type="button"
                 onClick={handleDescargarResumenPDF}

@@ -54,6 +54,24 @@ const IconRefresh = () => (
   </svg>
 );
 
+const IconMap = () => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    style={{ marginRight: 4 }}
+  >
+    <path d="M1 6l7-3 7 3 8-3v15l-8 3-7-3-7 3z"></path>
+    <path d="M8 3v15"></path>
+    <path d="M15 6v15"></path>
+  </svg>
+);
+
 // Helper para mostrar solo fecha (dd/mm/aaaa)
 const formatDateOnly = (value) => {
   if (!value) return "-";
@@ -87,6 +105,10 @@ export default function TransporteEnvio() {
   const [lineasDevolucion, setLineasDevolucion] = useState([]);
   const [notaDevolucion, setNotaDevolucion] = useState("");
   const [errorDevolucion, setErrorDevolucion] = useState("");
+
+  // MODAL CONFIRMACIÓN (INICIAR / FINALIZAR VIAJE)
+  const [confirmConfig, setConfirmConfig] = useState(null);
+  // confirmConfig: { tipo: 'INICIAR' | 'FINALIZAR', titulo, mensaje }
 
   const cargarOrdenes = async () => {
     try {
@@ -158,12 +180,14 @@ export default function TransporteEnvio() {
     cargarOrdenes();
   };
 
-  const iniciarViaje = async () => {
+  // --- CONFIRMACIONES BONITAS PARA INICIAR / FINALIZAR VIAJE ---
+
+  const abrirConfirmacionIniciarViaje = () => {
     if (!envio) return;
 
     const estadoActual = (envio.estado || "").toUpperCase();
 
-    // 👉 Bloqueamos cuando el envío está solo ASIGNADO (almacenista aún no lo ha preparado)
+    // Bloqueo igual que antes, pero con mensaje en la UI principal
     if (estadoActual !== "LISTO_PARA_SALIR") {
       setError(
         "El almacenista aún no ha preparado el envío. Solo puedes iniciar el viaje cuando el envío esté marcado como LISTO_PARA_SALIR."
@@ -172,14 +196,47 @@ export default function TransporteEnvio() {
       return;
     }
 
+    setConfirmConfig({
+      tipo: "INICIAR",
+      titulo: "Iniciar viaje",
+      mensaje:
+        "¿Seguro que deseas iniciar el viaje para este envío? Una vez iniciado, podrás gestionar el estado de cada orden (Entregada, No entregada, Devolución).",
+    });
+  };
+
+  const abrirConfirmacionFinalizarEnvio = () => {
+    if (!envio) return;
+    setConfirmConfig({
+      tipo: "FINALIZAR",
+      titulo: "Finalizar envío",
+      mensaje:
+        "¿Deseas marcar este envío como TERMINADO? Asegúrate de que todas las órdenes estén ENTREGADAS, NO ENTREGADAS o DEVUELTAS antes de continuar.",
+    });
+  };
+
+  const cerrarConfirmacion = () => {
+    setConfirmConfig(null);
+  };
+
+  const ejecutarConfirmacion = async () => {
+    if (!confirmConfig) return;
+    if (confirmConfig.tipo === "INICIAR") {
+      await iniciarViaje();
+    } else if (confirmConfig.tipo === "FINALIZAR") {
+      await finalizarEnvio();
+    }
+    setConfirmConfig(null);
+  };
+
+  const iniciarViaje = async () => {
+    if (!envio) return;
+
     setLoadingAccion(true);
     setError("");
     setMensaje("");
     try {
       const res = await api.post("base/transporte/mi-envio/iniciar-viaje/");
       setMensaje(res.data?.mensaje || "Viaje iniciado.");
-      // 👇 Al iniciar viaje, el backend debe poner el envío EN CURSO
-      // y las órdenes en estado EN CURSO. Volvemos a cargar todo.
       await cargarEnvio();
     } catch (err) {
       console.error(err);
@@ -195,13 +252,7 @@ export default function TransporteEnvio() {
 
   const finalizarEnvio = async () => {
     if (!envio) return;
-    if (
-      !window.confirm(
-        "¿Seguro que deseas marcar el envío como TERMINADO? Esto requiere que todas las órdenes estén ENTREGADAS, DEVUELTAS o NO ENTREGADAS."
-      )
-    ) {
-      return;
-    }
+
     setLoadingAccion(true);
     setError("");
     setMensaje("");
@@ -284,15 +335,13 @@ export default function TransporteEnvio() {
 
     const detalles = Array.isArray(orden.detalles) ? orden.detalles : [];
 
-    // Ahora usamos directamente el id_detalleo que envía el backend
-    // y, si ya existe devolución, prellenamos la info.
     const lineas = detalles.map((d) => {
       const cantidadOriginal = Number(d.cantidad || 0);
       const cantidadDevueltaBackend = Number(d.cantidad_devolvida || 0);
       const hayDevolucion = !!d.devolucion && cantidadDevueltaBackend > 0;
 
       return {
-        id_detalleo: d.id_detalleo, // clave principal para el backend
+        id_detalleo: d.id_detalleo,
         producto: d.producto || d.id_producto_nombre || "Producto",
         cantidadOriginal,
         cantidadDevuelta: hayDevolucion ? cantidadDevueltaBackend : 0,
@@ -329,7 +378,6 @@ export default function TransporteEnvio() {
       return;
     }
 
-    // Validamos cantidades
     for (const l of seleccionadas) {
       if (l.cantidadDevuelta > l.cantidadOriginal) {
         setErrorDevolucion(
@@ -339,7 +387,6 @@ export default function TransporteEnvio() {
       }
     }
 
-    // Validamos que todas las líneas seleccionadas tengan un id_detalleo válido
     const seleccionadasValidas = seleccionadas.filter(
       (l) =>
         l.id_detalleo !== null &&
@@ -354,7 +401,6 @@ export default function TransporteEnvio() {
       return;
     }
 
-    // ¿Se está devolviendo toda la orden?
     const devolucionTotal =
       lineasDevolucion.length > 0 &&
       lineasDevolucion.every(
@@ -393,7 +439,6 @@ export default function TransporteEnvio() {
         res.data?.mensaje || "Devolución registrada correctamente en la orden."
       );
       cerrarModalDevolucion();
-      // Recalcular totales de orden y del envío (backend) y refrescar UI
       await cargarEnvio();
     } catch (err) {
       console.error(err);
@@ -426,7 +471,7 @@ export default function TransporteEnvio() {
   const puedeIniciarViaje = estadoEnvio === "LISTO_PARA_SALIR";
   const envioAsignadoNoListo = estadoEnvio === "ASIGNADO";
 
-  // Cantidad de órdenes asignadas al envío (probar diferentes campos del backend)
+  // Cantidad de órdenes asignadas al envío
   const totalOrdenesAsignadas = envio
     ? envio.cantidad_ordenes ??
       envio.total_ordenes ??
@@ -446,7 +491,7 @@ export default function TransporteEnvio() {
       ? Math.min(100, (pesoEnvio / capacidadMaxima) * 100)
       : null;
 
-  // Ordenar por peso y por precio (más pesadas / livianas / mayor precio / menor precio)
+  // Ordenar por peso y por precio
   const ordenesOrdenadas = useMemo(() => {
     const copia = [...ordenes];
     if (ordenSort === "PESADAS") {
@@ -475,15 +520,37 @@ export default function TransporteEnvio() {
     return ordenes.every((o) => {
       const s = (o.estado_de_envio || "").toUpperCase();
       if (s === "ENTREGADA" || s === "NO ENTREGADA") return true;
-      if (s.includes("DEVUELTA")) return true; // DEVUELTA
-      if (s.includes("DEVOLUCION")) return true; // DEVOLUCION PARCIAL, etc.
+      if (s.includes("DEVUELTA")) return true;
+      if (s.includes("DEVOLUCION")) return true;
       return false;
     });
   }, [ordenes]);
 
+  // --- Abrir Maps con la dirección de la orden ---
+  const abrirMapsOrden = (orden) => {
+    const direccion =
+      orden.direccion || orden.direccion_cliente || orden.cliente_direccion || "";
+
+    if (!direccion.trim()) {
+      setError(
+        "La orden seleccionada no tiene una dirección válida para abrir en Google Maps."
+      );
+      setMensaje("");
+      return;
+    }
+
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      direccion
+    )}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
+    <div
+      style={styles.container}
+      className="transportista-container"
+    >
+      <div style={styles.card} className="transportista-card">
         {/* HEADER */}
         <div style={styles.header}>
           <div style={styles.titleGroup}>
@@ -550,7 +617,10 @@ export default function TransporteEnvio() {
         {!loading && envio && (
           <>
             {/* INFO ENVÍO + BOTONES */}
-            <div style={styles.envioInfo}>
+            <div
+              style={styles.envioInfo}
+              className="transportista-envio-info"
+            >
               <div>
                 <h3 style={{ margin: 0, color: "#0f172a" }}>
                   Envío #{envio.id_envio}
@@ -639,7 +709,7 @@ export default function TransporteEnvio() {
                 </p>
               </div>
 
-              <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 {estadoEnvio !== "EN CURSO" && estadoEnvio !== "TERMINADO" && (
                   <button
                     style={{
@@ -652,9 +722,11 @@ export default function TransporteEnvio() {
                           : "pointer",
                     }}
                     disabled={!puedeIniciarViaje || loadingAccion}
-                    onClick={iniciarViaje}
+                    onClick={abrirConfirmacionIniciarViaje}
                   >
-                    {loadingAccion ? "Procesando..." : "Iniciar viaje"}
+                    {loadingAccion && confirmConfig?.tipo === "INICIAR"
+                      ? "Procesando..."
+                      : "Iniciar viaje"}
                   </button>
                 )}
 
@@ -665,9 +737,11 @@ export default function TransporteEnvio() {
                       backgroundColor: "#0f172a",
                     }}
                     disabled={loadingAccion}
-                    onClick={finalizarEnvio}
+                    onClick={abrirConfirmacionFinalizarEnvio}
                   >
-                    {loadingAccion ? "Procesando..." : "Finalizar envío"}
+                    {loadingAccion && confirmConfig?.tipo === "FINALIZAR"
+                      ? "Procesando..."
+                      : "Finalizar envío"}
                   </button>
                 )}
               </div>
@@ -771,6 +845,7 @@ export default function TransporteEnvio() {
                       justifyContent: "flex-end",
                       gap: "10px",
                       marginTop: "15px",
+                      flexWrap: "wrap",
                     }}
                   >
                     <button style={styles.btnGhost} onClick={limpiarFiltros}>
@@ -787,7 +862,10 @@ export default function TransporteEnvio() {
                 </div>
 
                 {/* LISTADO ÓRDENES */}
-                <div style={styles.content}>
+                <div
+                  style={styles.content}
+                  className="transportista-orders"
+                >
                   {ordenesOrdenadas.length === 0 ? (
                     <div
                       style={{
@@ -799,7 +877,10 @@ export default function TransporteEnvio() {
                       No hay órdenes en este envío con los filtros actuales.
                     </div>
                   ) : (
-                    <div style={{ display: "grid", gap: 12, padding: 16 }}>
+                    <div
+                      style={{ display: "grid", gap: 12, padding: 16 }}
+                      className="transportista-orders-grid"
+                    >
                       {ordenesOrdenadas.map((o) => {
                         const badge = getBadgeColor(o.estado_de_envio);
                         const isSelected =
@@ -842,10 +923,11 @@ export default function TransporteEnvio() {
                                 display: "flex",
                                 justifyContent: "space-between",
                                 alignItems: "center",
+                                gap: 8,
                                 marginBottom: 6,
                               }}
                             >
-                              <div>
+                              <div style={{ minWidth: 0 }}>
                                 <div
                                   style={{
                                     fontSize: "0.8rem",
@@ -859,6 +941,7 @@ export default function TransporteEnvio() {
                                     fontSize: "1rem",
                                     fontWeight: 600,
                                     color: "#0f172a",
+                                    wordBreak: "break-word",
                                   }}
                                 >
                                   {o.cliente}
@@ -866,16 +949,45 @@ export default function TransporteEnvio() {
                               </div>
                               <div
                                 style={{
-                                  padding: "4px 10px",
-                                  borderRadius: 999,
-                                  backgroundColor: badge.bg,
-                                  color: badge.text,
-                                  fontSize: "0.75rem",
-                                  fontWeight: 700,
-                                  textTransform: "uppercase",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  alignItems: "flex-end",
+                                  gap: 6,
                                 }}
                               >
-                                {o.estado_de_envio}
+                                <div
+                                  style={{
+                                    padding: "4px 10px",
+                                    borderRadius: 999,
+                                    backgroundColor: badge.bg,
+                                    color: badge.text,
+                                    fontSize: "0.75rem",
+                                    fontWeight: 700,
+                                    textTransform: "uppercase",
+                                    textAlign: "right",
+                                  }}
+                                >
+                                  {o.estado_de_envio}
+                                </div>
+                                {/* Botón Maps */}
+                                <button
+                                  type="button"
+                                  style={{
+                                    ...styles.btnSmall,
+                                    backgroundColor: "#eff6ff",
+                                    borderColor: "#3b82f6",
+                                    color: "#1d4ed8",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    abrirMapsOrden(o);
+                                  }}
+                                >
+                                  <IconMap />
+                                  Ver en Maps
+                                </button>
                               </div>
                             </div>
 
@@ -1465,6 +1577,88 @@ export default function TransporteEnvio() {
                 </div>
               </div>
             )}
+
+            {/* MODAL CONFIRMACIÓN INICIAR / FINALIZAR */}
+            {confirmConfig && (
+              <div style={styles.modalOverlay}>
+                <div style={styles.confirmModal}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      marginBottom: 12,
+                    }}
+                  >
+                    <div>
+                      <h3
+                        style={{
+                          margin: 0,
+                          fontSize: "1.05rem",
+                          color: "#0f172a",
+                        }}
+                      >
+                        {confirmConfig.titulo}
+                      </h3>
+                      <p
+                        style={{
+                          margin: "6px 0 0",
+                          fontSize: "0.9rem",
+                          color: "#475569",
+                        }}
+                      >
+                        {confirmConfig.mensaje}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={cerrarConfirmacion}
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        fontSize: "1rem",
+                        color: "#94a3b8",
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: 8,
+                      marginTop: 18,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      style={{
+                        ...styles.btnGhost,
+                        padding: "8px 16px",
+                      }}
+                      onClick={cerrarConfirmacion}
+                      disabled={loadingAccion}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      style={{
+                        ...styles.btnPrimary,
+                        padding: "8px 18px",
+                      }}
+                      onClick={ejecutarConfirmacion}
+                      disabled={loadingAccion}
+                    >
+                      {loadingAccion ? "Procesando..." : "Confirmar"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -1612,7 +1806,8 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 50,
+    zIndex: 12000,
+    padding: "16px",
   },
   modal: {
     width: "100%",
@@ -1625,4 +1820,56 @@ const styles = {
     border: "1px solid #e2e8f0",
     overflowY: "auto",
   },
+  confirmModal: {
+    width: "100%",
+    maxWidth: "420px",
+    backgroundColor: "#ffffff",
+    borderRadius: "16px",
+    padding: "18px 22px 16px",
+    boxShadow: "0 20px 40px rgba(15, 23, 42, 0.3)",
+    border: "1px solid #e2e8f0",
+  },
 };
+
+// --- Estilos responsive (móvil / tablet / desktop) ---
+if (
+  typeof document !== "undefined" &&
+  !document.getElementById("transportista-responsive-styles")
+) {
+  const styleTag = document.createElement("style");
+  styleTag.id = "transportista-responsive-styles";
+  styleTag.innerHTML = `
+    @media (max-width: 768px) {
+      .transportista-container {
+        padding: 16px 12px;
+      }
+      .transportista-envio-info {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .transportista-envio-info > div:last-child {
+        width: 100%;
+        display: flex;
+        justify-content: flex-start;
+        margin-top: 12px;
+      }
+      .transportista-envio-info button {
+        flex: 1 1 auto;
+        justify-content: center;
+      }
+      .transportista-orders {
+        margin-top: 16px;
+      }
+      .transportista-orders-grid {
+        padding: 10px;
+      }
+    }
+
+    @media (min-width: 769px) and (max-width: 1024px) {
+      .transportista-container {
+        padding: 20px 20px;
+      }
+    }
+  `;
+  document.head.appendChild(styleTag);
+}

@@ -79,6 +79,10 @@ function App() {
         <Toaster 
             position="top-center" 
             reverseOrder={false} 
+            containerStyle={{
+                top: 80,        // 👈 Desplaza los toasts por debajo del navbar
+                zIndex: 999999, // 👈 Asegura que queden por encima de otros elementos
+            }}
             toastOptions={{
                 style: {
                     borderRadius: '12px',

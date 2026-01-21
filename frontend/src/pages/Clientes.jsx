@@ -349,6 +349,10 @@ export default function Clientes() {
     direccionEspecifica: "",
   });
 
+  // 👉 Nuevo: gestión del tipo de documento y número
+  const [tipoDoc, setTipoDoc] = useState("V");
+  const [numDoc, setNumDoc] = useState("");
+
   const esGerencia =
     user &&
     (user.tipo === "GERENTE" ||
@@ -377,8 +381,6 @@ export default function Clientes() {
           : resUsuarios.data.results || [];
         setUsuarios(dataUsuarios);
       }
-      // El mensaje final ahora lo controla el efecto según filtros,
-      // así que aquí no seteamos un texto definitivo basado solo en el total.
       setMensaje(`Se encontraron ${dataClientes.length} cliente(s) en total.`);
     } catch (err) {
       console.error("Error cargando datos:", err);
@@ -433,7 +435,6 @@ export default function Clientes() {
       if (!coincideTexto) return false;
     }
 
-    // Filtro por estado (activo / inactivo)
     const activoFlag =
       c.activo !== undefined && c.activo !== null ? c.activo : true;
 
@@ -443,7 +444,6 @@ export default function Clientes() {
     return true;
   });
 
-  // Ordenamiento avanzado
   const filtradosOrdenados = React.useMemo(() => {
     const arr = [...filtrados];
     if (!ordenamiento) return arr;
@@ -482,7 +482,6 @@ export default function Clientes() {
     });
   }, [filtrados, ordenamiento]);
 
-  // 🔔 Actualizar indicador de cantidad de clientes cada vez que cambian filtros/búsqueda
   useEffect(() => {
     if (!loading) {
       setMensaje(
@@ -533,11 +532,10 @@ export default function Clientes() {
     if (!cliente) return;
     const doc = new jsPDF();
 
-    // Encabezado
-    doc.setFillColor(239, 246, 255); // #eff6ff
+    doc.setFillColor(239, 246, 255);
     doc.rect(0, 0, 210, 40, "F");
     doc.setFontSize(18);
-    doc.setTextColor(30, 64, 175); // #1e40af
+    doc.setTextColor(30, 64, 175);
     doc.text("Ficha de Cliente", 14, 25);
 
     doc.setFontSize(10);
@@ -579,6 +577,18 @@ export default function Clientes() {
   };
   // ------------------------------------
 
+  const handleFormChange = (campo, valor) =>
+    setFormData((prev) => ({ ...prev, [campo]: valor }));
+
+  // 👉 Nuevo: controla el número de documento (solo dígitos y guion, máx. 10)
+  const handleDocNumChange = (e) => {
+    const maxChars = 10;
+    const val = e.target.value.replace(/[^0-9-]/g, "");
+    if (val.length <= maxChars) {
+      setNumDoc(val);
+    }
+  };
+
   const abrirCrear = () => {
     setFormMode("crear");
     setClienteSeleccionado(null);
@@ -591,6 +601,8 @@ export default function Clientes() {
       direccionCiudad: "",
       direccionEspecifica: "",
     });
+    setTipoDoc("V");
+    setNumDoc("");
     setFormError("");
     setShowFormModal(true);
   };
@@ -603,7 +615,6 @@ export default function Clientes() {
       return;
     }
 
-    // Parsear dirección en estado/ciudad/detalle
     const direccionCompleta = cliente.direccion || "";
     let direccionEstado = "";
     let direccionCiudad = "";
@@ -627,6 +638,23 @@ export default function Clientes() {
       }
     }
 
+    // 👉 Nuevo: parsear RIF / Cédula en tipo y número
+    let tipoDocLocal = "V";
+    let numDocLocal = "";
+    if (cliente.rif_cedula) {
+      const rifStr = String(cliente.rif_cedula).trim();
+      const match = rifStr.match(/^([A-Za-z])[-\s]?(.+)$/);
+      if (match) {
+        const pref = match[1].toUpperCase();
+        if (["V", "E", "J", "G", "P"].includes(pref)) {
+          tipoDocLocal = pref;
+        }
+        numDocLocal = match[2].trim();
+      } else {
+        numDocLocal = rifStr;
+      }
+    }
+
     setFormMode("editar");
     setClienteSeleccionado(cliente);
     setFormData({
@@ -638,12 +666,11 @@ export default function Clientes() {
       direccionCiudad,
       direccionEspecifica,
     });
+    setTipoDoc(tipoDocLocal);
+    setNumDoc(numDocLocal);
     setFormError("");
     setShowFormModal(true);
   };
-
-  const handleFormChange = (campo, valor) =>
-    setFormData((prev) => ({ ...prev, [campo]: valor }));
 
   const guardarCliente = async (e) => {
     e.preventDefault();
@@ -674,6 +701,67 @@ export default function Clientes() {
         return;
       }
 
+      // 👉 Nuevo: validación de RIF / Cédula
+      const docRaw = (numDoc || "").trim();
+      if (!docRaw) {
+        setFormError("El campo RIF / Cédula es obligatorio.");
+        setFormLoading(false);
+        return;
+      }
+
+      const docClean = docRaw.replace(/-/g, "");
+      if (docClean.length < 6 || docClean.length > 10) {
+        setFormError("El RIF / Cédula debe tener entre 6 y 10 dígitos.");
+        setFormLoading(false);
+        return;
+      }
+
+      const rifFinal = `${tipoDoc}-${docRaw}`;
+
+      // 👉 Nuevo: validación de unicidad (RIF/Cédula, teléfono, correo)
+      const currentId = clienteSeleccionado?.id_cliente;
+      const telefonoTarget = (formData.telefono || "").trim();
+      const correoTarget = (formData.correo || "").trim().toLowerCase();
+      const rifTarget = rifFinal.trim().toLowerCase();
+
+      const rifDuplicado = clientes.some((cli) => {
+        const cid = cli.id_cliente ?? cli.id;
+        if (cid === currentId) return false;
+        return (cli.rif_cedula || "").trim().toLowerCase() === rifTarget;
+      });
+
+      if (rifDuplicado) {
+        setFormError("Ya existe un cliente con el mismo RIF / Cédula.");
+        setFormLoading(false);
+        return;
+      }
+
+      if (telefonoTarget) {
+        const telDuplicado = clientes.some((cli) => {
+          const cid = cli.id_cliente ?? cli.id;
+          if (cid === currentId) return false;
+          return (cli.telefono || "").trim() === telefonoTarget;
+        });
+        if (telDuplicado) {
+          setFormError("Ya existe un cliente con el mismo número de teléfono.");
+          setFormLoading(false);
+          return;
+        }
+      }
+
+      if (correoTarget) {
+        const correoDuplicado = clientes.some((cli) => {
+          const cid = cli.id_cliente ?? cli.id;
+          if (cid === currentId) return false;
+          return (cli.correo || "").trim().toLowerCase() === correoTarget;
+        });
+        if (correoDuplicado) {
+          setFormError("Ya existe un cliente con el mismo correo electrónico.");
+          setFormLoading(false);
+          return;
+        }
+      }
+
       const partesDireccion = [
         formData.direccionEstado.trim(),
         formData.direccionCiudad.trim(),
@@ -683,7 +771,7 @@ export default function Clientes() {
 
       const payload = {
         nombre: formData.nombre,
-        rif_cedula: formData.rif_cedula,
+        rif_cedula: rifFinal,
         telefono: formData.telefono,
         correo: formData.correo,
         direccion: direccionCombinada,
@@ -1355,16 +1443,58 @@ export default function Clientes() {
                   />
                 </div>
 
+                {/* 👉 Nuevo bloque RIF/Cédula con prefijo */}
                 <div>
-                  <label style={styles.label}>RIF / Cédula</label>
-                  <input
-                    style={styles.input}
-                    value={formData.rif_cedula}
-                    onChange={(e) =>
-                      handleFormChange("rif_cedula", e.target.value)
-                    }
-                    placeholder="J-12345678-9 o V-12345678"
-                  />
+                  <label style={styles.label}>RIF / Cédula *</label>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "10px",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div style={{ width: "80px" }}>
+                      <select
+                        style={{
+                          ...styles.input,
+                          paddingLeft: "10px",
+                          textAlign: "center",
+                          fontWeight: "bold",
+                          cursor: "pointer",
+                        }}
+                        value={tipoDoc}
+                        onChange={(e) => setTipoDoc(e.target.value)}
+                      >
+                        <option value="V">V</option>
+                        <option value="E">E</option>
+                        <option value="J">J</option>
+                        <option value="G">G</option>
+                        <option value="P">P</option>
+                      </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <input
+                        style={styles.input}
+                        value={numDoc}
+                        onChange={handleDocNumChange}
+                        placeholder={
+                          ["J", "G"].includes(tipoDoc)
+                            ? "12345678-9"
+                            : "12345678"
+                        }
+                      />
+                    </div>
+                  </div>
+                  <p
+                    style={{
+                      fontSize: "0.75rem",
+                      color: "#64748b",
+                      marginTop: "4px",
+                    }}
+                  >
+                    Registrando:{" "}
+                    <strong>{`${tipoDoc}-${numDoc || "..."}`}</strong>
+                  </p>
                 </div>
 
                 <div>

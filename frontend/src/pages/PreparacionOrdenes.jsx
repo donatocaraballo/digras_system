@@ -209,7 +209,7 @@ const styles = {
   },
   td: {
     padding: "12px 15px",
-    borderBottom: "1px solid #f1f5f9",
+    borderBottom: "1px solid '#f1f5f9'",
     color: "#334155",
     verticalAlign: "middle",
   },
@@ -521,10 +521,24 @@ export default function PreparacionOrdenes() {
   // ----------------------------
   const getClienteIdFromOrden = (orden) => {
     if (!orden) return null;
-    const v = orden.id_cliente;
-    if (v == null) return null;
-    if (isObject(v)) return v.id_cliente ?? v.id ?? null;
-    return v;
+
+    // Intentamos varias formas posibles en las que puede venir el id de cliente
+    const raw =
+      orden.id_cliente ??
+      orden.cliente ??
+      orden.id_cliente_id ??
+      orden.cliente_id ??
+      null;
+
+    if (raw == null) return null;
+
+    if (isObject(raw)) {
+      return raw.id_cliente ?? raw.id ?? null;
+    }
+
+    // Normaliza a número cuando sea posible, para evitar problemas de comparación
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : raw;
   };
 
   const getClienteNombreFromOrden = (orden) => {
@@ -556,6 +570,23 @@ export default function PreparacionOrdenes() {
     const id = getClienteIdFromOrden(orden);
     const nombre = getClienteNombreFromOrden(orden);
     if (nombre) return nombre;
+    const cached = id != null ? clientesCache[id] : null;
+    if (cached?.nombre) return cached.nombre;
+    return id != null ? `Cliente #${id}` : "Cliente";
+  };
+
+  // Cliente para las órdenes mostradas dentro del modal de envíos
+  const clienteLabelEnvioOrden = (o) => {
+    if (!o) return "-";
+    const nombreDirecto =
+      o.cliente_nombre ||
+      o.cliente ||
+      o.id_cliente_nombre ||
+      (isObject(o.id_cliente) ? o.id_cliente.nombre : "") ||
+      getClienteNombreFromOrden(o);
+
+    const id = getClienteIdFromOrden(o);
+    if (nombreDirecto) return nombreDirecto;
     const cached = id != null ? clientesCache[id] : null;
     if (cached?.nombre) return cached.nombre;
     return id != null ? `Cliente #${id}` : "Cliente";
@@ -793,10 +824,22 @@ export default function PreparacionOrdenes() {
     setAccionOrdenLoading(true);
     try {
       const res = await api.post(`/ordenes/${id}/preparar/`);
+
+      // Actualizar estado (sacar la orden de la lista)
+      setOrdenes((prev) => prev.filter((o) => o.id_orden !== id));
+
+      // Cerrar modal primero
+      cerrarModalOrden();
+
+      // Luego mostrar confirmación (toast)
       toast.success(res.data?.mensaje || "Orden marcada como PREPARADA.");
 
-      setOrdenes((prev) => prev.filter((o) => o.id_orden !== id));
-      cerrarModalOrden();
+      // Y también dejar una nota visible en la parte superior
+      setMensaje(
+        res.data?.mensaje || `Orden #${id} marcada como PREPARADA correctamente.`
+      );
+
+      // Refrescar envíos, ya que esta orden puede estar asociada a alguno
       cargarEnvios();
     } catch (err) {
       console.error("Error al preparar orden:", err);
@@ -870,12 +913,17 @@ export default function PreparacionOrdenes() {
     setAccionEnvioLoading(true);
     try {
       const res = await api.post(`/base/envios/${id}/marcar_listo_salida/`);
+
+      // Sacar el envío de la lista
+      setEnvios((prev) => prev.filter((e) => e.id_envio !== id));
+
+      // Cerrar modal primero
+      cerrarModalEnvio();
+
+      // Luego mostrar confirmación
       toast.success(
         res.data?.mensaje || "Envío marcado como LISTO PARA SALIR."
       );
-
-      setEnvios((prev) => prev.filter((e) => e.id_envio !== id));
-      cerrarModalEnvio();
     } catch (err) {
       console.error("Error al marcar envío:", err);
       const backendMsg =
@@ -907,12 +955,27 @@ export default function PreparacionOrdenes() {
     setErrorCliente("");
     setLoadingCliente(true);
 
-    if (clientesCache[idCliente]) {
-      setClienteData(clientesCache[idCliente]);
+    const cached = clientesCache[idCliente];
+
+    // 🔍 Si el cache parece "completo", lo usamos y NO llamamos al backend
+    const cachePareceCompleto =
+      cached &&
+      (
+        cached.telefono !== undefined ||
+        cached.correo !== undefined ||
+        cached.rif_cedula !== undefined ||
+        cached.total_ordenes !== undefined ||
+        cached.ordenes_activas !== undefined ||
+        cached.ordenes_pendientes_pago !== undefined
+      );
+
+    if (cachePareceCompleto) {
+      setClienteData(cached);
       setLoadingCliente(false);
       return;
     }
 
+    // Si no hay cache o es incompleto (solo id + nombre), vamos al backend
     try {
       const res = await api.get(`/base/clientes/${idCliente}/`);
       setClienteData(res.data);
@@ -923,6 +986,8 @@ export default function PreparacionOrdenes() {
         backendMsg ||
           "No se pudo cargar el detalle del cliente (posible restricción por permisos)."
       );
+
+      // Fallback mínimo para que al menos se vea algo
       const fallback = {
         id_cliente: idCliente,
         nombre: nombreFallback || `Cliente #${idCliente}`,
@@ -933,7 +998,7 @@ export default function PreparacionOrdenes() {
       setLoadingCliente(false);
     }
   };
-
+  
   // ----------------------------
   // MODAL UNIDAD
   // ----------------------------
@@ -1587,22 +1652,25 @@ export default function PreparacionOrdenes() {
                               </span>
                             </td>
                             <td style={styles.modalDetalleTd}>
-                              <span
-                                style={styles.clickable}
-                                onClick={() =>
-                                  abrirModalCliente(
-                                    o?.id_cliente,
-                                    o?.cliente_nombre ||
-                                      (o?.id_cliente
-                                        ? `Cliente #${o.id_cliente}`
-                                        : "Cliente")
-                                  )
+                              {(() => {
+                                const idCli = getClienteIdFromOrden(o);
+                                const labelCli = clienteLabelEnvioOrden(o);
+                                if (!idCli) {
+                                  // Si no tenemos ID, mostramos solo el texto (sin click)
+                                  return labelCli;
                                 }
-                                title="Ver ficha del cliente"
-                              >
-                                {o.cliente_nombre ||
-                                  (o?.id_cliente ? `Cliente #${o.id_cliente}` : "-")}
-                              </span>
+                                return (
+                                  <span
+                                    style={styles.clickable}
+                                    onClick={() =>
+                                      abrirModalCliente(idCli, labelCli)
+                                    }
+                                    title="Ver ficha del cliente"
+                                  >
+                                    {labelCli}
+                                  </span>
+                                );
+                              })()}
                             </td>
                             <td style={styles.modalDetalleTd}>
                               {fmt2(o.peso_total)} kg
@@ -1692,9 +1760,26 @@ export default function PreparacionOrdenes() {
                 <div style={styles.modalLine}>
                   <strong>Dirección:</strong> {clienteData.direccion || "-"}
                 </div>
+                {/* NUEVO: rif_cedula */}
+                <div style={styles.modalLine}>
+                  <strong>RIF / Cédula:</strong> {clienteData.rif_cedula || "-"}
+                </div>
                 <div style={styles.modalLine}>
                   <strong>Activo:</strong>{" "}
                   {clienteData.activo === false ? "NO" : "SÍ"}
+                </div>
+                {/* NUEVO: métricas de órdenes */}
+                <div style={styles.modalLine}>
+                  <strong>Total de órdenes:</strong>{" "}
+                  {clienteData.total_ordenes ?? "-"}
+                </div>
+                <div style={styles.modalLine}>
+                  <strong>Órdenes activas:</strong>{" "}
+                  {clienteData.ordenes_activas ?? "-"}
+                </div>
+                <div style={styles.modalLine}>
+                  <strong>Órdenes pendientes de pago:</strong>{" "}
+                  {clienteData.ordenes_pendientes_pago ?? "-"}
                 </div>
                 <div style={styles.modalLine}>
                   <strong>Vendedor (id_usuario):</strong>{" "}
@@ -1822,20 +1907,14 @@ export default function PreparacionOrdenes() {
                   <div style={styles.modalLine}>
                     <strong>Cliente:</strong>
                     <span
-                      style={styles.clickable}
-                      onClick={() =>
-                        abrirModalCliente(
-                          getClienteIdFromOrden(ordenEnvioDetalle.orden),
-                          clienteLabelOrden(ordenEnvioDetalle.orden)
-                        )
-                      }
-                      title="Ver ficha del cliente"
+                      style={{
+                        fontWeight: 600,
+                        marginLeft: 6,
+                        color: "#0f172a",
+                      }}
                     >
                       {clienteLabelOrden(ordenEnvioDetalle.orden)}
                     </span>
-                  </div>
-                  <div style={styles.hintMini}>
-                    Click en el nombre del cliente para ver su ficha completa.
                   </div>
                   <div style={styles.modalLine}>
                     <strong>Fecha:</strong>{" "}

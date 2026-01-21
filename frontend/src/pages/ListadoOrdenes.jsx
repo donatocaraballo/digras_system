@@ -829,19 +829,37 @@ export default function ListadoOrdenes() {
       setError("Solo un usuario de tipo VENDEDOR puede gestionar pagos.");
       return;
     }
-    const estadoEnvio = (orden.estado_de_envio || "").toUpperCase();
-    if (
-      estadoEnvio.includes("PENDIENTE") &&
-      estadoEnvio.includes("APROBACION")
-    ) {
-      setError("No puedes registrar pagos en órdenes pendientes por aprobación.");
+  
+    const estadoEnvioNorm = (orden.estado_de_envio || "")
+      .toString()
+      .toUpperCase()
+      .replace(/_/g, " ")
+      .trim();
+  
+    const esPendientePorAprobacion =
+      estadoEnvioNorm === "PENDIENTE POR APROBACION" ||
+      estadoEnvioNorm === "PENDIENTE POR APROBACIÓN";
+  
+    const esRechazada =
+      estadoEnvioNorm.includes("RECHAZADA") ||
+      estadoEnvioNorm.includes("RECHAZADO");
+  
+    if (esPendientePorAprobacion) {
+      setError(
+        "No puedes registrar pagos en órdenes pendientes por aprobación."
+      );
       return;
     }
-
+  
+    if (esRechazada) {
+      setError("No puedes registrar pagos en órdenes rechazadas.");
+      return;
+    }
+  
     setOrdenParaPago(orden);
     setModalPagoVisible(true);
     setModalPagoError("");
-
+  
     // Reset de estados del modal
     setHistorialPagosVenta([]);
     setSaldoOriginalUSD(Number(orden.precio_final || 0));
@@ -849,13 +867,13 @@ export default function ListadoOrdenes() {
     setSaldoPendienteUSD(Number(orden.precio_final || 0));
     setMontoPagoInput("");
     setReferenciaPagoInput("");
-
+  
     // Método de pago por defecto = el de la orden (si coincide con nuestros métodos)
     const metodoDefault =
       METODOS_PAGO_VENTA.find((m) => m.value === orden.metodo_pago)?.value ||
       METODOS_PAGO_VENTA[0].value;
     setMetodoPagoVenta(metodoDefault);
-
+  
     // Cargar información de pagos existentes + tasa BCV
     await Promise.all([cargarPagosVenta(orden.id_orden), fetchTasaBCVVenta()]);
   };
@@ -1650,173 +1668,194 @@ export default function ListadoOrdenes() {
                     </td>
                   </tr>
                 )}
-                {ordenesPagina.map((o, idx) => {
-                  const isSelected =
-                    ordenSeleccionada?.id_orden === o.id_orden;
-                  const envioStyle = getEnvioStyle(o.estado_de_envio);
-                  const pagoStyle = getPagoStyle(o.estado_de_pago);
-                  const puedeEditar = puedeEditarOrden(o);
+                  {ordenesPagina.map((o, idx) => {
+                    const isSelected =
+                      ordenSeleccionada?.id_orden === o.id_orden;
+                    const envioStyle = getEnvioStyle(o.estado_de_envio);
+                    const pagoStyle = getPagoStyle(o.estado_de_pago);
+                    const puedeEditar = puedeEditarOrden(o);
 
-                  const deleteButtonStyle = {
-                    ...styles.btnDangerSmall,
-                    ...(puedeEditar
-                      ? {}
-                      : {
-                          backgroundColor: "#f8fafc",
-                          borderColor: "#e2e8f0",
-                          color: "#cbd5e1",
-                          cursor: "not-allowed",
-                        }),
-                  };
+                    const deleteButtonStyle = {
+                      ...styles.btnDangerSmall,
+                      ...(puedeEditar
+                        ? {}
+                        : {
+                            backgroundColor: "#f8fafc",
+                            borderColor: "#e2e8f0",
+                            color: "#cbd5e1",
+                            cursor: "not-allowed",
+                          }),
+                    };
 
-                  return (
-                    <tr
-                      key={o.id_orden}
-                      style={{
-                        borderBottom: "1px solid #f1f5f9",
-                        backgroundColor: isSelected
-                          ? "#eff6ff"
-                          : idx % 2 === 0
-                          ? "#ffffff"
-                          : "#fafafa",
-                        borderLeft: isSelected
-                          ? "4px solid #2563eb"
-                          : "4px solid transparent",
-                        cursor: "pointer",
-                        transition: "background 0.1s",
-                      }}
-                      onClick={() => verDetallesOrden(o.id_orden)}
-                    >
-                      <td style={styles.tdBold}>#{o.id_orden}</td>
+                    // 🔍 Normalizamos el estado de envío para validar pago
+                    const estadoEnvioNorm = (o.estado_de_envio || "")
+                      .toString()
+                      .toUpperCase()
+                      .replace(/_/g, " ")
+                      .trim();
 
-                      <td style={styles.td}>
-                        <button
-                          style={styles.linkButton}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            abrirModalCliente(o.id_cliente);
-                          }}
-                        >
-                          {nombreCliente(o.id_cliente)}
-                        </button>
-                        <div style={styles.helperText}>
-                          Click para ver info
-                        </div>
-                      </td>
+                    const esPendientePorAprobacionFila =
+                      estadoEnvioNorm === "PENDIENTE POR APROBACION" ||
+                      estadoEnvioNorm === "PENDIENTE POR APROBACIÓN";
 
-                      {esGerencia && (
+                    const esRechazadaFila =
+                      estadoEnvioNorm.includes("RECHAZADA") ||
+                      estadoEnvioNorm.includes("RECHAZADO");
+
+                    // ✅ Solo se puede gestionar pago si:
+                    //   - el usuario es VENDEDOR (puedeCobrar === true)
+                    //   - la orden NO está pendiente por aprobación
+                    //   - la orden NO está rechazada
+                    const puedeGestionarPago =
+                      puedeCobrar && !esPendientePorAprobacionFila && !esRechazadaFila;
+
+                    return (
+                      <tr
+                        key={o.id_orden}
+                        style={{
+                          borderBottom: "1px solid #f1f5f9",
+                          backgroundColor: isSelected
+                            ? "#eff6ff"
+                            : idx % 2 === 0
+                            ? "#ffffff"
+                            : "#fafafa",
+                          borderLeft: isSelected
+                            ? "4px solid #2563eb"
+                            : "4px solid transparent",
+                          cursor: "pointer",
+                          transition: "background 0.1s",
+                        }}
+                        onClick={() => verDetallesOrden(o.id_orden)}
+                      >
+                        <td style={styles.tdBold}>#{o.id_orden}</td>
+
                         <td style={styles.td}>
                           <button
                             style={styles.linkButton}
                             onClick={(e) => {
                               e.stopPropagation();
-                              abrirModalVendedor(
-                                o.vendedor_detalle || o.id_usuario
-                              );
+                              abrirModalCliente(o.id_cliente);
                             }}
                           >
-                            {nombreVendedor(o.id_usuario)}
+                            {nombreCliente(o.id_cliente)}
                           </button>
                           <div style={styles.helperText}>
                             Click para ver info
                           </div>
                         </td>
-                      )}
 
-                      <td style={styles.td}>{o.metodo_pago}</td>
-                      <td style={styles.td}>
-                        {o.fecha_orden
-                          ? String(o.fecha_orden).slice(0, 10)
-                          : ""}
-                      </td>
-                      <td style={styles.tdAmount}>
-                        $ {Number(o.precio_final || 0).toFixed(2)}
-                      </td>
+                        {esGerencia && (
+                          <td style={styles.td}>
+                            <button
+                              style={styles.linkButton}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                abrirModalVendedor(
+                                  o.vendedor_detalle || o.id_usuario
+                                );
+                              }}
+                            >
+                              {nombreVendedor(o.id_usuario)}
+                            </button>
+                            <div style={styles.helperText}>
+                              Click para ver info
+                            </div>
+                          </td>
+                        )}
 
-                      <td style={styles.td}>
-                        <span
-                          style={{
-                            ...styles.badge,
-                            backgroundColor: envioStyle.bg,
-                            color: envioStyle.text,
-                          }}
-                        >
-                          {o.estado_de_envio?.replace(/_/g, " ")}
-                        </span>
-                      </td>
-                      <td style={styles.td}>
-                        <span
-                          style={{
-                            ...styles.badge,
-                            backgroundColor: pagoStyle.bg,
-                            color: pagoStyle.text,
-                          }}
-                        >
-                          {o.estado_de_pago?.replace(/_/g, " ")}
-                        </span>
-                      </td>
+                        <td style={styles.td}>{o.metodo_pago}</td>
+                        <td style={styles.td}>
+                          {o.fecha_orden ? String(o.fecha_orden).slice(0, 10) : ""}
+                        </td>
+                        <td style={styles.tdAmount}>
+                          $ {Number(o.precio_final || 0).toFixed(2)}
+                        </td>
 
-                      <td style={styles.tdAction}>
-                        <button
-                          style={{
-                            ...styles.btnSmall,
-                            backgroundColor: "#ecfdf5",
-                            color: "#166534",
-                            cursor: puedeCobrar ? "pointer" : "not-allowed",
-                            opacity: puedeCobrar ? 1 : 0.6,
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            abrirModalPago(o);
-                          }}
-                          disabled={!puedeCobrar}
-                        >
-                          Gestionar pago
-                        </button>
-                      </td>
+                        <td style={styles.td}>
+                          <span
+                            style={{
+                              ...styles.badge,
+                              backgroundColor: envioStyle.bg,
+                              color: envioStyle.text,
+                            }}
+                          >
+                            {o.estado_de_envio?.replace(/_/g, " ")}
+                          </span>
+                        </td>
+                        <td style={styles.td}>
+                          <span
+                            style={{
+                              ...styles.badge,
+                              backgroundColor: pagoStyle.bg,
+                              color: pagoStyle.text,
+                            }}
+                          >
+                            {o.estado_de_pago?.replace(/_/g, " ")}
+                          </span>
+                        </td>
 
-                      <td style={styles.tdAction}>
-                        <button
-                          style={{
-                            ...styles.iconBtn,
-                            color: puedeEditar ? "#0f766e" : "#cbd5e1",
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            abrirModalEditar(o);
-                          }}
-                          disabled={!puedeEditar}
-                        >
-                          <IconEdit />
-                        </button>
-                      </td>
+                        <td style={styles.tdAction}>
+                          <button
+                            style={{
+                              ...styles.btnSmall,
+                              backgroundColor: "#ecfdf5",
+                              color: "#166534",
+                              cursor: puedeGestionarPago ? "pointer" : "not-allowed",
+                              opacity: puedeGestionarPago ? 1 : 0.6,
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!puedeGestionarPago) return;
+                              abrirModalPago(o);
+                            }}
+                            disabled={!puedeGestionarPago}
+                          >
+                            Gestionar pago
+                          </button>
+                        </td>
 
-                      <td style={styles.tdAction}>
-                        <button
-                          style={deleteButtonStyle}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            abrirModalEliminar(o);
-                          }}
-                          disabled={!puedeEditar}
-                        >
-                          Eliminar
-                        </button>
-                      </td>
+                        <td style={styles.tdAction}>
+                          <button
+                            style={{
+                              ...styles.iconBtn,
+                              color: puedeEditar ? "#0f766e" : "#cbd5e1",
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              abrirModalEditar(o);
+                            }}
+                            disabled={!puedeEditar}
+                          >
+                            <IconEdit />
+                          </button>
+                        </td>
 
-                      <td style={styles.tdAction}>
-                        <button
-                          style={{
-                            ...styles.iconBtn,
-                            color: isSelected ? "#2563eb" : "#64748b",
-                          }}
-                        >
-                          <IconEye />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        <td style={styles.tdAction}>
+                          <button
+                            style={deleteButtonStyle}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              abrirModalEliminar(o);
+                            }}
+                            disabled={!puedeEditar}
+                          >
+                            Eliminar
+                          </button>
+                        </td>
+
+                        <td style={styles.tdAction}>
+                          <button
+                            style={{
+                              ...styles.iconBtn,
+                              color: isSelected ? "#2563eb" : "#64748b",
+                            }}
+                          >
+                            <IconEye />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
@@ -2022,12 +2061,14 @@ export default function ListadoOrdenes() {
                           0
                         );
 
+                        const prodId = d.id_producto?.id_producto || d.id_producto;
+                        const prod = productos.find((p) => p.id_producto === prodId);
+                        const nombreProducto =
+                          prod?.nombre || d.id_producto?.nombre || d.producto || "-";
+                        const skuProducto = prod?.sku || d.id_producto?.sku || "s/SKU";
+
                         let precioUnitario = Number(d.precio_unitario || 0);
                         if (!precioUnitario) {
-                          const prodId = d.id_producto?.id_producto || d.id_producto;
-                          const prod = productos.find(
-                            (p) => p.id_producto === prodId
-                          );
                           if (prod && prod.precio_venta) {
                             precioUnitario = Number(prod.precio_venta || 0);
                           }
@@ -2038,6 +2079,14 @@ export default function ListadoOrdenes() {
                             ? Number(d.subtotal)
                             : precioUnitario * cantidad;
                         const subtotalDevuelto = precioUnitario * cantidadDevuelta;
+
+                        let pesoUnitario = Number(d.peso_unitario || 0);
+                        if (!pesoUnitario) {
+                          if (prod && prod.peso_unidad) {
+                            pesoUnitario = Number(prod.peso_unidad || 0);
+                          }
+                        }
+                        const pesoSubtotal = pesoUnitario * cantidad;
 
                         const esDevuelto = cantidadDevuelta > 0;
 
@@ -2050,7 +2099,16 @@ export default function ListadoOrdenes() {
                             }}
                           >
                             <td style={styles.tdDetalle}>
-                              {d.id_producto?.nombre || d.producto || "-"}
+                              <div style={{ fontWeight: 600, color: "#0f172a" }}>
+                                {nombreProducto}
+                              </div>
+                              <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: 2 }}>
+                                SKU: <strong>{skuProducto}</strong>
+                                {" · "}
+                                Peso unidad: <strong>{pesoUnitario.toFixed(2)} kg</strong>
+                                {" · "}
+                                Peso subtotal: <strong>{pesoSubtotal.toFixed(2)} kg</strong>
+                              </div>
                             </td>
                             <td
                               style={{
@@ -2141,34 +2199,60 @@ export default function ListadoOrdenes() {
                       </tr>
                     </thead>
                     <tbody>
-                      {detallesOrdenSeleccionada.map((d, i) => (
-                        <tr
-                          key={i}
-                          style={{ borderBottom: "1px solid #f1f5f9" }}
-                        >
-                          <td style={styles.tdDetalle}>
-                            {d.id_producto?.nombre || d.producto || "-"}
-                          </td>
-                          <td
-                            style={{
-                              ...styles.tdDetalle,
-                              textAlign: "center",
-                            }}
+                      {detallesOrdenSeleccionada.map((d, i) => {
+                        const cantidad = Number(d.cantidad || 0);
+                        const prodId = d.id_producto?.id_producto || d.id_producto;
+                        const prod = productos.find((p) => p.id_producto === prodId);
+                        const nombreProducto =
+                          prod?.nombre || d.id_producto?.nombre || d.producto || "-";
+                        const skuProducto = prod?.sku || d.id_producto?.sku || "s/SKU";
+
+                        let pesoUnitario = Number(d.peso_unitario || 0);
+                        if (!pesoUnitario) {
+                          if (prod && prod.peso_unidad) {
+                            pesoUnitario = Number(prod.peso_unidad || 0);
+                          }
+                        }
+                        const pesoSubtotal = pesoUnitario * cantidad;
+
+                        return (
+                          <tr
+                            key={i}
+                            style={{ borderBottom: "1px solid #f1f5f9" }}
                           >
-                            {d.cantidad}
-                          </td>
-                          <td
-                            style={{
-                              ...styles.tdDetalle,
-                              textAlign: "right",
-                              fontWeight: 600,
-                              color: "#0f172a",
-                            }}
-                          >
-                            $ {Number(d.subtotal).toFixed(2)}
-                          </td>
-                        </tr>
-                      ))}
+                            <td style={styles.tdDetalle}>
+                              <div style={{ fontWeight: 600, color: "#0f172a" }}>
+                                {nombreProducto}
+                              </div>
+                              <div style={{ fontSize: "0.8rem", color: "#64748b", marginTop: 2 }}>
+                                SKU: <strong>{skuProducto}</strong>
+                                {" · "}
+                                Peso unidad: <strong>{pesoUnitario.toFixed(2)} kg</strong>
+                                {" · "}
+                                Peso subtotal: <strong>{pesoSubtotal.toFixed(2)} kg</strong>
+                              </div>
+                            </td>
+                            <td
+                              style={{
+                                ...styles.tdDetalle,
+                                textAlign: "center",
+                              }}
+                            >
+                              {d.cantidad}
+                            </td>
+                            <td
+                              style={{
+                                ...styles.tdDetalle,
+                                textAlign: "right",
+                                fontWeight: 600,
+                                color: "#0f172a",
+                              }}
+                            >
+                              $ {Number(d.subtotal).toFixed(2)}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}

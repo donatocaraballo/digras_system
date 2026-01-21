@@ -220,23 +220,7 @@ class ClienteViewSet(BaseViewSet):
 
         tipo = getattr(usuario, "tipo", None)
 
-        if tipo == "VENDEDOR":
-            base_qs = Cliente.objects.filter(id_usuario=usuario)
-        elif tipo in ["GERENTE", "ADMINISTRADOR"]:
-            base_qs = Cliente.objects.all()
-        elif tipo == "ALMACENISTA":
-            base_qs = Cliente.objects.filter(
-                orden__cancelacion=False,
-                orden__estado_de_envio__in=[
-                    "APROBADA",
-                    "PREPARADA",
-                    ESTADO_ORDEN_ASIGNADA_ENVIO,
-                    "EN_CURSO",
-                ],
-            ).distinct()
-        else:
-            return Cliente.objects.none()
-
+        # Estados que consideramos "activos" para asociar clientes
         estados_activos = [
             "PENDIENTE POR APROBACION",
             "PENDIENTE POR APROBACIÓN",
@@ -246,9 +230,25 @@ class ClienteViewSet(BaseViewSet):
             "EN_CURSO",
         ]
 
+        # Base según el tipo de usuario
+        if tipo == "VENDEDOR":
+            base_qs = Cliente.objects.filter(id_usuario=usuario)
+        elif tipo in ["GERENTE", "ADMINISTRADOR"]:
+            base_qs = Cliente.objects.all()
+        elif tipo == "ALMACENISTA":
+            # 👇 Ajuste clave:
+            # El almacenista puede ver clientes que tengan órdenes activas
+            # en los estados definidos en `estados_activos` (incluye PENDIENTE, APROBADA, PREPARADA, ASIGNADA_A_ENVIO, EN_CURSO)
+            base_qs = Cliente.objects.filter(
+                orden__cancelacion=False,
+                orden__estado_de_envio__in=estados_activos,
+            ).distinct()
+        else:
+            return Cliente.objects.none()
+
+        # Anotaciones (totales, activas, pendientes de pago)
         return base_qs.annotate(
             total_ordenes=Count("orden", distinct=True),
-
             ordenes_activas=Count(
                 "orden",
                 filter=Q(
@@ -257,8 +257,6 @@ class ClienteViewSet(BaseViewSet):
                 ),
                 distinct=True,
             ),
-
-            # 👇 NUEVO: órdenes pendientes por pagar (incluye PENDIENTE y PAGO EN CURSO)
             ordenes_pendientes_pago=Count(
                 "orden",
                 filter=Q(
@@ -551,11 +549,17 @@ class OrdenViewSet(BaseViewSet):
 
     @action(detail=True, methods=["post"])
     def preparar(self, request, pk=None):
+        """
+        Marca la orden como PREPARADA (uso de Almacén).
+        """
         orden = self.get_object()
-        # Aquí podrías validar permisos de almacenista
+        # Aquí podrías validar permisos de almacenista si lo deseas
         orden.estado_de_envio = ESTADO_ORDEN_DISPONIBLE_PARA_ENVIO  # "PREPARADA"
-        orden.save()
-        return Response({"mensaje": "Orden marcada como PREPARADA"})
+        orden.save(update_fields=["estado_de_envio"])
+        return Response(
+            {"mensaje": "Orden marcada como PREPARADA."},
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=["post"])
     def cancelar(self, request, pk=None):
@@ -1084,6 +1088,9 @@ class EnvioViewSet(BaseViewSet):
 
     @action(detail=True, methods=["post"], url_path="marcar_listo_salida")
     def marcar_listo_salida(self, request, pk=None):
+        """
+        Marca el envío como LISTO_PARA_SALIR (uso de Almacén).
+        """
         usuario = request.user
         if not self._es_almacenista(usuario):
             raise PermissionDenied(
@@ -1100,7 +1107,10 @@ class EnvioViewSet(BaseViewSet):
         envio.save(update_fields=["estado"])
         self._sync_unidad_estado_por_envio(envio)
 
-        return Response({"mensaje": "Envío marcado como LISTO."}, status=status.HTTP_200_OK)
+        return Response(
+            {"mensaje": "Envío marcado como LISTO PARA SALIR."},
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=["post"], url_path="marcar_terminado")
     def marcar_terminado(self, request, pk=None):

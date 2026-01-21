@@ -489,7 +489,7 @@ const styles = {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 4000,
+    zIndex: 12000,
     padding: "18px",
   },
   modal: {
@@ -1431,14 +1431,29 @@ export default function TransporteEnvios() {
     });
 
     list = list.slice().sort((a, b) => {
-      const da = a.fecha_salida
-        ? new Date(a.fecha_salida)
-        : new Date(0);
-      const db = b.fecha_salida
-        ? new Date(b.fecha_salida)
-        : new Date(0);
-      if (sortEnvio === "antiguos") return da - db;
-      return db - da;
+      const da = a.fecha_salida ? new Date(a.fecha_salida) : new Date(0);
+      const db = b.fecha_salida ? new Date(b.fecha_salida) : new Date(0);
+    
+      const ta = da.getTime();
+      const tb = db.getTime();
+    
+      // Usamos id_envio (o id) como desempate dentro del mismo día,
+      // para simular “hora” de creación (más alto = más reciente).
+      const ida = toNumber(a.id_envio ?? a.id);
+      const idb = toNumber(b.id_envio ?? b.id);
+    
+      if (sortEnvio === "antiguos") {
+        if (ta === tb) {
+          return ida - idb; // menor id primero = más antiguo
+        }
+        return ta - tb; // fecha más vieja primero
+      }
+    
+      // sortEnvio === "recientes"
+      if (ta === tb) {
+        return idb - ida; // mayor id primero = más reciente
+      }
+      return tb - ta; // fecha más nueva primero
     });
 
     return list;
@@ -1773,37 +1788,105 @@ export default function TransporteEnvios() {
       function ChoferSelectorModal({ open, onClose, onConfirm }) {
         const [localChoferId, setLocalChoferId] = useState("");
         const [localError, setLocalError] = useState("");
+
+        const [nuevoForm, setNuevoForm] = useState({
+          username: "",
+          first_name: "",
+          last_name: "",
+          telefono: "",
+          password: "",
+        });
+        const [nuevoError, setNuevoError] = useState("");
+        const [creating, setCreating] = useState(false);
+
+        // Exponer setters (por si se usan desde fuera, mantenemos la estructura)
         setChoferId = setLocalChoferId;
         setModalError = setLocalError;
+
         // Solo mostrar transportistas que NO estén asignados a otra unidad activa (excepto esta)
         const disponibles = transportistas.filter((t) => {
           const tid = String(t.id_usuario ?? t.id);
           return !unidades.some(
             (u) =>
               String(u.id_usuario) === tid &&
-              String(u.id_unidad) !==
-                String(unidad.id_unidad) &&
+              String(u.id_unidad) !== String(unidad.id_unidad) &&
               normEstado(u.estado) !== "INACTIVA"
           );
         });
+
+        const handleSubmitAsignar = (e) => {
+          e.preventDefault();
+          if (!localChoferId) {
+            setLocalError("Selecciona un chofer para asignar.");
+            return;
+          }
+          onConfirm(localChoferId);
+        };
+
+        const handleCrearNuevo = async (e) => {
+          e.preventDefault();
+          setNuevoError("");
+
+          if (
+            !nuevoForm.username ||
+            !nuevoForm.first_name ||
+            !nuevoForm.last_name ||
+            !nuevoForm.telefono ||
+            !nuevoForm.password
+          ) {
+            setNuevoError(
+              "Todos los campos del nuevo transportista son obligatorios."
+            );
+            return;
+          }
+
+          const payload = {
+            username: nuevoForm.username,
+            first_name: nuevoForm.first_name,
+            last_name: nuevoForm.last_name,
+            telefono: nuevoForm.telefono,
+            password: nuevoForm.password,
+            tipo: "TRANSPORTISTA",
+          };
+
+          try {
+            setCreating(true);
+            const res = await api.post("/base/usuarios/", payload);
+            toast.success("Transportista creado.");
+            await logAccion(
+              "Crear transportista",
+              `Se creó el transportista ${payload.username}.`,
+              res.data?.id_usuario ?? null,
+              "Usuarios"
+            );
+
+            // Recargar lista de transportistas y seleccionar el nuevo
+            await cargarTransportistas();
+            const idNuevo = res.data?.id_usuario ?? res.data?.id;
+            if (idNuevo) {
+              setLocalChoferId(String(idNuevo));
+              setLocalError("");
+            }
+          } catch (err) {
+            const msg = getBackendMessage(err);
+            setNuevoError(
+              msg || "No se pudo crear el transportista."
+            );
+            toast.error(msg || "No se pudo crear el transportista.");
+          } finally {
+            setCreating(false);
+          }
+        };
+
         return (
           <ModalShell
             open={open}
             title="Asignar chofer a unidad"
-            subtitle={`Selecciona un chofer disponible para la unidad ${unidad.codigo_unidad}`}
+            subtitle={`Selecciona o crea un chofer disponible para la unidad ${unidad.codigo_unidad}`}
             onClose={onClose}
-            maxWidth={400}
+            maxWidth={460}
           >
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!localChoferId) {
-                  setLocalError("Selecciona un chofer para asignar.");
-                  return;
-                }
-                onConfirm(localChoferId);
-              }}
-            >
+            <form onSubmit={handleSubmitAsignar}>
               <label style={styles.label}>Chofer disponible</label>
               <select
                 style={styles.select}
@@ -1816,9 +1899,9 @@ export default function TransporteEnvios() {
                 <option value="">Selecciona chofer</option>
                 {disponibles.map((t) => {
                   const tid = t.id_usuario ?? t.id;
-                  const nombre = `${t.first_name || ""} ${
-                    t.last_name || ""
-                  }`.trim() || t.username;
+                  const nombre =
+                    `${t.first_name || ""} ${t.last_name || ""}`.trim() ||
+                    t.username;
                   return (
                     <option key={tid} value={tid}>
                       {nombre} ({t.username})
@@ -1829,15 +1912,140 @@ export default function TransporteEnvios() {
               {localError ? (
                 <div style={styles.errorText}>{localError}</div>
               ) : null}
+
+              {/* Bloque para crear un nuevo transportista */}
+              <div
+                style={{
+                  marginTop: 14,
+                  paddingTop: 14,
+                  borderTop: "1px solid #e2e8f0",
+                  marginBottom: 8,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "0.8rem",
+                    fontWeight: 900,
+                    color: "#475569",
+                    marginBottom: 6,
+                  }}
+                >
+                  Crear nuevo transportista
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.78rem",
+                    color: "#64748b",
+                    marginBottom: 10,
+                  }}
+                >
+                  Si el chofer aún no está registrado, puedes crearlo aquí mismo.
+                </div>
+
+                <div style={{ display: "grid", gap: 8 }}>
+                  <div>
+                    <label style={styles.label}>Usuario</label>
+                    <input
+                      style={styles.input}
+                      value={nuevoForm.username}
+                      onChange={(e) =>
+                        setNuevoForm((prev) => ({
+                          ...prev,
+                          username: e.target.value,
+                        }))
+                      }
+                      placeholder="Nombre de usuario"
+                    />
+                  </div>
+                  <div>
+                    <label style={styles.label}>Nombre</label>
+                    <input
+                      style={styles.input}
+                      value={nuevoForm.first_name}
+                      onChange={(e) =>
+                        setNuevoForm((prev) => ({
+                          ...prev,
+                          first_name: e.target.value,
+                        }))
+                      }
+                      placeholder="Nombre"
+                    />
+                  </div>
+                  <div>
+                    <label style={styles.label}>Apellido</label>
+                    <input
+                      style={styles.input}
+                      value={nuevoForm.last_name}
+                      onChange={(e) =>
+                        setNuevoForm((prev) => ({
+                          ...prev,
+                          last_name: e.target.value,
+                        }))
+                      }
+                      placeholder="Apellido"
+                    />
+                  </div>
+                  <div>
+                    <label style={styles.label}>Teléfono</label>
+                    <input
+                      style={styles.input}
+                      value={nuevoForm.telefono}
+                      onChange={(e) =>
+                        setNuevoForm((prev) => ({
+                          ...prev,
+                          telefono: e.target.value,
+                        }))
+                      }
+                      placeholder="Teléfono de contacto"
+                    />
+                  </div>
+                  <div>
+                    <label style={styles.label}>Contraseña</label>
+                    <input
+                      type="password"
+                      style={styles.input}
+                      value={nuevoForm.password}
+                      onChange={(e) =>
+                        setNuevoForm((prev) => ({
+                          ...prev,
+                          password: e.target.value,
+                        }))
+                      }
+                      placeholder="Contraseña inicial"
+                    />
+                  </div>
+                </div>
+
+                {nuevoError ? (
+                  <div style={styles.errorText}>{nuevoError}</div>
+                ) : null}
+              </div>
+
               <div style={styles.modalActions}>
                 <button
                   type="button"
                   style={styles.buttonGhost}
                   onClick={onClose}
+                  disabled={creating}
                 >
                   Cancelar
                 </button>
-                <button type="submit" style={styles.buttonPrimary}>
+                <button
+                  type="button"
+                  style={{
+                    ...styles.buttonPrimary,
+                    ...(creating ? styles.buttonDisabled : {}),
+                  }}
+                  disabled={creating}
+                  onClick={handleCrearNuevo}
+                >
+                  {creating ? "Creando..." : "Crear transportista"}
+                </button>
+                <button
+                  type="submit"
+                  style={styles.buttonPrimary}
+                  disabled={creating}
+                >
                   Asignar y activar
                 </button>
               </div>
@@ -2418,6 +2626,7 @@ export default function TransporteEnvios() {
           const enviosData = await cargarEnvios();
           await cargarUnidades();
           await syncEstadosUnidadesConEnvios(enviosData);
+          setEnvioSeleccionado(null);
           closeConfirm();
         } catch (err) {
           toast.error(
