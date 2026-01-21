@@ -131,7 +131,8 @@ function CreateProductModal({ isOpen, onClose, onProductCreated, existingProduct
 
     return ReactDOM.createPortal(
         <div style={styles.overlay}>
-            <div style={styles.modal}>
+            {/* 🚨 CLASE RESPONSIVA PARA EL MODAL */}
+            <div className="modal-content-responsive" style={{maxWidth: '600px'}}>
                 <div style={styles.header}>
                     <div style={{display:'flex', alignItems:'center', gap:'12px'}}>
                         <div style={styles.iconBox}><IconBox /></div>
@@ -144,8 +145,9 @@ function CreateProductModal({ isOpen, onClose, onProductCreated, existingProduct
                 </div>
 
                 <form onSubmit={handleSubmit} style={styles.formContent}>
-                    <div style={styles.formGrid}>
-                        <div style={{gridColumn: 'span 2'}}>
+                    {/* 🚨 GRILLA RESPONSIVA PARA LOS CAMPOS */}
+                    <div className="form-grid-responsive">
+                        <div style={{gridColumn: '1 / -1'}}>
                             <label style={styles.label}>Nombre del Producto</label>
                             <input 
                                 type="text" 
@@ -179,7 +181,7 @@ function CreateProductModal({ isOpen, onClose, onProductCreated, existingProduct
                                 placeholder="0.00"
                             />
                         </div>
-                        <div style={{gridColumn: 'span 2'}}>
+                        <div style={{gridColumn: '1 / -1'}}>
                             <label style={styles.label}>Peso Unidad (Kg) <span style={{color:'red'}}>*</span></label>
                             <input 
                                 type="number" 
@@ -234,12 +236,8 @@ const styles = {
         display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999,
         animation: 'fadeIn 0.2s ease-out'
     },
-    modal: {
-        backgroundColor: '#ffffff', width: '550px', maxHeight: '90vh',
-        borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        border: '1px solid rgba(255, 255, 255, 0.1)', position: 'relative'
-    },
+    // El modal principal se controla con la clase CSS .modal-content-responsive
+    
     header: {
         padding: '24px 30px', borderBottom: '1px solid #e2e8f0',
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
@@ -258,7 +256,7 @@ const styles = {
         boxShadow: '0 2px 5px rgba(0,0,0,0.05)'
     },
     formContent: { padding: '30px', overflowY: 'auto' },
-    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' },
+    
     label: { display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#334155', marginBottom: '6px', textTransform:'uppercase', letterSpacing:'0.5px' },
     input: { width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '0.95rem', color: '#1e293b', outline: 'none', transition: 'all 0.2s', boxSizing: 'border-box', backgroundColor: '#fff' },
     select: { width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '0.95rem', color: '#1e293b', outline: 'none', backgroundColor:'#fff', cursor:'pointer', boxSizing: 'border-box' },

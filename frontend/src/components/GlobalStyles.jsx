@@ -17,6 +17,7 @@ const GlobalStyles = () => (
       color: #0f172a;
       -webkit-font-smoothing: antialiased;
       overflow-x: hidden; /* Evita scroll horizontal */
+      min-width: 320px;
     }
 
     @keyframes gradientBG {
@@ -72,6 +73,122 @@ const GlobalStyles = () => (
     ::selection {
       background: #3b82f6;
       color: white;
+    }
+
+    /* =========================================
+       5. SISTEMA RESPONSIVO (NUEVO)
+       ========================================= */
+
+    /* A. Contenedores */
+    .page-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px 32px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    /* B. Grillas Inteligentes */
+    .grid-responsive {
+      display: grid;
+      gap: 24px;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    }
+
+    .form-grid-responsive {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    /* C. Tablas Responsivas (Scroll Horizontal) */
+    .table-responsive-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      background: white;
+    }
+    
+    .table-responsive {
+      width: 100%;
+      border-collapse: collapse;
+      white-space: nowrap;
+    }
+
+    /* D. Modales Adaptables */
+    .modal-content-responsive {
+      width: 100%;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      padding: 30px;
+      max-height: 90vh;
+      overflow-y: auto;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* E. Toolbar (Buscador + Botones) */
+    .toolbar-responsive {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 25px;
+    }
+
+    /* =========================================
+       6. MEDIA QUERIES (MÓVIL Y TABLET)
+       ========================================= */
+
+    /* Tablet (Menos de 1024px) */
+    @media (max-width: 1024px) {
+      .page-container {
+        padding: 20px;
+      }
+    }
+
+    /* Celular (Menos de 768px) */
+    @media (max-width: 768px) {
+      /* Layout */
+      .page-container {
+        padding: 16px 12px;
+      }
+
+      /* Formularios a 1 columna */
+      .form-grid-responsive {
+        grid-template-columns: 1fr !important;
+        gap: 15px;
+      }
+
+      /* Toolbars verticales */
+      .toolbar-responsive {
+        flex-direction: column;
+        align-items: stretch !important;
+        gap: 12px;
+      }
+      .toolbar-responsive > div, 
+      .toolbar-responsive > button,
+      .toolbar-responsive input {
+        width: 100% !important;
+      }
+
+      /* Modales Full Width */
+      .modal-content-responsive {
+        padding: 20px !important;
+        max-width: 95vw !important;
+        width: 95vw !important;
+      }
+
+      /* Ajuste de textos */
+      h1 { font-size: 1.75rem !important; }
+      h2 { font-size: 1.5rem !important; }
+      h3 { font-size: 1.25rem !important; }
+      
+      .hide-on-mobile {
+        display: none !important;
+      }
     }
   `}</style>
 );

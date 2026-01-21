@@ -166,7 +166,7 @@ export default function Notificaciones() {
     };
 
     return (
-        <div style={styles.page}>
+        <div className="page-container" style={{maxWidth: '900px'}}>
             <div style={styles.header}>
                 <button onClick={() => navigate(-1)} style={styles.backBtn} title="Volver">
                     <IconArrowLeft />
@@ -180,7 +180,7 @@ export default function Notificaciones() {
                 </div>
             </div>
 
-            <div style={styles.card}>
+            <div className="card-responsive" style={{minHeight:'400px'}}>
                 {loading ? (
                     <div style={styles.empty}>
                         <div style={{marginBottom: 10, fontSize: '1.2rem'}}>⏳</div>
@@ -201,31 +201,39 @@ export default function Notificaciones() {
                                      n.type === 'warning' ? <IconWarning /> : 
                                      n.type === 'danger' ? <IconAlert /> : <IconInfo />}
                                 </div>
-                                <div style={{flex:1}}>
+                                <div style={{flex:1, minWidth:0}}> {/* minWidth:0 previene desbordamiento de texto en flex */}
                                     <div style={styles.itemHeader}>
                                         <span style={styles.itemTitle}>{n.title}</span>
-                                        <span style={styles.itemDateMobile}>{n.date}</span>
+                                        {/* Fecha visible en móvil */}
+                                        <span className="mobile-date" style={styles.itemDateMobile}>{n.date}</span>
                                     </div>
                                     <div style={styles.itemMsg}>{n.msg}</div>
                                 </div>
-                                <div style={styles.itemDate}>{n.date}</div>
+                                {/* Fecha visible en desktop */}
+                                <div className="desktop-date" style={styles.itemDate}>{n.date}</div>
                             </div>
                         ))}
                     </div>
                 )}
             </div>
+
+            {/* Estilos adicionales para manejo de fecha responsiva */}
+            <style>{`
+                @media (max-width: 600px) {
+                    .desktop-date { display: none !important; }
+                    .mobile-date { display: block !important; margin-left: auto; font-size: 0.75rem; color: #94a3b8; }
+                }
+                @media (min-width: 601px) {
+                    .mobile-date { display: none !important; }
+                }
+            `}</style>
         </div>
     );
 }
 
 const styles = {
-    page: { 
-        padding: '40px 20px', 
-        maxWidth: '900px', 
-        margin: '0 auto', 
-        fontFamily: "'Inter', sans-serif",
-        animation: 'fadeIn 0.3s ease-out'
-    },
+    // page-container controla el layout principal
+    
     header: { 
         display: 'flex', 
         gap: '20px', 
@@ -275,14 +283,7 @@ const styles = {
         fontSize: '0.95rem' 
     },
     
-    card: { 
-        backgroundColor: '#fff', 
-        borderRadius: '24px', 
-        boxShadow: '0 10px 40px -10px rgba(0,0,0,0.08)', 
-        overflow: 'hidden', 
-        border: '1px solid #e2e8f0', 
-        minHeight: '400px' 
-    },
+    // card-responsive controla el contenedor de la lista
     
     list: { 
         display: 'flex', 
@@ -295,7 +296,7 @@ const styles = {
         alignItems: 'flex-start', 
         gap: '20px', 
         transition: 'background 0.2s',
-        ':hover': { backgroundColor: '#f8fafc' }
+        cursor: 'default'
     },
     
     iconBox: { 
@@ -305,23 +306,27 @@ const styles = {
         border: '1px solid #e2e8f0',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        flexShrink: 0
     },
     itemHeader: {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: '6px'
+        marginBottom: '6px',
+        flexWrap: 'wrap'
     },
     itemTitle: { 
         fontWeight: '700', 
         color: '#0f172a', 
-        fontSize: '1rem' 
+        fontSize: '1rem',
+        marginRight: '10px'
     },
     itemMsg: { 
         color: '#475569', 
         fontSize: '0.95rem', 
-        lineHeight: '1.5' 
+        lineHeight: '1.5',
+        wordBreak: 'break-word' // Evita desbordamiento de textos largos
     },
     itemDate: { 
         fontSize: '0.8rem', 
@@ -329,11 +334,6 @@ const styles = {
         whiteSpace: 'nowrap',
         marginTop: '4px',
         fontWeight: '500'
-    },
-    itemDateMobile: {
-        display: 'none', // Se mostrará con media query
-        fontSize: '0.75rem',
-        color: '#94a3b8'
     },
     
     empty: { 
@@ -346,14 +346,3 @@ const styles = {
         alignItems: 'center'
     }
 };
-
-// Media queries inyectadas
-const styleSheet = document.createElement("style");
-styleSheet.innerText = `
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    @media (max-width: 600px) {
-        .item-date { display: none !important; }
-        .item-date-mobile { display: block !important; }
-    }
-`;
-document.head.appendChild(styleSheet);

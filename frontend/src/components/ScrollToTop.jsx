@@ -12,11 +12,10 @@ const IconArrowUp = () => (
 const styles = {
   button: {
     position: 'fixed',
-    bottom: '40px',
-    right: '40px',
+    // 🚨 Bottom y Right movidos al CSS para control responsive
     width: '50px',
     height: '50px',
-    backgroundColor: '#0f172a', // Tu color oscuro principal
+    backgroundColor: '#0f172a', 
     color: '#ffffff',
     borderRadius: '50%',
     border: '1px solid #1e293b',
@@ -24,12 +23,12 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)', // Sombra elegante
-    zIndex: 9999, // Por encima de casi todo
+    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)', 
+    zIndex: 9999, 
     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     opacity: 0,
     transform: 'translateY(20px) scale(0.8)',
-    pointerEvents: 'none', // No clickeable si está invisible
+    pointerEvents: 'none', 
   },
   visible: {
     opacity: 1,
@@ -37,7 +36,7 @@ const styles = {
     pointerEvents: 'auto',
   },
   hover: {
-    backgroundColor: '#2563eb', // Azul brillante al pasar mouse
+    backgroundColor: '#2563eb', 
     transform: 'translateY(-3px) scale(1.05)',
     boxShadow: '0 15px 30px rgba(37, 99, 235, 0.3)',
   }
@@ -49,7 +48,7 @@ export default function ScrollToTop() {
 
   // 1. Detectar scroll
   const toggleVisibility = () => {
-    if (window.pageYOffset > 300) { // Aparece después de bajar 300px
+    if (window.pageYOffset > 300) { 
       setIsVisible(true);
     } else {
       setIsVisible(false);
@@ -70,20 +69,39 @@ export default function ScrollToTop() {
   }, []);
 
   return (
-    <button 
-      type="button"
-      onClick={scrollToTop}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      style={{
-        ...styles.button, 
-        ...(isVisible ? styles.visible : {}),
-        ...(isVisible && isHovered ? styles.hover : {})
-      }}
-      title="Volver arriba"
-      aria-label="Volver arriba"
-    >
-      <IconArrowUp />
-    </button>
+    <>
+        <button 
+          type="button"
+          className="scroll-btn-responsive" // 🚨 Clase añadida
+          onClick={scrollToTop}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          style={{
+            ...styles.button, 
+            ...(isVisible ? styles.visible : {}),
+            ...(isVisible && isHovered ? styles.hover : {})
+          }}
+          title="Volver arriba"
+          aria-label="Volver arriba"
+        >
+          <IconArrowUp />
+        </button>
+
+        {/* 🚨 Estilos Responsivos Inyectados */}
+        <style>{`
+            .scroll-btn-responsive {
+                bottom: 40px;
+                right: 40px;
+            }
+            @media (max-width: 768px) {
+                .scroll-btn-responsive {
+                    bottom: 20px !important;
+                    right: 20px !important;
+                    width: 45px !important; /* Un poco más pequeño en móvil */
+                    height: 45px !important;
+                }
+            }
+        `}</style>
+    </>
   );
 }

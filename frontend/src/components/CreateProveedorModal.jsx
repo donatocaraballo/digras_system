@@ -96,10 +96,11 @@ function CreateProveedorModal({ isOpen, onClose, onProveedorCreated }) {
 
     if (!isOpen) return null;
 
-    // 🚨 RENDERIZADO VIA PORTAL
+    // 🚨 RENDERIZADO VIA PORTAL RESPONSIVO
     return ReactDOM.createPortal(
         <div style={styles.overlay}>
-            <div style={styles.modal}>
+            {/* 🚨 CLASE RESPONSIVA APLICADA AQUÍ */}
+            <div className="modal-content-responsive" style={{maxWidth: '650px'}}>
                 
                 <div style={styles.header}>
                     <div style={{display:'flex', alignItems:'center', gap:'12px'}}>
@@ -113,13 +114,14 @@ function CreateProveedorModal({ isOpen, onClose, onProveedorCreated }) {
                 </div>
 
                 <form onSubmit={handleSubmit} style={styles.formContent}>
-                    <div style={styles.formGrid}>
-                        <div style={{gridColumn: 'span 2'}}>
+                    {/* 🚨 GRILLA RESPONSIVA PARA FORMULARIO */}
+                    <div className="form-grid-responsive">
+                        <div style={{gridColumn: '1 / -1'}}>
                             <label style={styles.label}>Razón Social / Nombre <span style={{color:'red'}}>*</span></label>
                             <input name="nombre" value={formData.nombre} onChange={handleChange} style={styles.input} placeholder="Ej: Inversiones Globales C.A." autoFocus />
                         </div>
 
-                        <div style={{gridColumn: 'span 2'}}>
+                        <div style={{gridColumn: '1 / -1'}}>
                             <label style={styles.label}>Documento de Identidad <span style={{color:'red'}}>*</span></label>
                             <div style={{display: 'flex', gap: '10px'}}>
                                 <div style={{width: '70px'}}>
@@ -144,7 +146,7 @@ function CreateProveedorModal({ isOpen, onClose, onProveedorCreated }) {
                             <input name="correo" type="email" value={formData.correo} onChange={handleChange} style={styles.input} placeholder="Opcional" />
                         </div>
 
-                        <div style={{gridColumn: 'span 2', borderTop:'1px solid #e2e8f0', paddingTop:'15px', marginTop:'5px'}}>
+                        <div style={{gridColumn: '1 / -1', borderTop:'1px solid #e2e8f0', paddingTop:'15px', marginTop:'5px'}}>
                             <label style={{...styles.label, color:'#0f172a', fontSize:'0.9rem'}}>Ubicación Fiscal</label>
                         </div>
 
@@ -179,12 +181,8 @@ const styles = {
         display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999,
         animation: 'fadeIn 0.2s ease-out'
     },
-    modal: {
-        backgroundColor: '#ffffff', width: '650px', maxHeight: '90vh',
-        borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        border: '1px solid rgba(255, 255, 255, 0.1)'
-    },
+    // El modal principal se controla por clase CSS .modal-content-responsive
+    
     header: {
         padding: '24px', borderBottom: '1px solid #e2e8f0',
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
@@ -202,7 +200,7 @@ const styles = {
         transition: 'all 0.2s', display: 'flex', alignItems: 'center'
     },
     formContent: { padding: '30px', overflowY: 'auto' },
-    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' },
+    
     label: { display: 'block', fontSize: '0.8rem', fontWeight: '600', color: '#475569', marginBottom: '6px' },
     input: {
         width: '100%', padding: '12px', borderRadius: '10px',

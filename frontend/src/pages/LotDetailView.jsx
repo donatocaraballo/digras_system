@@ -144,7 +144,7 @@ function LotDetailView() {
     const totalStock = filteredLotes.reduce((acc, curr) => acc + (curr.estado === 'ACTIVO' ? curr.cantidad : 0), 0);
 
     return (
-        <div style={styles.container}>
+        <div className="page-container">
             <Toaster position="top-center" />
             
             {/* HEADER */}
@@ -168,11 +168,10 @@ function LotDetailView() {
                 </div>
             </div>
 
-            <div style={styles.card}>
-                {/* TOOLBAR SUPERIOR */}
-                <div style={styles.toolbar}>
+            <div className="card-responsive">
+                {/* TOOLBAR SUPERIOR RESPONSIVA */}
+                <div className="toolbar-responsive">
                     <div style={{flex: 1}}>
-                        {/* Componente de búsqueda existente, envuelto en estilo */}
                         <AdvancedSearchBar 
                             searchTerm={searchTerm}
                             onSearchChange={setSearchTerm}
@@ -196,9 +195,9 @@ function LotDetailView() {
                     </div>
                 </div>
 
-                {/* TABLA */}
-                <div style={styles.tableWrapper}>
-                    <table style={styles.table}>
+                {/* TABLA CON SCROLL RESPONSIVO */}
+                <div className="table-responsive-wrapper">
+                    <table className="table-responsive" style={styles.table}>
                         <thead>
                             <tr>
                                 <th style={styles.th}>N° Lote</th>
@@ -256,9 +255,9 @@ function LotDetailView() {
     );
 }
 
-// --- ESTILOS PREMIUM ---
+// --- ESTILOS ---
 const styles = {
-    container: { padding: "24px 32px", maxWidth: "1400px", margin: "0 auto", fontFamily: "'Inter', sans-serif" },
+    // page-container controla el layout
     
     header: { marginBottom: "32px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: 'wrap', gap: '20px' },
     titleGroup: { display: "flex", alignItems: "center", gap: "16px" },
@@ -271,18 +270,18 @@ const styles = {
     statLabel: { fontSize: '0.75rem', textTransform: 'uppercase', color: '#64748b', fontWeight: '700', marginBottom: '4px' },
     statValue: { fontSize: '1.5rem', fontWeight: '800', color: '#166534' },
 
-    card: { backgroundColor: "#ffffff", borderRadius: "20px", boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.05)", border: "1px solid #f1f5f9", overflow: "hidden", padding: '30px' },
+    // card-responsive para el contenido
     
-    toolbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '25px', gap: '20px', flexWrap: 'wrap' },
-
-    tableWrapper: { borderRadius: "12px", border: "1px solid #e2e8f0", overflowX: "auto" },
-    table: { width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" },
+    // toolbar-responsive para la barra
+    
+    // table-responsive-wrapper para la tabla
+    table: { width: "100%", borderCollapse: "collapse", fontSize: "0.9rem", minWidth: "800px" },
     th: { padding: "16px 24px", textAlign: "left", color: "#475569", fontWeight: "700", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc", textTransform: "uppercase", fontSize: "0.75rem" },
     td: { padding: "16px 24px", borderBottom: "1px solid #f1f5f9", color: "#334155", verticalAlign: "middle" },
     tr: { backgroundColor: '#fff' },
     rowAlt: { backgroundColor: "#f8fafc" },
     
-    btnGhost: { display: "flex", alignItems: "center", gap: "8px", padding: "10px 20px", backgroundColor: "transparent", color: "#64748b", border: "1px solid #cbd5e1", borderRadius: "10px", fontWeight: "600", cursor: "pointer", fontSize: '0.9rem', height: '42px' },
+    btnGhost: { display: "flex", alignItems: "center", gap: "8px", padding: "10px 20px", backgroundColor: "transparent", color: "#64748b", border: "1px solid #cbd5e1", borderRadius: "10px", fontWeight: "600", cursor: "pointer", fontSize: '0.9rem', height: '42px', whiteSpace: 'nowrap' },
     btnIcon: { width: "36px", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #e2e8f0", backgroundColor: "#fff", color: "#0f172a", borderRadius: "8px", cursor: "pointer", transition: 'background 0.2s', ':hover': {background: '#f1f5f9'} },
 
     emptyState: { padding: "50px", textAlign: "center", color: "#94a3b8", fontStyle: "italic" },

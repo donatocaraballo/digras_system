@@ -79,7 +79,6 @@ export default function CreateProductForm({ isOpen, onClose, onUpdate }) {
 
     const handleSwitchToCreate = () => {
         setEditingId(null);
-        // 🚨 Inicializamos peso_unidad
         setFormData(activeTab === 'productos' ? { precio_venta: 1.00, peso_unidad: 1.00, activo: true } : {});
         if (activeTab === 'productos' && marcasList.length === 0) fetchAuxiliaries();
         setViewMode('form');
@@ -132,12 +131,26 @@ export default function CreateProductForm({ isOpen, onClose, onUpdate }) {
             let endpoint = `${API_BASE}/${activeTab}/`;
             let payload = { ...formData };
 
-            if (activeTab === 'productos' && (!payload.id_marca || !payload.id_categoria)) {
-                toast.error("Marca y Categoría son obligatorias");
-                setIsSubmitting(false);
-                return;
+            // 1. Validaciones de Negocio previas
+            if (activeTab === 'productos') {
+                if (!payload.id_marca || !payload.id_categoria) {
+                    toast.error("Marca y Categoría son obligatorias");
+                    setIsSubmitting(false);
+                    return;
+                }
+                if (parseFloat(payload.precio_venta) < 0) {
+                    toast.error("El precio no puede ser negativo.");
+                    setIsSubmitting(false);
+                    return;
+                }
+                if (parseFloat(payload.peso_unidad) < 0) {
+                    toast.error("El peso no puede ser negativo.");
+                    setIsSubmitting(false);
+                    return;
+                }
             }
 
+            // 2. Enviar datos
             if (editingId) {
                 await axios.put(`${endpoint}${editingId}/`, payload);
                 toast.success("Registro actualizado exitosamente");
@@ -152,7 +165,45 @@ export default function CreateProductForm({ isOpen, onClose, onUpdate }) {
             setViewMode('list');
 
         } catch (error) {
-            const msg = error.response?.data ? JSON.stringify(error.response.data) : "Error al guardar";
+            console.error("Error guardando:", error);
+            
+            // --- 🚨 MANEJO DE ERRORES AMIGABLE (ADIÓS JSON) ---
+            let msg = "Error al guardar.";
+
+            if (error.response && error.response.data) {
+                const data = error.response.data;
+
+                // Caso: Nombre duplicado (Marcas / Categorías / Productos)
+                if (data.nombre) {
+                    const errText = Array.isArray(data.nombre) ? data.nombre[0] : data.nombre;
+                    // Django suele decir "inventory ... already exists."
+                    if (errText.toLowerCase().includes("exist")) {
+                        const entidad = activeTab === 'marcas' ? 'marca' : (activeTab === 'categorias' ? 'categoría' : 'producto');
+                        msg = `Ya existe una ${entidad} con este nombre.`;
+                    } else {
+                        msg = `Error en nombre: ${errText}`;
+                    }
+                } 
+                // Caso: SKU duplicado
+                else if (data.sku) {
+                    msg = "Este código SKU ya está registrado.";
+                } 
+                // Caso: Error genérico detallado
+                else if (data.detail) {
+                    msg = data.detail;
+                } 
+                // Fallback: Primer error disponible
+                else {
+                    const firstKey = Object.keys(data)[0];
+                    if (firstKey) {
+                        const errVal = Array.isArray(data[firstKey]) ? data[firstKey][0] : data[firstKey];
+                        msg = `${firstKey.toUpperCase()}: ${errVal}`;
+                    }
+                }
+            } else if (error.message) {
+                msg = error.message;
+            }
+
             toast.error(msg);
         } finally {
             setIsSubmitting(false);
@@ -183,7 +234,8 @@ export default function CreateProductForm({ isOpen, onClose, onUpdate }) {
     return (
         <div style={styles.overlay}>
             <Toaster position="top-center" containerStyle={{ zIndex: 99999 }} />
-            <div style={styles.modal}>
+            {/* 🚨 MODAL RESPONSIVO (USO DE CLASE Y MAX-WIDTH INLINE) */}
+            <div className="modal-content-responsive" style={{width: '1000px', maxWidth: '95vw', height: '85vh', padding: 0}}>
                 
                 <div style={styles.header}>
                     <div style={styles.headerTop}>
@@ -223,7 +275,7 @@ export default function CreateProductForm({ isOpen, onClose, onUpdate }) {
                 <div style={styles.content}>
                     {viewMode === 'list' && (
                         <div style={styles.fadeIn}>
-                            <div style={styles.toolbar}>
+                            <div className="toolbar-responsive" style={styles.toolbar}>
                                 <div style={styles.searchWrapper}>
                                     <IconSearch />
                                     <input 
@@ -238,13 +290,14 @@ export default function CreateProductForm({ isOpen, onClose, onUpdate }) {
                                 </button>
                             </div>
 
-                            <div style={styles.tableContainer}>
+                            {/* 🚨 WRAPPER DE TABLA RESPONSIVA */}
+                            <div className="table-responsive-wrapper" style={styles.tableContainer}>
                                 {loading ? (
                                     <div style={styles.loadingState}>Cargando datos...</div>
                                 ) : filteredList.length === 0 ? (
                                     <div style={styles.emptyState}>No hay registros para mostrar.</div>
                                 ) : (
-                                    <table style={styles.table}>
+                                    <table className="table-responsive" style={styles.table}>
                                         <thead>
                                             <tr>
                                                 {activeTab === 'productos' ? (
@@ -253,7 +306,7 @@ export default function CreateProductForm({ isOpen, onClose, onUpdate }) {
                                                         <th style={styles.th}>Marca</th>
                                                         <th style={styles.th}>Categoría</th>
                                                         <th style={{...styles.th, textAlign:'right'}}>Precio</th>
-                                                        <th style={{...styles.th, textAlign:'right'}}>Peso (Kg)</th> {/* 🚨 COLUMNA PESO */}
+                                                        <th style={{...styles.th, textAlign:'right'}}>Peso (Kg)</th>
                                                         <th style={{...styles.th, textAlign:'center'}}>Estado</th>
                                                         <th style={{...styles.th, textAlign:'center'}}>Acciones</th>
                                                     </>
@@ -283,7 +336,7 @@ export default function CreateProductForm({ isOpen, onClose, onUpdate }) {
                                                                 <td style={styles.td}><span style={styles.badge}>{getMarcaName(item)}</span></td>
                                                                 <td style={styles.td}><span style={styles.badge}>{getCategoriaName(item)}</span></td>
                                                                 <td style={{...styles.td, textAlign:'right', fontFamily:'monospace', fontWeight:'700'}}>${item.precio_venta}</td>
-                                                                <td style={{...styles.td, textAlign:'right'}}>{item.peso_unidad}</td> {/* 🚨 DATO PESO */}
+                                                                <td style={{...styles.td, textAlign:'right'}}>{item.peso_unidad}</td>
                                                                 <td style={{...styles.td, textAlign:'center'}}>
                                                                     <span style={{
                                                                         fontSize:'0.7rem', fontWeight:'700', borderRadius:'10px', padding:'2px 8px',
@@ -338,8 +391,9 @@ export default function CreateProductForm({ isOpen, onClose, onUpdate }) {
                                 {activeTab === 'productos' && (
                                     <>
                                         <div style={styles.formSectionTitle}>Información Básica</div>
-                                        <div style={styles.grid}>
-                                            <div style={{gridColumn:'span 2'}}>
+                                        {/* 🚨 GRILLA RESPONSIVA */}
+                                        <div className="form-grid-responsive" style={{marginBottom:'20px'}}>
+                                            <div style={{gridColumn: '1 / -1'}}>
                                                 <label style={styles.label}>Nombre del Producto</label>
                                                 <input style={styles.input} required value={formData.nombre || ''} onChange={e => setFormData({...formData, nombre: e.target.value})} placeholder="Ej: Harina Pan" />
                                             </div>
@@ -349,18 +403,17 @@ export default function CreateProductForm({ isOpen, onClose, onUpdate }) {
                                             </div>
                                             <div>
                                                 <label style={styles.label}>Precio Venta ($)</label>
-                                                <input type="number" step="0.01" style={styles.input} required value={formData.precio_venta || ''} onChange={e => setFormData({...formData, precio_venta: e.target.value})} />
+                                                <input type="number" step="0.01" min="0" style={styles.input} required value={formData.precio_venta || ''} onChange={e => setFormData({...formData, precio_venta: e.target.value})} />
                                             </div>
                                             
-                                            {/* 🚨 INPUT PESO UNITARIO */}
                                             <div>
                                                 <label style={styles.label}>Peso Unidad (Kg)</label>
-                                                <input type="number" step="0.01" style={styles.input} required value={formData.peso_unidad || ''} onChange={e => setFormData({...formData, peso_unidad: e.target.value})} placeholder="Ej: 1.00" />
+                                                <input type="number" step="0.01" min="0" style={styles.input} required value={formData.peso_unidad || ''} onChange={e => setFormData({...formData, peso_unidad: e.target.value})} placeholder="Ej: 1.00" />
                                             </div>
                                         </div>
 
                                         <div style={styles.formSectionTitle}>Clasificación</div>
-                                        <div style={styles.grid}>
+                                        <div className="form-grid-responsive" style={{marginBottom:'20px'}}>
                                             <div>
                                                 <label style={styles.label}>Marca</label>
                                                 <select style={styles.select} value={formData.id_marca || ''} onChange={e => setFormData({...formData, id_marca: e.target.value})} required>
@@ -380,12 +433,12 @@ export default function CreateProductForm({ isOpen, onClose, onUpdate }) {
                                 )}
 
                                 {(activeTab === 'marcas' || activeTab === 'categorias') && (
-                                    <div style={styles.grid}>
-                                        <div style={{gridColumn:'span 2'}}>
+                                    <div className="form-grid-responsive" style={{marginBottom:'20px'}}>
+                                        <div style={{gridColumn: '1 / -1'}}>
                                             <label style={styles.label}>Nombre {activeTab.slice(0,-1)}</label>
                                             <input style={styles.input} required value={formData.nombre || ''} onChange={e => setFormData({...formData, nombre: e.target.value})} />
                                         </div>
-                                        <div style={{gridColumn:'span 2'}}>
+                                        <div style={{gridColumn: '1 / -1'}}>
                                             <label style={styles.label}>Descripción</label>
                                             <textarea 
                                                 style={styles.textarea} 
@@ -446,10 +499,10 @@ export default function CreateProductForm({ isOpen, onClose, onUpdate }) {
     );
 }
 
-// --- ESTILOS PREMIUM ---
+// --- ESTILOS ---
 const styles = {
     overlay: { position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 20000 },
-    modal: { backgroundColor: '#ffffff', width: '1000px', maxWidth: '95vw', height: '85vh', borderRadius: '20px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)', overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '1px solid rgba(255,255,255,0.1)' },
+    // El modal principal se controla con la clase CSS .modal-content-responsive
     
     header: { backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0', padding: '0' },
     headerTop: { padding: '24px 30px 10px 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'start' },
@@ -459,9 +512,9 @@ const styles = {
     closeBtn: { background: '#f1f5f9', border: 'none', cursor: 'pointer', color: '#64748b', padding:'8px', borderRadius:'50%', transition: 'all 0.2s', display:'flex', alignItems:'center', justifyContent:'center' },
     backBtn: { background: '#e2e8f0', border: 'none', cursor: 'pointer', color: '#475569', borderRadius:'50%', padding:'8px', display:'flex', marginRight:'10px', transition: 'all 0.2s' },
 
-    tabContainer: { display: 'flex', gap: '30px', padding: '0 30px', marginTop:'10px' },
-    tab: { padding: '15px 0', border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b', borderBottom: '3px solid transparent', display: 'flex', alignItems: 'center', gap: '8px', fontSize:'0.95rem', fontWeight:'600', transition: 'all 0.2s' },
-    tabActive: { padding: '15px 0', border: 'none', background: 'transparent', cursor: 'pointer', color: '#0f172a', borderBottom: '3px solid #0f172a', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', fontSize:'0.95rem' },
+    tabContainer: { display: 'flex', gap: '30px', padding: '0 30px', marginTop:'10px', overflowX: 'auto' }, // Added scroll for tabs on tiny screens
+    tab: { padding: '15px 0', border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b', borderBottom: '3px solid transparent', display: 'flex', alignItems: 'center', gap: '8px', fontSize:'0.95rem', fontWeight:'600', transition: 'all 0.2s', whiteSpace: 'nowrap' },
+    tabActive: { padding: '15px 0', border: 'none', background: 'transparent', cursor: 'pointer', color: '#0f172a', borderBottom: '3px solid #0f172a', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px', fontSize:'0.95rem', whiteSpace: 'nowrap' },
 
     content: { flex: 1, backgroundColor: '#f8fafc', padding: '30px', overflowY: 'auto' },
     fadeIn: { animation: 'fadeIn 0.3s ease-out' },
@@ -469,7 +522,7 @@ const styles = {
     toolbar: { display: 'flex', gap: '15px', marginBottom: '25px' },
     searchWrapper: { flex: 1, position: 'relative', display: 'flex', alignItems: 'center', color:'#94a3b8', backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' },
     searchInput: { width: '100%', padding: '12px 12px 12px 40px', borderRadius: '12px', border: 'none', fontSize: '0.95rem', outline: 'none', background:'transparent' },
-    btnPrimary: { padding: '12px 24px', backgroundColor: '#0f172a', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.95rem', boxShadow: '0 4px 10px rgba(15, 23, 42, 0.2)', transition: 'transform 0.1s' },
+    btnPrimary: { padding: '12px 24px', backgroundColor: '#0f172a', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.95rem', boxShadow: '0 4px 10px rgba(15, 23, 42, 0.2)', transition: 'transform 0.1s', justifyContent: 'center' },
     
     listContainer: { backgroundColor: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)' },
     table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' },
@@ -485,7 +538,7 @@ const styles = {
 
     formContainer: { backgroundColor: '#fff', padding: '30px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', maxWidth: '700px', margin: '0 auto' },
     formSectionTitle: { fontSize: '0.85rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '15px', marginTop: '10px' },
-    grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' },
+    
     label: { display: 'block', fontSize: '0.8rem', fontWeight: '600', color: '#334155', marginBottom: '8px' },
     input: { width: '100%', height: '45px', padding: '0 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box', transition: 'border 0.2s', ':focus': { borderColor: '#0f172a' } },
     select: { width: '100%', height: '45px', padding: '0 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '0.95rem', outline: 'none', backgroundColor:'white', boxSizing: 'border-box' },

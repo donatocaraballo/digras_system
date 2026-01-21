@@ -1,5 +1,8 @@
 /* frontend/src/index.css */
 
+/* =========================================
+   1. CONFIGURACIÓN BASE (Tu código original mejorado)
+   ========================================= */
 :root {
   font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -10,6 +13,12 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* Variables de Diseño Global */
+  --primary: #0f172a;
+  --bg-body: #f4f6f8;
+  --border-color: #e2e8f0;
+  --sidebar-width: 260px;
 }
 
 body {
@@ -17,20 +26,171 @@ body {
   padding: 0;
   min-width: 320px;
   min-height: 100vh;
-  width: 100vw; /* Ocupar todo el ancho de la ventana */
-  overflow-x: hidden; /* Evitar scroll horizontal innecesario */
-  background-color: #f4f6f8; /* Tu color de fondo base */
+  width: 100%; /* Cambiado a 100% para evitar scrollbar horizontal fantasma */
+  overflow-x: hidden; 
+  background-color: var(--bg-body);
 }
 
-/* Esto asegura que todos los elementos respeten el ancho */
 *, *::before, *::after {
   box-sizing: border-box;
 }
 
 h1, h2, h3 {
   line-height: 1.1;
+  margin-top: 0;
 }
 
 button {
   font-family: inherit;
+}
+
+/* =========================================
+   2. SISTEMA RESPONSIVO (NUEVO)
+   ========================================= */
+
+/* A. Contenedor Principal de Página */
+/* Úsalo en el div padre de tus páginas (Home, Usuarios, Ordenes) */
+.page-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px 32px;
+  width: 100%;
+}
+
+/* B. Tarjetas (Cards) Adaptables */
+.card-responsive {
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+  padding: 30px;
+  border: 1px solid #f0f0f0;
+  width: 100%;
+  margin-bottom: 20px;
+  height: 100%; /* Para que en grid tengan la misma altura */
+}
+
+/* C. Grillas Inteligentes (Grids) */
+/* Se usa para KPIs, listas de tarjetas, dashboard */
+.grid-responsive {
+  display: grid;
+  gap: 24px;
+  /* Magia: Crea columnas de mínimo 250px, si no caben, bajan de línea */
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+/* Grilla para Formularios (2 columnas PC -> 1 columna Móvil) */
+.form-grid-responsive {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* D. Tablas Responsivas (CRÍTICO PARA CELULAR) */
+/* Envuelve tus <table> en un div con esta clase */
+.table-responsive-wrapper {
+  width: 100%;
+  overflow-x: auto; /* Scroll horizontal automático */
+  -webkit-overflow-scrolling: touch; /* Suavidad en iPhone */
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: white;
+}
+
+.table-responsive {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap; /* Evita que el texto se rompa en varias líneas */
+}
+
+/* E. Modals Responsivos */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  padding: 20px; /* Margen de seguridad en móviles */
+}
+
+.modal-content-responsive {
+  width: 100%;
+  max-width: 600px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  padding: 30px;
+  max-height: 90vh; /* Máximo 90% de la altura de pantalla */
+  overflow-y: auto; /* Scroll interno si es muy largo */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* F. Utilidades */
+.w-full { width: 100%; }
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.text-right { text-align: right; }
+
+/* =========================================
+   3. MEDIA QUERIES (ADAPTACIÓN MÓVIL)
+   ========================================= */
+
+/* TABLETS (Menos de 1024px) */
+@media (max-width: 1024px) {
+  .page-container {
+    padding: 20px;
+  }
+}
+
+/* CELULARES (Menos de 768px) */
+@media (max-width: 768px) {
+  /* 1. Ajuste de espaciado general */
+  .page-container {
+    padding: 16px 12px; /* Menos padding en los bordes */
+  }
+
+  /* 2. Ajuste de Tarjetas */
+  .card-responsive {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  /* 3. Títulos más pequeños */
+  h1 { font-size: 1.75rem !important; }
+  h2 { font-size: 1.5rem !important; }
+  h3 { font-size: 1.25rem !important; }
+
+  /* 4. Formularios a 1 sola columna */
+  .form-grid-responsive {
+    grid-template-columns: 1fr !important; /* Fuerza 1 columna */
+    gap: 15px;
+  }
+
+  /* 5. Toolbars (Buscador + Botones) */
+  /* Si usas flexbox en tus headers, esto los pone en columna */
+  .toolbar-responsive {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px;
+  }
+  
+  .toolbar-responsive > div, 
+  .toolbar-responsive > button,
+  .toolbar-responsive input {
+    width: 100% !important; /* Botones ancho completo */
+  }
+
+  /* 6. Modales */
+  .modal-content-responsive {
+    padding: 20px;
+    max-height: 95vh;
+  }
+  
+  /* 7. Ocultar elementos no esenciales en móvil */
+  .hide-on-mobile {
+    display: none !important;
+  }
 }

@@ -173,7 +173,7 @@ function ProviderDashboard() {
     };
 
     return (
-        <div style={styles.container}>
+        <div className="page-container">
             <Toaster position="top-right" />
             
             {/* HEADER */}
@@ -188,7 +188,7 @@ function ProviderDashboard() {
                     </div>
                 </div>
 
-                <div style={{display:'flex', gap:'10px'}}>
+                <div style={{display:'flex', gap:'10px', flexWrap:'wrap', justifyContent:'flex-end'}}>
                     <button onClick={exportarPDFLista} style={styles.btnSecondary} title="Descargar Lista PDF">
                         <IconPrint /> PDF Lista
                     </button>
@@ -200,11 +200,11 @@ function ProviderDashboard() {
             </div>
 
             {/* CONTENIDO */}
-            <div style={styles.content}>
+            <div className="card-responsive">
                 
                 {/* TOOLBAR MEJORADO */}
                 <div style={styles.toolbarContainer}>
-                    <div style={styles.toolbarTop}>
+                    <div className="toolbar-responsive">
                         <div style={styles.searchBox}>
                             <IconSearch />
                             <input 
@@ -235,10 +235,10 @@ function ProviderDashboard() {
                         )}
                     </div>
 
-                    {/* PANEL DE FILTROS AVANZADOS */}
+                    {/* PANEL DE FILTROS AVANZADOS (GRID RESPONSIVO) */}
                     {showFilters && (
                         <div style={styles.filterPanel}>
-                            <div style={styles.filterGrid}>
+                            <div className="form-grid-responsive" style={{gridTemplateColumns: '1fr 1fr 2fr'}}>
                                 <div>
                                     <label style={styles.filterLabel}>Teléfono</label>
                                     <input 
@@ -257,7 +257,7 @@ function ProviderDashboard() {
                                         onChange={e => setFilters({...filters, correo: e.target.value})}
                                     />
                                 </div>
-                                <div style={{gridColumn: 'span 2'}}>
+                                <div>
                                     <label style={styles.filterLabel}>Dirección</label>
                                     <input 
                                         style={styles.filterInput} 
@@ -267,12 +267,20 @@ function ProviderDashboard() {
                                     />
                                 </div>
                             </div>
+                            
+                            {/* Hack para grid responsivo inline */}
+                            <style>{`
+                                @media (max-width: 768px) {
+                                    .form-grid-responsive { grid-template-columns: 1fr !important; }
+                                }
+                            `}</style>
                         </div>
                     )}
                 </div>
 
-                <div style={styles.tableWrapper}>
-                    <table style={styles.table}>
+                {/* 🚨 TABLA CON SCROLL RESPONSIVO */}
+                <div className="table-responsive-wrapper">
+                    <table className="table-responsive" style={styles.table}>
                         <thead>
                             <tr>
                                 <th style={styles.th}></th>
@@ -313,13 +321,13 @@ function ProviderDashboard() {
                                                 <tr style={{backgroundColor: '#f8fafc'}}>
                                                     <td colSpan="6" style={{padding: '0 20px 20px 20px', borderBottom: '1px solid #e2e8f0'}}>
                                                         <div style={styles.detailBox}>
-                                                            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'15px'}}>
+                                                            <div style={{display:'flex', justifyContent:'space-between', marginBottom:'15px', flexWrap:'wrap', gap:'10px'}}>
                                                                 <h4 style={{margin:0, color:'#334155'}}>Detalles Adicionales</h4>
                                                                 <button onClick={() => exportarFicha(prov)} style={styles.btnSmall}>
                                                                     <IconDownload /> Descargar Ficha PDF
                                                                 </button>
                                                             </div>
-                                                            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
+                                                            <div className="form-grid-responsive">
                                                                 <div>
                                                                     <strong style={{color:'#64748b', fontSize:'0.8rem'}}>Dirección:</strong>
                                                                     <p style={{margin:'4px 0', color:'#334155'}}>{prov.direccion || "No registrada"}</p>
@@ -345,7 +353,7 @@ function ProviderDashboard() {
                 </div>
             </div>
 
-            {/* MODALES */}
+            {/* MODALES RESPONSIVOS */}
             <div style={{ position: 'relative', zIndex: 20000 }}>
                 <CreateProveedorModal 
                     isOpen={isCreateModalOpen} 
@@ -367,7 +375,7 @@ function ProviderDashboard() {
 
                 {deleteTargetId && (
                     <div style={styles.modalOverlay}>
-                        <div style={styles.confirmModal}>
+                        <div className="modal-content-responsive" style={{maxWidth: '400px'}}>
                             <div style={{marginBottom: 15, display:'flex', flexDirection:'column', alignItems:'center'}}>
                                 <div style={{background:'#fee2e2', padding:10, borderRadius:'50%', marginBottom:10}}>
                                     <IconAlert />
@@ -393,11 +401,12 @@ function ProviderDashboard() {
 
 // --- ESTILOS ---
 const styles = {
-    container: { padding: '20px' },
-    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
+    // page-container controla el layout principal
+    
+    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' },
     titleGroup: { display: 'flex', alignItems: 'center', gap: '15px' },
     iconCircle: { width: '50px', height: '50px', borderRadius: '50%', backgroundColor: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-    title: { margin: 0, fontSize: '1.5rem', color: '#333' },
+    title: { margin: 0, fontSize: '1.5rem', color: '#333', fontWeight: '700' },
     subtitle: { margin: 0, color: '#666', fontSize: '0.9rem' },
     
     // 🚨 ESTILO BOTÓN NUEVO (NEGRO PARA UNIFICAR)
@@ -414,29 +423,29 @@ const styles = {
         fontSize: '0.9rem',
         fontWeight: '600',
         transition: 'background 0.2s',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+        whiteSpace: 'nowrap'
     },
-    btnSecondary: { backgroundColor: '#fff', color: '#333', border: '1px solid #ddd', padding: '10px 20px', borderRadius: '10px', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' },
+    btnSecondary: { backgroundColor: '#fff', color: '#333', border: '1px solid #ddd', padding: '10px 20px', borderRadius: '10px', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' },
 
-    content: { backgroundColor: 'white', borderRadius: '8px', padding: '0', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', overflow:'hidden' },
+    // card-responsive controla el contenido
     
     // Toolbar Mejorado
     toolbarContainer: { padding: '20px', borderBottom: '1px solid #eee' },
-    toolbarTop: { display: 'flex', gap: '10px', alignItems: 'center', flexWrap:'wrap' },
-    searchBox: { display: 'flex', alignItems: 'center', border: '1px solid #ddd', borderRadius: '8px', padding: '8px 12px', width: '320px', gap:'10px', color:'#888' },
-    searchInput: { border: 'none', outline: 'none', width: '100%', fontSize: '0.9rem' },
+    searchBox: { display: 'flex', alignItems: 'center', border: '1px solid #ddd', borderRadius: '8px', padding: '8px 12px', flex: '1 1 300px', gap:'10px', color:'#888', backgroundColor:'#fff' },
+    searchInput: { border: 'none', outline: 'none', width: '100%', fontSize: '0.9rem', background:'transparent' },
     
-    btnFilter: { display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', fontWeight:'500' },
+    btnFilter: { display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem', fontWeight:'500', whiteSpace:'nowrap' },
     btnClear: { display: 'flex', alignItems: 'center', gap: '4px', padding: '8px', background:'none', border:'none', color:'#dc2626', cursor:'pointer', fontSize:'0.85rem', marginLeft:'auto' },
 
     // Panel Avanzado
     filterPanel: { marginTop: '15px', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', animation: 'slideDown 0.2s ease-out' },
-    filterGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: '15px' },
+    
     filterLabel: { display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#64748b', marginBottom: '5px', textTransform: 'uppercase' },
     filterInput: { width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.9rem', boxSizing: 'border-box' },
 
-    tableWrapper: { overflowX: 'auto', padding: '0 20px 20px 20px' },
-    table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' },
+    // table-responsive-wrapper controla el scroll
+    table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '800px' },
     th: { textAlign: 'left', padding: '12px', borderBottom: '2px solid #eee', color: '#555', fontWeight: '600' },
     thAction: { textAlign: 'center', padding: '12px', borderBottom: '2px solid #eee', color: '#555', fontWeight: '600' },
     tr: { borderBottom: '1px solid #f1f5f9' },
@@ -449,7 +458,7 @@ const styles = {
     btnSmall: { display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', fontSize: '0.8rem', border: '1px solid #ddd', background: '#f9f9f9', borderRadius: '4px', cursor: 'pointer', color: '#333' },
 
     modalOverlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 30000 },
-    confirmModal: { backgroundColor: 'white', padding: '30px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' },
+    // confirmModal reemplazado por modal-content-responsive
     btnDelete: { padding: '10px 20px', backgroundColor: '#dc2626', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight:'600' },
     btnCancel: { padding: '10px 20px', backgroundColor: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', fontWeight:'600' }
 };

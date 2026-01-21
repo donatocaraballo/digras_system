@@ -215,7 +215,7 @@ const styles = {
     border: `1px solid ${isActive ? "#bbf7d0" : "#fecaca"}`,
   }),
 
-  // --- MODALES (CORREGIDO Z-INDEX) ---
+  // --- MODALES ---
   modalOverlay: {
     position: "fixed", 
     inset: 0, 
@@ -292,18 +292,15 @@ export default function Usuarios() {
 
   // 1. VERIFICACIÓN DE SEGURIDAD (CRÍTICA)
   useEffect(() => {
-    // Esperamos a que 'currentUser' se cargue desde AuthContext
     if (currentUser !== null) { 
         const role = (currentUser.tipo || "").toUpperCase();
-        
-        // Regla: Solo GERENTE, ADMINISTRADOR o SUPERUSUARIO pueden entrar
         if (role === 'GERENTE' || role === 'ADMINISTRADOR' || currentUser.is_superuser) {
             setHasPermission(true);
             setCheckingPermission(false);
-            cargarUsuarios(); // Cargar datos solo si tiene permiso
+            cargarUsuarios();
         } else {
             toast.error("Acceso denegado: Solo Gerentes pueden gestionar usuarios.");
-            navigate("/"); // Redirigir al inicio
+            navigate("/");
         }
     }
   }, [currentUser, navigate]);
@@ -335,7 +332,7 @@ export default function Usuarios() {
       );
   });
 
-  // 4. Gestión del Modal Formulario
+  // 4. Gestión del Modal
   const abrirCrear = () => {
       setModalMode("crear");
       setSelectedUser(null);
@@ -369,19 +366,53 @@ export default function Usuarios() {
       setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // 5. Submit Formulario
+  // 5. Submit Formulario (VALIDACIONES ESTRICTAS & DUPLICADOS)
   const handleSubmit = async (e) => {
       e.preventDefault();
       setFormLoading(true); setFormError("");
       const loadingToast = toast.loading("Guardando...");
 
       try {
-          if (!formData.username) throw new Error("El nombre de usuario es obligatorio.");
-          if (modalMode === "crear" && !formData.password) throw new Error("La contraseña es obligatoria.");
+          // --- VALIDACIONES DE CAMPOS OBLIGATORIOS ---
+          if (!formData.username.trim()) throw new Error("El nombre de usuario es obligatorio.");
+          if (formData.username.includes(" ")) throw new Error("El usuario no puede contener espacios.");
+          
+          if (modalMode === "crear" && (!formData.password || formData.password.length < 6)) {
+              throw new Error("La contraseña es obligatoria y debe tener al menos 6 caracteres.");
+          }
+          
+          if (!formData.first_name.trim()) throw new Error("El nombre es obligatorio.");
+          if (!formData.last_name.trim()) throw new Error("El apellido es obligatorio.");
 
+          if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+              throw new Error("El correo electrónico es obligatorio y debe ser válido.");
+          }
+
+          const cleanPhone = formData.telefono.replace(/\D/g, ''); 
+          if (!formData.telefono) throw new Error("El teléfono es obligatorio.");
+          if (cleanPhone.length !== 11 || !cleanPhone.startsWith('0')) {
+              throw new Error("El teléfono debe tener 11 dígitos y comenzar con 0 (Ej: 04141234567).");
+          }
+
+          // --- 🚨 VALIDACIÓN DE UNICIDAD (FRONTEND) ---
+          // Verifica si el correo ya existe en la lista cargada (excepto si es el mismo usuario editándose)
+          const duplicateEmail = usuarios.find(u => 
+              u.email && 
+              u.email.trim().toLowerCase() === formData.email.trim().toLowerCase() &&
+              (modalMode === 'crear' ? true : u.id_usuario !== selectedUser?.id_usuario)
+          );
+
+          if (duplicateEmail) {
+              throw new Error(`El correo ${formData.email} ya está en uso por el usuario @${duplicateEmail.username}.`);
+          }
+
+          // --- LIMPIEZA DE DATOS ---
           const payload = { ...formData };
-          if (modalMode === "editar" && !payload.password) delete payload.password;
 
+          if (modalMode === "editar" && !payload.password) delete payload.password;
+          if (!payload.direccion || payload.direccion.trim() === "") delete payload.direccion;
+
+          // --- LLAMADA A LA API ---
           if (modalMode === "crear") {
               await api.post("/base/usuarios/", payload);
               toast.success("Usuario creado.", { id: loadingToast });
@@ -394,7 +425,22 @@ export default function Usuarios() {
           cargarUsuarios();
 
       } catch (err) {
-          const msg = err.response?.data?.detail || err.message || "Error al guardar.";
+          console.error("Error guardando usuario:", err);
+          
+          let msg = "Error al guardar.";
+          if (err.response && err.response.data) {
+              const data = err.response.data;
+              const firstKey = Object.keys(data)[0];
+              if (firstKey) {
+                  const errorContent = Array.isArray(data[firstKey]) ? data[firstKey][0] : data[firstKey];
+                  msg = `${firstKey.toUpperCase()}: ${errorContent}`;
+              } else if (data.detail) {
+                  msg = data.detail;
+              }
+          } else if (err.message) {
+              msg = err.message;
+          }
+
           setFormError(msg);
           toast.error(msg, { id: loadingToast });
       } finally {
@@ -402,9 +448,8 @@ export default function Usuarios() {
       }
   };
 
-  // 6. Confirmación y Acciones Seguras
+  // 6. Confirmación y Acciones
   const triggerToggleActive = (user) => {
-      // 🚨 VALIDACIÓN: No desactivarse a uno mismo
       const currentId = currentUser.id_usuario || currentUser.id;
       const targetId = user.id_usuario || user.id;
 
@@ -413,7 +458,6 @@ export default function Usuarios() {
           return;
       }
 
-      // 🚨 VALIDACIÓN: Gerente no puede desactivar a otro Gerente
       const isTargetGerente = (user.tipo || "").toUpperCase() === "GERENTE";
       const amIGerente = (currentUser.tipo || "").toUpperCase() === "GERENTE";
 
@@ -444,7 +488,6 @@ export default function Usuarios() {
       setConfirmOpen(true);
   };
 
-  // Si está verificando permisos, no renderizamos nada o un loader
   if (checkingPermission || !hasPermission) {
       return null; 
   }
@@ -452,7 +495,6 @@ export default function Usuarios() {
   return (
     <div style={styles.page}>
       
-      {/* 1. HEADER FLOTANTE */}
       <div style={styles.headerRow}>
          <div style={{display:'flex', alignItems:'center', gap:'15px'}}>
             <div style={styles.iconCircle}><IconUsers /></div>
@@ -463,10 +505,7 @@ export default function Usuarios() {
          </div>
       </div>
 
-      {/* 2. TARJETA PRINCIPAL */}
       <div style={styles.card}>
-        
-        {/* TOOLBAR */}
         <div style={styles.toolbar}>
             <div style={styles.searchContainer}>
                 <IconSearch />
@@ -488,7 +527,6 @@ export default function Usuarios() {
             </div>
         </div>
 
-        {/* TABLA DE USUARIOS */}
         <div style={styles.tableWrapper}>
             <table style={styles.table}>
                 <thead>
@@ -508,16 +546,11 @@ export default function Usuarios() {
                     
                     {usuariosFiltrados.map((u, idx) => {
                         const rowStyle = idx % 2 === 1 ? styles.rowAlt : {};
-                        
-                        // 🚨 Lógica de bloqueo visual en la tabla
                         const currentId = currentUser.id_usuario || currentUser.id;
                         const targetId = u.id_usuario || u.id;
                         const isSelf = currentId === targetId;
-                        
                         const isTargetGerente = (u.tipo || "").toUpperCase() === "GERENTE";
                         const amIGerente = (currentUser.tipo || "").toUpperCase() === "GERENTE";
-                        
-                        // Si soy yo mismo, o soy gerente intentando editar otro gerente, bloqueo el botón
                         const isActionDisabled = isSelf || (amIGerente && isTargetGerente);
                         
                         let tooltip = "";
@@ -568,7 +601,6 @@ export default function Usuarios() {
         {loading && <div style={{textAlign:'center', padding:20, color:'#64748b'}}>Cargando usuarios...</div>}
       </div>
 
-      {/* 3. MODAL CREAR / EDITAR */}
       {modalOpen && (
           <div style={styles.modalOverlay}>
               <div style={styles.modal}>
@@ -598,27 +630,27 @@ export default function Usuarios() {
                               </select>
                           </div>
                           <div>
-                              <div style={styles.label}>Nombre</div>
+                              <div style={styles.label}>Nombre *</div>
                               <input style={styles.input} name="first_name" value={formData.first_name} onChange={handleChange} />
                           </div>
                           <div>
-                              <div style={styles.label}>Apellido</div>
+                              <div style={styles.label}>Apellido *</div>
                               <input style={styles.input} name="last_name" value={formData.last_name} onChange={handleChange} />
                           </div>
                           <div>
                               <div style={styles.label}>Contraseña</div>
-                              <input type="password" style={styles.input} name="password" value={formData.password} onChange={handleChange} placeholder={modalMode==='crear'?'Requerida':'Opcional'} />
+                              <input type="password" style={styles.input} name="password" value={formData.password} onChange={handleChange} placeholder={modalMode==='crear'?'Requerida (min 6)':'Opcional'} />
                           </div>
                           <div>
-                              <div style={styles.label}>Teléfono</div>
-                              <input style={styles.input} name="telefono" value={formData.telefono} onChange={handleChange} placeholder="0414-..." />
+                              <div style={styles.label}>Teléfono *</div>
+                              <input style={styles.input} name="telefono" value={formData.telefono} onChange={handleChange} placeholder="0414..." />
                           </div>
                           <div style={{gridColumn:'1/-1'}}>
-                              <div style={styles.label}>Email</div>
+                              <div style={styles.label}>Email *</div>
                               <input type="email" style={styles.input} name="email" value={formData.email} onChange={handleChange} placeholder="usuario@digras.com" />
                           </div>
                           <div style={{gridColumn:'1/-1'}}>
-                              <div style={styles.label}>Dirección</div>
+                              <div style={styles.label}>Dirección (Opcional)</div>
                               <input style={styles.input} name="direccion" value={formData.direccion} onChange={handleChange} placeholder="Domicilio" />
                           </div>
                       </div>
@@ -634,7 +666,6 @@ export default function Usuarios() {
           </div>
       )}
 
-      {/* 4. MODAL CONFIRMACIÓN (Reemplazo de window.confirm) */}
       {confirmOpen && (
           <div style={styles.modalOverlay}>
               <div style={styles.confirmModal}>

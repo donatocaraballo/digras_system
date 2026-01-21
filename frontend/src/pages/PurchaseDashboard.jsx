@@ -7,9 +7,9 @@ import CreatePurchaseModal from '../components/CreatePurchaseModal';
 import PurchaseHistoryTable from '../components/PurchaseHistoryTable';
 import EditCompraModal from '../components/EditCompraModal';
 import RegisterPaymentModal from '../components/RegisterPaymentModal';
-import toast, { Toaster } from 'react-hot-toast'; // 🚨 IMPORTAMOS TOASTER AQUÍ
+import toast, { Toaster } from 'react-hot-toast'; 
 
-// ... (Los Iconos se mantienen igual que tu código original)
+// ... (Los Iconos se mantienen igual)
 const IconCart = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>;
 const IconPlus = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
 const IconDownload = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>;
@@ -82,7 +82,7 @@ function PurchaseDashboard({ refreshTrigger, onUpdate, testIds }) {
     const esAdmin = user?.tipo === 'ADMINISTRADOR';
 
     return (
-        <div style={styles.container}>
+        <div className="page-container">
             {/* 🚨 TOASTER CONFIGURADO CORRECTAMENTE */}
             <Toaster 
                 position="top-center" 
@@ -105,7 +105,7 @@ function PurchaseDashboard({ refreshTrigger, onUpdate, testIds }) {
                 )}
             </div>
             
-            <div style={styles.content}>
+            <div className="card-responsive">
                 <PurchaseHistoryTable refreshTrigger={refreshTrigger} onUpdate={onUpdate} onEditClick={handleEditClick} onRowClick={handleRowClick} selectedId={compraSeleccionada?.id_compra} />
             </div>
 
@@ -113,7 +113,7 @@ function PurchaseDashboard({ refreshTrigger, onUpdate, testIds }) {
                 <div ref={detailsRef} id="detalle-compra" style={styles.detailWrapper}>
                     {loadingDetalles ? <div style={{textAlign:'center', padding:20, color:'#64748b'}}>Cargando detalles de compra...</div> : (
                         <div style={styles.detailCard}>
-                            <div style={{display:'flex', justifyContent:'space-between', borderBottom:'1px solid #e2e8f0', paddingBottom:15, marginBottom:20}}>
+                            <div style={{display:'flex', justifyContent:'space-between', borderBottom:'1px solid #e2e8f0', paddingBottom:15, marginBottom:20, flexWrap:'wrap', gap:'10px'}}>
                                 <h3 style={{margin:0, color:'#0f172a', display:'flex', alignItems:'center', gap:'10px'}}>
                                     📋 Orden de Compra #{compraSeleccionada.id_compra}
                                     <span style={{fontSize:'0.8rem', fontWeight:400, color:'#64748b', backgroundColor:'#f1f5f9', padding:'2px 8px', borderRadius:4}}>{compraSeleccionada.fecha_compra ? String(compraSeleccionada.fecha_compra).slice(0,10) : ''}</span>
@@ -121,7 +121,8 @@ function PurchaseDashboard({ refreshTrigger, onUpdate, testIds }) {
                                 <button style={styles.btnGhost}><IconDownload /> PDF</button>
                             </div>
 
-                            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:30, marginBottom:30}}>
+                            {/* 🚨 GRID RESPONSIVO PARA DETALLES */}
+                            <div className="form-grid-responsive" style={{marginBottom:'30px'}}>
                                 <div style={styles.infoBox}>
                                     <h4 style={styles.sectionTitle}>Información General</h4>
                                     
@@ -140,7 +141,7 @@ function PurchaseDashboard({ refreshTrigger, onUpdate, testIds }) {
                                 </div>
 
                                 <div style={styles.infoBox}>
-                                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 15}}>
+                                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 15, flexWrap:'wrap', gap:'10px'}}>
                                         <h4 style={{...styles.sectionTitle, margin:0}}>Gestión Financiera</h4>
                                         
                                         {(() => {
@@ -181,57 +182,61 @@ function PurchaseDashboard({ refreshTrigger, onUpdate, testIds }) {
                             </div>
 
                             <h4 style={styles.sectionTitle}>Productos Adquiridos</h4>
-                            <table style={{width:'100%', fontSize:'0.9rem', borderCollapse:'collapse', marginBottom: 20}}>
-                                <thead style={{background:'#f8fafc', borderBottom:'1px solid #e2e8f0'}}>
-                                    <tr>
-                                        <th style={styles.thDetalle}>Producto</th>
-                                        <th style={{...styles.thDetalle, textAlign:'center'}}>Cant.</th>
-                                        <th style={{...styles.thDetalle, textAlign:'right'}}>Costo U. ($)</th>
-                                        <th style={{...styles.thDetalle, textAlign:'right'}}>Subtotal ($)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {detallesCompra.length === 0 ? (
-                                        <tr><td colSpan={4} style={{padding:20, textAlign:'center', color:'#94a3b8'}}>
-                                            No se encontraron detalles.
-                                        </td></tr>
-                                    ) : (
-                                        detallesCompra.map((d, i) => {
-                                            const nombreProducto = 
-                                                d.id_producto_nombre || 
-                                                d.producto_nombre || 
-                                                d.id_producto?.nombre || 
-                                                "Producto desconocido";
-                                            
-                                            const sku = d.producto_sku || d.id_producto?.sku || "";
+                            
+                            {/* 🚨 TABLA CON SCROLL HORIZONTAL */}
+                            <div className="table-responsive-wrapper" style={{marginBottom: 20}}>
+                                <table className="table-responsive">
+                                    <thead style={{background:'#f8fafc', borderBottom:'1px solid #e2e8f0'}}>
+                                        <tr>
+                                            <th style={styles.thDetalle}>Producto</th>
+                                            <th style={{...styles.thDetalle, textAlign:'center'}}>Cant.</th>
+                                            <th style={{...styles.thDetalle, textAlign:'right'}}>Costo U. ($)</th>
+                                            <th style={{...styles.thDetalle, textAlign:'right'}}>Subtotal ($)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {detallesCompra.length === 0 ? (
+                                            <tr><td colSpan={4} style={{padding:20, textAlign:'center', color:'#94a3b8'}}>
+                                                No se encontraron detalles.
+                                            </td></tr>
+                                        ) : (
+                                            detallesCompra.map((d, i) => {
+                                                const nombreProducto = 
+                                                    d.id_producto_nombre || 
+                                                    d.producto_nombre || 
+                                                    d.id_producto?.nombre || 
+                                                    "Producto desconocido";
+                                                
+                                                const sku = d.producto_sku || d.id_producto?.sku || "";
 
-                                            const cantidad = d.cantidad || 0;
-                                            const precioU = parseFloat(d.precio_unitario || 0);
-                                            const subtotal = parseFloat(d.subtotal || (cantidad * precioU));
+                                                const cantidad = d.cantidad || 0;
+                                                const precioU = parseFloat(d.precio_unitario || 0);
+                                                const subtotal = parseFloat(d.subtotal || (cantidad * precioU));
 
-                                            return (
-                                                <tr key={i} style={{borderBottom:'1px solid #f1f5f9'}}>
-                                                    <td style={styles.tdDetalle}>
-                                                        <div style={{fontWeight: 600, color: '#0f172a'}}>
-                                                            {nombreProducto}
-                                                        </div>
-                                                        {sku && (
-                                                            <div style={{fontSize: '0.75rem', color: '#64748b', marginTop: '2px', fontWeight: 500}}>
-                                                                SKU: {sku}
+                                                return (
+                                                    <tr key={i} style={{borderBottom:'1px solid #f1f5f9'}}>
+                                                        <td style={styles.tdDetalle}>
+                                                            <div style={{fontWeight: 600, color: '#0f172a'}}>
+                                                                {nombreProducto}
                                                             </div>
-                                                        )}
-                                                    </td>
-                                                    <td style={{...styles.tdDetalle, textAlign:'center'}}>{cantidad}</td>
-                                                    <td style={{...styles.tdDetalle, textAlign:'right'}}>{formatUSD(precioU)}</td>
-                                                    <td style={{...styles.tdDetalle, textAlign:'right', fontWeight:600, color:'#0f172a'}}>
-                                                        {formatUSD(subtotal)}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
+                                                            {sku && (
+                                                                <div style={{fontSize: '0.75rem', color: '#64748b', marginTop: '2px', fontWeight: 500}}>
+                                                                    SKU: {sku}
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td style={{...styles.tdDetalle, textAlign:'center'}}>{cantidad}</td>
+                                                        <td style={{...styles.tdDetalle, textAlign:'right'}}>{formatUSD(precioU)}</td>
+                                                        <td style={{...styles.tdDetalle, textAlign:'right', fontWeight:600, color:'#0f172a'}}>
+                                                            {formatUSD(subtotal)}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
 
                             <div style={{textAlign:'right', fontSize:'1.3rem', fontWeight:'800', color:'#0f172a', borderTop:'2px solid #e2e8f0', paddingTop:15}}>
                                 Total Compra: {formatUSD(compraSeleccionada.total_compra || compraSeleccionada.precio_final)}
@@ -257,7 +262,8 @@ function PurchaseDashboard({ refreshTrigger, onUpdate, testIds }) {
 
             {showProviderModal && providerData && (
                 <div style={styles.modalOverlay} onClick={() => setShowProviderModal(false)}>
-                    <div style={styles.providerModal} onClick={e => e.stopPropagation()}>
+                    {/* 🚨 MODAL RESPONSIVO */}
+                    <div className="modal-content-responsive" style={{maxWidth: '400px'}} onClick={e => e.stopPropagation()}>
                         <div style={styles.providerHeader}>
                             <h3 style={{margin:0, color:'#0f172a'}}>Información del Proveedor</h3>
                             <button onClick={() => setShowProviderModal(false)} style={styles.closeBtn}><IconX /></button>
@@ -284,34 +290,34 @@ function PurchaseDashboard({ refreshTrigger, onUpdate, testIds }) {
 }
 
 const styles = {
-    container: { padding: '24px 32px', maxWidth: '1400px', margin: '0 auto', fontFamily: "'Inter', sans-serif" },
-    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' },
+    // page-container controla el padding general
+    
+    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', flexWrap: 'wrap', gap: '15px' },
     titleGroup: { display: 'flex', alignItems: 'center', gap: '16px' },
     iconCircle: { width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' },
     title: { margin: 0, fontSize: '1.5rem', color: '#0f172a', fontWeight: '700' },
     subtitle: { margin: '4px 0 0', color: '#64748b', fontSize: '0.9rem' },
-    createBtn: { backgroundColor: '#0f172a', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '10px', fontSize: '0.95rem', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', transition: 'transform 0.1s ease' },
-    content: { backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)', overflow: 'hidden', border: '1px solid #f1f5f9' },
+    createBtn: { backgroundColor: '#0f172a', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '10px', fontSize: '0.95rem', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', transition: 'transform 0.1s ease', whiteSpace: 'nowrap' },
     
     // Detalle Styles
     detailWrapper: { marginTop: "24px", animation: "fadeIn 0.4s ease-out" },
     detailCard: { backgroundColor: "#ffffff", borderRadius: "16px", padding: "30px", boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.1)", border: "1px solid #e2e8f0" },
-    infoBox: { backgroundColor: "#f8fafc", padding: "20px", borderRadius: "12px", border: "1px solid #f1f5f9" },
+    infoBox: { backgroundColor: "#f8fafc", padding: "20px", borderRadius: "12px", border: "1px solid #f1f5f9", height: '100%' },
     sectionTitle: { margin: "0 0 15px 0", fontSize: "0.85rem", fontWeight: "700", color: "#64748b", textTransform: "uppercase" },
     infoRow: { display: "flex", justifyContent: "space-between", marginBottom: "8px", fontSize: "0.95rem", color: "#334155", alignItems: 'center' },
     infoLabel: { fontWeight: "600", color: "#475569" },
     
     // Links y Botones nuevos
     linkText: { color: '#2563eb', cursor: 'pointer', fontWeight: '600', textDecoration: 'none', borderBottom: '1px dotted #2563eb' },
-    btnPayment: { backgroundColor: '#fff', border: '1px solid #cbd5e1', color: '#0f172a', padding: '6px 12px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer', display: 'flex', gap: '6px', alignItems: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
+    btnPayment: { border: '1px solid #cbd5e1', padding: '6px 12px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', display: 'flex', gap: '6px', alignItems: 'center', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
     
     thDetalle: { padding: "10px", textAlign: "left", color: "#475569", fontWeight: 600, fontSize:'0.85rem' },
     tdDetalle: { padding: "10px", color: "#334155", verticalAlign: "middle" },
-    btnGhost: { display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px", backgroundColor: "transparent", color: "#64748b", border: "1px solid #cbd5e1", borderRadius: "8px", fontWeight: "600", cursor: "pointer", fontSize: "0.85rem" },
+    btnGhost: { display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px", backgroundColor: "transparent", color: "#64748b", border: "1px solid #cbd5e1", borderRadius: "8px", fontWeight: "600", cursor: "pointer", fontSize: "0.85rem", whiteSpace: 'nowrap' },
 
     // Modal Proveedor
     modalOverlay: { position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 },
-    providerModal: { backgroundColor: '#fff', width: '400px', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', animation: 'fadeIn 0.2s ease-out' },
+    // providerModal reemplazado por modal-content-responsive
     providerHeader: { padding: '15px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc' },
     closeBtn: { background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' },
     pInfoRow: { display: 'flex', justifyContent: 'space-between', padding: '10px', background: '#f8fafc', borderRadius: '8px', fontSize: '0.9rem', color: '#334155' }

@@ -12,14 +12,17 @@ const IconBox = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none
 
 // --- ESTILOS PREMIUM ---
 const styles = {
-    page: { paddingTop: "40px", paddingBottom: "40px", fontFamily: "'Segoe UI', 'Roboto', sans-serif", maxWidth: "1400px", margin: "0 auto" },
+    // page: manejado por page-container
+    
     headerRow: { display: "flex", alignItems: "center", gap: "15px", marginBottom: "25px", paddingLeft: "10px" },
     iconCircle: { width: '56px', height: '56px', borderRadius: '14px', backgroundColor: '#fff7ed', color: '#ea580c', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' },
     title: { fontSize: "1.8rem", fontWeight: "800", color: "#0f172a", margin: 0, letterSpacing: "-0.5px" },
     subtitle: { fontSize: "1rem", color: "#64748b", marginTop: "4px" },
-    card: { background: "#ffffff", borderRadius: "20px", boxShadow: "0 10px 30px rgba(0,0,0,0.05)", padding: "30px", border: "1px solid #f0f0f0" },
-    tableWrapper: { borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden", marginTop: "20px" },
-    table: { width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" },
+    
+    // card: manejado por card-responsive
+    
+    // tableWrapper: manejado por table-responsive-wrapper
+    table: { width: "100%", borderCollapse: "collapse", fontSize: "0.9rem", minWidth: "800px" },
     th: { background: "#f8fafc", textAlign: "left", padding: "15px", borderBottom: "2px solid #e2e8f0", color: "#475569", fontWeight: "700", textTransform: "uppercase", fontSize: "0.75rem" },
     td: { padding: "15px", borderBottom: "1px solid #f1f5f9", color: "#334155" },
     badge: { display: "inline-block", padding: "4px 10px", borderRadius: "20px", fontSize: "0.7rem", fontWeight: "700", background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0" },
@@ -54,7 +57,7 @@ export default function ReceptionDashboard() {
     };
 
     return (
-        <div style={styles.page}>
+        <div className="page-container">
             <div style={styles.headerRow}>
                 <div style={styles.iconCircle}><IconWarehouse /></div>
                 <div>
@@ -63,13 +66,14 @@ export default function ReceptionDashboard() {
                 </div>
             </div>
 
-            <div style={styles.card}>
+            <div className="card-responsive">
                 <p style={{ margin: "0 0 20px 0", color: "#64748b", fontSize: "0.9rem" }}>
                     Solo se muestran órdenes <strong>APROBADAS</strong> esperando ingreso.
                 </p>
 
-                <div style={styles.tableWrapper}>
-                    <table style={styles.table}>
+                {/* 🚨 WRAPPER DE TABLA RESPONSIVA */}
+                <div className="table-responsive-wrapper">
+                    <table className="table-responsive" style={styles.table}>
                         <thead>
                             <tr>
                                 <th style={styles.th}>Orden #</th>

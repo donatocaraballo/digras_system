@@ -60,7 +60,8 @@ function CreateMarcaModal({ isOpen, onClose, onMarcaCreated }) {
 
     return ReactDOM.createPortal(
         <div style={styles.overlay}>
-            <div style={styles.modal}>
+            {/* 🚨 CLASE RESPONSIVA AQUÍ */}
+            <div className="modal-content-responsive" style={{maxWidth: '450px'}}>
                 <div style={styles.header}>
                     <div style={{display:'flex', alignItems:'center', gap:'12px'}}>
                         <div style={styles.iconBox}><IconTag /></div>
@@ -116,16 +117,12 @@ const styles = {
         display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999999, // Muy alto para estar sobre el otro modal
         animation: 'fadeIn 0.2s ease-out'
     },
-    modal: {
-        backgroundColor: '#ffffff', width: '400px', maxWidth: '90%',
-        borderRadius: '20px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        border: '1px solid rgba(255, 255, 255, 0.1)'
-    },
+    // El modal principal se controla por clase CSS .modal-content-responsive
+    
     header: {
-        padding: '20px 24px', borderBottom: '1px solid #e2e8f0',
+        paddingBottom: '20px', borderBottom: '1px solid #e2e8f0',
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        backgroundColor: '#f8fafc'
+        marginBottom: '20px'
     },
     iconBox: {
         width: '40px', height: '40px', borderRadius: '10px', background: '#dcfce7',
@@ -138,9 +135,9 @@ const styles = {
         color: '#94a3b8', padding: '4px', borderRadius: '50%',
         transition: 'all 0.2s', display: 'flex', alignItems: 'center'
     },
-    formContent: { padding: '24px' },
-    formGroup: { marginBottom: '16px' },
-    label: { display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#334155', marginBottom: '6px', textTransform:'uppercase' },
+    formContent: { display: 'flex', flexDirection: 'column', gap: '15px' },
+    formGroup: { display: 'flex', flexDirection: 'column', gap: '6px' },
+    label: { fontSize: '0.8rem', fontWeight: '700', color: '#334155', textTransform:'uppercase' },
     input: { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.95rem', outline: 'none', boxSizing: 'border-box' },
     footer: { display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' },
     btnCancel: { padding: '10px 16px', border: 'none', backgroundColor: '#f1f5f9', color: '#475569', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' },

@@ -99,13 +99,7 @@ const IconSort = () => (
 
 // --- ESTILOS PREMIUM DIGRAS ---
 const styles = {
-  page: {
-    paddingTop: "40px",
-    paddingBottom: "40px",
-    fontFamily: "'Segoe UI', 'Roboto', sans-serif",
-    maxWidth: "1400px",
-    margin: "0 auto",
-  },
+  // page: manejado por page-container
 
   // HEADER FLOTANTE
   headerRow: {
@@ -139,13 +133,14 @@ const styles = {
     marginTop: "4px",
   },
 
-  // LAYOUT DE COLUMNAS
+  // LAYOUT DE COLUMNAS (Responsive)
   columns: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1.8fr) minmax(0, 1.2fr)",
+    gridTemplateColumns: "1fr",
     gap: "30px",
     alignItems: "flex-start",
   },
+  // Sobrescritura para escritorio mediante media query inyectada
 
   // TARJETA BLANCA IZQUIERDA
   listsCard: {
@@ -177,6 +172,8 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: "10px",
+    flexWrap: "wrap",
+    gap: "10px",
   },
   sectionTitle: {
     fontSize: "0.95rem",
@@ -202,18 +199,17 @@ const styles = {
     fontWeight: "600",
   },
 
-  // MINI TOOLBAR POR TABLA
+  // MINI TOOLBAR POR TABLA (Responsive Grid)
   tableToolbar: {
     display: "grid",
-    gridTemplateColumns:
-      "minmax(0, 1.2fr) minmax(0, 0.8fr) minmax(0, 0.8fr) minmax(0, 0.8fr)",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
     gap: "10px",
     marginBottom: "10px",
     alignItems: "center",
   },
   rangeToolbar: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+    gridTemplateColumns: "1fr 1fr",
     gap: "10px",
     marginBottom: "12px",
     alignItems: "center",
@@ -289,17 +285,12 @@ const styles = {
   },
 
   // Tabla
-  tableWrapper: {
-    borderRadius: "12px",
-    border: "1px solid #e2e8f0",
-    overflow: "hidden",
-    boxShadow: "0 2px 5px rgba(0,0,0,0.03)",
-    marginBottom: "30px",
-  },
+  // tableWrapper: manejado por table-responsive-wrapper
   table: {
     width: "100%",
     borderCollapse: "collapse",
     fontSize: "0.85rem",
+    minWidth: "600px",
   },
   th: {
     background: "#f8fafc",
@@ -1148,7 +1139,7 @@ export default function GerenteAprobaciones() {
   const isReject = confirm.action === "reject";
 
   return (
-    <div style={styles.page}>
+    <div className="page-container">
       {/* HEADER */}
       <div style={styles.headerRow}>
         <div style={styles.iconCircle}>
@@ -1164,7 +1155,7 @@ export default function GerenteAprobaciones() {
 
       {error && <div style={styles.statusTextError}>{error}</div>}
 
-      <div style={styles.columns}>
+      <div style={{display:'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px', alignItems: 'flex-start'}}>
         {/* IZQUIERDA: LISTAS */}
         <div style={styles.listsCard}>
           {/* Mensaje resumen */}
@@ -1191,7 +1182,7 @@ export default function GerenteAprobaciones() {
             <div style={styles.inputGroup}>
               <input
                 style={styles.inputSmall}
-                placeholder="Buscar por cliente, ID, usuario o método de pago..."
+                placeholder="Buscar por cliente, ID, usuario..."
                 value={searchOrden}
                 onChange={(e) => setSearchOrden(e.target.value)}
               />
@@ -1261,8 +1252,8 @@ export default function GerenteAprobaciones() {
             />
           </div>
 
-          <div style={styles.tableWrapper}>
-            <table style={styles.table}>
+          <div className="table-responsive-wrapper">
+            <table className="table-responsive" style={styles.table}>
               <thead>
                 <tr>
                   <th style={styles.th}>ID</th>
@@ -1361,7 +1352,7 @@ export default function GerenteAprobaciones() {
             <div style={styles.inputGroup}>
               <input
                 style={styles.inputSmall}
-                placeholder="Buscar por proveedor, ID, usuario o método de pago..."
+                placeholder="Buscar por proveedor, ID..."
                 value={searchCompra}
                 onChange={(e) => setSearchCompra(e.target.value)}
               />
@@ -1431,8 +1422,8 @@ export default function GerenteAprobaciones() {
             />
           </div>
 
-          <div style={styles.tableWrapper}>
-            <table style={styles.table}>
+          <div className="table-responsive-wrapper">
+            <table className="table-responsive" style={styles.table}>
               <thead>
                 <tr>
                   <th style={styles.th}>ID</th>
@@ -1531,8 +1522,8 @@ export default function GerenteAprobaciones() {
           </div>
         </div>
 
-        {/* DERECHA: DETALLE */}
-        <div style={styles.detailWrapper}>
+        {/* DERECHA: DETALLE (Sticky solo en desktop) */}
+        <div style={window.innerWidth > 768 ? styles.detailWrapper : {}}>
           {!seleccion ? (
             <div style={styles.emptyDetail}>
               Selecciona un ítem de la lista para ver sus detalles y gestionar su
@@ -1794,61 +1785,71 @@ export default function GerenteAprobaciones() {
           </div>
         ) : null}
       </ConfirmModal>
-    {/* MODAL INFO CLIENTE / PROVEEDOR */}
-    {infoEntidad.open ? (
-      <div style={styles.modalOverlay} onMouseDown={closeInfoEntidad}>
-        <div style={styles.modalCard} onMouseDown={(e) => e.stopPropagation()}>
-          <div style={{ ...styles.modalHeader, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-            <h4 style={styles.modalTitle}>
-              {infoEntidad.tipo === "cliente" ? "Información del cliente" : "Información del proveedor"}
-            </h4>
-            <button type="button" style={styles.modalCloseIconBtn} onClick={closeInfoEntidad} aria-label="Cerrar">
-              <IconX />
-            </button>
-          </div>
-          <div style={styles.modalBody}>
-            {infoEntidad.loading ? (
-              <div style={{ color: "#64748b" }}>Cargando información...</div>
-            ) : infoEntidad.error ? (
-              <div style={{ color: "#991b1b", fontWeight: 700 }}>{infoEntidad.error}</div>
-            ) : infoEntidad.data ? (
-              <div style={{ display: "grid", gap: "8px" }}>
-                {infoEntidad.tipo === "cliente" ? (
-                  <>
-                    <div><b>Nombre:</b> {infoEntidad.data.nombre || "—"}</div>
-                    <div><b>RIF / Cédula:</b> {infoEntidad.data.rif_cedula || "—"}</div>
-                    <div><b>Teléfono:</b> {infoEntidad.data.telefono || "—"}</div>
-                    <div><b>Correo:</b> {infoEntidad.data.correo || "—"}</div>
-                    <div><b>Dirección:</b> {infoEntidad.data.direccion || "—"}</div>
-                    {typeof infoEntidad.data.activo === "boolean" ? (
-                      <div><b>Activo:</b> {infoEntidad.data.activo ? "Sí" : "No"}</div>
-                    ) : null}
-                  </>
-                ) : (
-                  <>
-                    <div><b>Nombre:</b> {infoEntidad.data.nombre || infoEntidad.data.razon_social || "—"}</div>
-                    <div><b>RIF:</b> {infoEntidad.data.rif || infoEntidad.data.identificacion || "—"}</div>
-                    <div><b>Teléfono:</b> {infoEntidad.data.telefono || "—"}</div>
-                    <div><b>Correo:</b> {infoEntidad.data.correo || "—"}</div>
-                    <div><b>Dirección:</b> {infoEntidad.data.direccion || "—"}</div>
-                    {infoEntidad.data.contacto ? (
-                      <div><b>Contacto:</b> {String(infoEntidad.data.contacto)}</div>
-                    ) : null}
-                  </>
-                )}
-              </div>
-            ) : (
-              <div style={{ color: "#64748b" }}>No hay información para mostrar.</div>
-            )}
-          </div>
-          <div style={styles.modalFooter}>
-            <button type="button" style={styles.modalBtn} onClick={closeInfoEntidad}>
-              Cerrar
-            </button>
+
+      {/* MODAL INFO CLIENTE / PROVEEDOR */}
+      {infoEntidad.open ? (
+        <div style={styles.modalOverlay} onMouseDown={closeInfoEntidad}>
+          <div style={styles.modalCard} onMouseDown={(e) => e.stopPropagation()}>
+            <div style={{ ...styles.modalHeader, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+              <h4 style={styles.modalTitle}>
+                {infoEntidad.tipo === "cliente" ? "Información del cliente" : "Información del proveedor"}
+              </h4>
+              <button type="button" style={styles.modalCloseIconBtn} onClick={closeInfoEntidad} aria-label="Cerrar">
+                <IconX />
+              </button>
+            </div>
+            <div style={styles.modalBody}>
+              {infoEntidad.loading ? (
+                <div style={{ color: "#64748b" }}>Cargando información...</div>
+              ) : infoEntidad.error ? (
+                <div style={{ color: "#991b1b", fontWeight: 700 }}>{infoEntidad.error}</div>
+              ) : infoEntidad.data ? (
+                <div style={{ display: "grid", gap: "8px" }}>
+                  {infoEntidad.tipo === "cliente" ? (
+                    <>
+                      <div><b>Nombre:</b> {infoEntidad.data.nombre || "—"}</div>
+                      <div><b>RIF / Cédula:</b> {infoEntidad.data.rif_cedula || "—"}</div>
+                      <div><b>Teléfono:</b> {infoEntidad.data.telefono || "—"}</div>
+                      <div><b>Correo:</b> {infoEntidad.data.correo || "—"}</div>
+                      <div><b>Dirección:</b> {infoEntidad.data.direccion || "—"}</div>
+                      {typeof infoEntidad.data.activo === "boolean" ? (
+                        <div><b>Activo:</b> {infoEntidad.data.activo ? "Sí" : "No"}</div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      <div><b>Nombre:</b> {infoEntidad.data.nombre || infoEntidad.data.razon_social || "—"}</div>
+                      <div><b>RIF:</b> {infoEntidad.data.rif || infoEntidad.data.identificacion || "—"}</div>
+                      <div><b>Teléfono:</b> {infoEntidad.data.telefono || "—"}</div>
+                      <div><b>Correo:</b> {infoEntidad.data.correo || "—"}</div>
+                      <div><b>Dirección:</b> {infoEntidad.data.direccion || "—"}</div>
+                      {infoEntidad.data.contacto ? (
+                        <div><b>Contacto:</b> {String(infoEntidad.data.contacto)}</div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div style={{ color: "#64748b" }}>No hay información para mostrar.</div>
+              )}
+            </div>
+            <div style={styles.modalFooter}>
+              <button type="button" style={styles.modalBtn} onClick={closeInfoEntidad}>
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    ) : null}
-  </div>
+      ) : null}
+      
+      {/* 🚨 CSS RESPONSIVE INLINE */}
+      <style>{`
+        @media (max-width: 1024px) {
+            .page-container {
+                padding: 16px !important;
+            }
+        }
+      `}</style>
+    </div>
   );
 }

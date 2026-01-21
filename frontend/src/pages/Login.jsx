@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import RecoverPasswordModal from '../components/RecoverPasswordModal'; // <--- IMPORTANTE
+import RecoverPasswordModal from '../components/RecoverPasswordModal';
 
 // Importa tus assets
 import bgImage from '../assets/bg-login.jpg'; 
@@ -61,6 +61,24 @@ function Login() {
                     @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-15px); } 100% { transform: translateY(0px); } }
                     @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
                     input::placeholder { color: #aaa; }
+                    
+                    /* --- ESTILOS RESPONSIVOS --- */
+                    .glass-card {
+                        padding: 40px;
+                    }
+                    .login-logo {
+                        width: 140px;
+                    }
+
+                    @media (max-width: 480px) {
+                        .glass-card {
+                            padding: 25px !important;
+                        }
+                        .login-logo {
+                            width: 110px !important;
+                        }
+                        h2 { font-size: 1.5rem !important; }
+                    }
                 `}
             </style>
 
@@ -68,10 +86,10 @@ function Login() {
 
             <div style={styles.contentWrapper}>
                 <div style={styles.logoWrapper}>
-                    <img src={logoImg} alt="Logo DIGRAS" style={styles.logo} />
+                    <img src={logoImg} alt="Logo DIGRAS" className="login-logo" style={styles.logo} />
                 </div>
 
-                <div style={styles.glassCard}>
+                <div className="glass-card" style={styles.glassCard}>
                     <div style={styles.header}>
                         <h2 style={styles.welcomeTitle}>Bienvenido</h2>
                         <p style={styles.welcomeText}>Ingresa a tu cuenta para gestionar el sistema.</p>
@@ -141,10 +159,12 @@ function Login() {
 const styles = {
     container: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', justifyContent: 'center', alignItems: 'center', fontFamily: "'Segoe UI', 'Roboto', sans-serif", zIndex: 9999 },
     overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(8px)' },
-    contentWrapper: { position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'fadeIn 0.8s ease-out' },
+    // contentWrapper: Añadido padding y width para evitar bordes en móviles
+    contentWrapper: { position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'fadeIn 0.8s ease-out', width: '100%', padding: '20px', boxSizing: 'border-box' },
     logoWrapper: { marginBottom: '20px', animation: 'float 4s ease-in-out infinite', filter: 'drop-shadow(0 10px 15px rgba(0,0,0,0.3))' },
-    logo: { width: '140px', height: 'auto', objectFit: 'contain' },
-    glassCard: { width: '380px', padding: '40px', borderRadius: '24px', backgroundColor: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(20px)', boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid rgba(255, 255, 255, 0.8)', textAlign: 'center' },
+    logo: { height: 'auto', objectFit: 'contain' }, // Width manejado por CSS class
+    // glassCard: Width fluido con máximo
+    glassCard: { width: '100%', maxWidth: '400px', borderRadius: '24px', backgroundColor: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(20px)', boxShadow: '0 20px 50px rgba(0,0,0,0.3)', border: '1px solid rgba(255, 255, 255, 0.8)', textAlign: 'center' }, // Padding manejado por CSS class
     header: { marginBottom: '30px' },
     welcomeTitle: { fontSize: '1.8rem', color: '#0d47a1', margin: '0 0 5px 0', fontWeight: '800', letterSpacing: '-0.5px' },
     welcomeText: { color: '#666', fontSize: '0.95rem', margin: 0 },
@@ -158,7 +178,6 @@ const styles = {
     buttonDisabled: { marginTop: '10px', padding: '15px', borderRadius: '12px', border: 'none', background: '#bdc3c7', color: 'white', cursor: 'not-allowed', fontWeight: 'bold' },
     footer: { marginTop: '30px', borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: '20px', width: '100%' },
     footerText: { color: '#999', fontSize: '0.8rem', margin: 0 },
-    // Estilo nuevo botón
     forgotPassBtn: { background: 'none', border: 'none', color: '#0d47a1', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer', textDecoration: 'underline', opacity: 0.8, transition: 'opacity 0.2s', ':hover': { opacity: 1 } }
 };
 

@@ -148,7 +148,10 @@ function RegisterPaymentModal({ compra, onClose, onSuccess }) {
     return (
         <div style={styles.overlay}>
             <Toaster position="top-center" />
-            <div style={styles.modal}>
+            
+            {/* 🚨 CLASE RESPONSIVA */}
+            <div className="modal-content-responsive" style={{maxWidth: '650px', maxHeight: '90vh', display: 'flex', flexDirection: 'column'}}>
+                
                 <div style={styles.header}>
                     <div>
                         <h3 style={styles.title}>Registrar Pago</h3>
@@ -168,14 +171,30 @@ function RegisterPaymentModal({ compra, onClose, onSuccess }) {
 
                     {saldoRestanteUSD > 0.001 ? (
                         <div style={styles.formSection}>
-                            <div style={styles.row}>
-                                <div style={{flex: 2}}><label style={styles.label}>Método</label><select value={metodo} onChange={e=>setMetodo(e.target.value)} style={styles.select}>{METODOS_PAGO.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></div>
-                                {isBolivares && (<div style={{flex: 1}}><label style={styles.label}>Tasa</label><input type="number" step="0.01" value={tasaInput} onChange={e=>setTasaInput(e.target.value)} style={styles.input} /></div>)}
+                            {/* 🚨 GRILLA RESPONSIVA */}
+                            <div className="form-grid-responsive" style={{marginBottom: '15px'}}>
+                                <div style={{gridColumn: '1 / -1'}}>
+                                    <label style={styles.label}>Método</label>
+                                    <select value={metodo} onChange={e=>setMetodo(e.target.value)} style={styles.select}>
+                                        {METODOS_PAGO.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                                    </select>
+                                </div>
+                                {isBolivares && (
+                                    <div>
+                                        <label style={styles.label}>Tasa</label>
+                                        <input type="number" step="0.01" value={tasaInput} onChange={e=>setTasaInput(e.target.value)} style={styles.input} />
+                                    </div>
+                                )}
+                                <div>
+                                    <label style={styles.label}>Monto ({isBolivares ? 'Bs' : '$'})</label>
+                                    <input type="number" step="0.01" value={montoInput} onChange={e=>setMontoInput(e.target.value)} style={styles.input} placeholder="0.00" />
+                                </div>
+                                <div>
+                                    <label style={styles.label}>Referencia #</label>
+                                    <input type="text" value={referencia} onChange={e=>setReferencia(e.target.value)} style={styles.input} placeholder="Opcional" />
+                                </div>
                             </div>
-                            <div style={styles.row}>
-                                <div style={{flex: 1}}><label style={styles.label}>Monto ({isBolivares ? 'Bs' : '$'})</label><input type="number" step="0.01" value={montoInput} onChange={e=>setMontoInput(e.target.value)} style={styles.input} placeholder="0.00" /></div>
-                                <div style={{flex: 1}}><label style={styles.label}>Referencia #</label><input type="text" value={referencia} onChange={e=>setReferencia(e.target.value)} style={styles.input} placeholder="Opcional" /></div>
-                            </div>
+
                             <div style={styles.helperRow}>
                                 <span style={{fontSize: '0.8rem', color: '#64748b'}}>{isBolivares && (!tasaInput || parseFloat(tasaInput) <= 0) ? (<span style={{color: '#f59e0b'}}>⚠️ Ingrese tasa para calcular</span>) : (<>Equivale a: <strong>${getValorEnUSD(montoInput, tasaInput).toFixed(2)}</strong></>)}</span>
                                 <div style={{display:'flex', gap: 10}}>
@@ -191,13 +210,58 @@ function RegisterPaymentModal({ compra, onClose, onSuccess }) {
                     {pagosACargar.length > 0 && (
                         <div style={styles.cartSection}>
                             <h4 style={styles.sectionTitle}>Pagos por procesar</h4>
-                            <table style={styles.table}><tbody>{pagosACargar.map((p, i) => (<tr key={i} style={{background: '#f0f9ff'}}><td style={styles.td}>{p.label_metodo}</td><td style={styles.td}>{p.monto_local} {p.moneda}</td><td style={styles.td}>{p.tasa_cambio > 1 ? `@${p.tasa_cambio}` : ''}</td><td style={{...styles.td, fontWeight:'bold'}}>${p.monto_usd.toFixed(2)}</td><td style={{textAlign: 'right', paddingRight: 10}}><button onClick={()=>handleRemovePago(i)} style={styles.removeBtn}><IconTrash /></button></td></tr>))}</tbody></table>
-                            <div style={{marginTop: 15, textAlign: 'right'}}><button onClick={handleFinalSubmit} style={styles.btnSubmit}>CONFIRMAR PAGOS</button></div>
+                            {/* 🚨 WRAPPER DE TABLA */}
+                            <div className="table-responsive-wrapper">
+                                <table className="table-responsive" style={styles.table}>
+                                    <tbody>
+                                        {pagosACargar.map((p, i) => (
+                                            <tr key={i} style={{background: '#f0f9ff'}}>
+                                                <td style={styles.td}>{p.label_metodo}</td>
+                                                <td style={styles.td}>{p.monto_local} {p.moneda}</td>
+                                                <td style={styles.td}>{p.tasa_cambio > 1 ? `@${p.tasa_cambio}` : ''}</td>
+                                                <td style={{...styles.td, fontWeight:'bold'}}>${p.monto_usd.toFixed(2)}</td>
+                                                <td style={{textAlign: 'right', paddingRight: 10}}>
+                                                    <button onClick={()=>handleRemovePago(i)} style={styles.removeBtn}><IconTrash /></button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div style={{marginTop: 15, textAlign: 'right'}}>
+                                <button onClick={handleFinalSubmit} style={styles.btnSubmit}>CONFIRMAR PAGOS</button>
+                            </div>
                         </div>
                     )}
 
                     <h4 style={styles.sectionTitle}>Historial Registrado</h4>
-                    <div style={styles.tableContainer}><table style={styles.table}><thead><tr style={styles.theadRow}><th style={styles.th}>Fecha</th><th style={styles.th}>Método</th><th style={{...styles.th, textAlign: 'right'}}>Local</th><th style={{...styles.th, textAlign: 'right'}}>USD</th></tr></thead><tbody>{historial.length > 0 ? (historial.map((p) => (<tr key={p.id_pago} style={styles.tr}><td style={styles.td}>{p.fecha_pago}</td><td style={styles.td}>{p.metodo_pago.replace(/_/g, ' ')}{p.referencia && <div style={{fontSize: '0.75rem', color: '#94a3b8'}}>{p.referencia}</div>}</td><td style={{...styles.td, textAlign: 'right'}}>{p.moneda === 'VES' ? `Bs ${parseFloat(p.monto_local).toFixed(2)}` : '-'}</td><td style={{...styles.td, textAlign: 'right', fontWeight: 'bold', color: '#059669'}}>${p.monto}</td></tr>))) : (<tr><td colSpan="4" style={{padding: 20, textAlign: 'center', color: '#94a3b8'}}>Sin pagos previos</td></tr>)}</tbody></table></div>
+                    {/* 🚨 WRAPPER DE TABLA HISTORIAL */}
+                    <div className="table-responsive-wrapper" style={styles.tableContainer}>
+                        <table className="table-responsive" style={styles.table}>
+                            <thead>
+                                <tr style={styles.theadRow}>
+                                    <th style={styles.th}>Fecha</th>
+                                    <th style={styles.th}>Método</th>
+                                    <th style={{...styles.th, textAlign: 'right'}}>Local</th>
+                                    <th style={{...styles.th, textAlign: 'right'}}>USD</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {historial.length > 0 ? (
+                                    historial.map((p) => (
+                                        <tr key={p.id_pago} style={styles.tr}>
+                                            <td style={styles.td}>{p.fecha_pago}</td>
+                                            <td style={styles.td}>{p.metodo_pago.replace(/_/g, ' ')}{p.referencia && <div style={{fontSize: '0.75rem', color: '#94a3b8'}}>{p.referencia}</div>}</td>
+                                            <td style={{...styles.td, textAlign: 'right'}}>{p.moneda === 'VES' ? `Bs ${parseFloat(p.monto_local).toFixed(2)}` : '-'}</td>
+                                            <td style={{...styles.td, textAlign: 'right', fontWeight: 'bold', color: '#059669'}}>${p.monto}</td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr><td colSpan="4" style={{padding: 20, textAlign: 'center', color: '#94a3b8'}}>Sin pagos previos</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -207,23 +271,23 @@ function RegisterPaymentModal({ compra, onClose, onSuccess }) {
 // 🚨 CORRECCIÓN: Z-Index 20000 para tapar el Navbar (9999)
 const styles = {
     overlay: { position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 20000 },
-    modal: { background: '#fff', width: '650px', maxHeight: '90vh', borderRadius: '16px', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' },
+    // Modal handled by className
     header: { padding: '20px 24px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display:'flex', justifyContent:'space-between', alignItems:'flex-start' },
     title: { margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' },
     subtitle: { margin: '4px 0 0', fontSize: '0.875rem', color: '#64748b' },
     closeBtn: { background:'none', border:'none', cursor:'pointer', color:'#94a3b8' },
     contentScroll: { padding: '24px', overflowY: 'auto', flex: 1 },
-    cardsContainer: { display: 'flex', gap: 12, marginBottom: 20 },
-    cardInfo: { flex: 1, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, textAlign: 'center', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)' },
+    cardsContainer: { display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }, // Responsive Wrap
+    cardInfo: { flex: '1 1 120px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 12, textAlign: 'center', boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)' },
     cardLabel: { display: 'block', fontSize: '0.75rem', color: '#64748b', marginBottom: 4, textTransform: 'uppercase', fontWeight: '600' },
     cardValue: { fontSize: '1.1rem', fontWeight: '800', color: '#0f172a' },
     tasaBar: { background: '#eff6ff', color: '#1e40af', padding: '10px 16px', borderRadius: 8, fontSize: '0.9rem', marginBottom: 20, border: '1px solid #dbeafe' },
     formSection: { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 16, marginBottom: 20, boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)' },
-    row: { display: 'flex', gap: 16, marginBottom: 12 },
+    
     label: { display: 'block', fontSize: '0.75rem', fontWeight: '600', color: '#475569', marginBottom: 6 },
     input: { width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.9rem', boxSizing:'border-box', outline: 'none' },
     select: { width: '100%', padding: '10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: '0.9rem', background: '#fff', boxSizing:'border-box' },
-    helperRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+    helperRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, flexWrap: 'wrap', gap: '10px' },
     btnLink: { background: 'none', border: 'none', color: '#3b82f6', fontWeight: '600', cursor: 'pointer', fontSize: '0.85rem' },
     btnAdd: { background: '#0f172a', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontWeight: '600', cursor: 'pointer', fontSize: '0.85rem' },
     successBox: { background: '#ecfdf5', color: '#065f46', padding: 16, borderRadius: 10, textAlign: 'center', marginBottom: 20, border: '1px solid #a7f3d0' },

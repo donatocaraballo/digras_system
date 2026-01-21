@@ -48,7 +48,8 @@ function EditProviderModal({ provider, onClose, onSave }) {
 
     return (
         <div style={styles.overlay}>
-            <div style={styles.modal}>
+            {/* 🚨 CLASE RESPONSIVA */}
+            <div className="modal-content-responsive" style={{maxWidth: '600px'}}>
                 
                 {/* Header */}
                 <div style={styles.header}>
@@ -63,8 +64,9 @@ function EditProviderModal({ provider, onClose, onSave }) {
                 </div>
 
                 <form onSubmit={handleSubmit} style={styles.formContent}>
-                    <div style={styles.formGrid}>
-                        <div style={{gridColumn: 'span 2'}}>
+                    {/* 🚨 GRILLA RESPONSIVA PARA FORMULARIO */}
+                    <div className="form-grid-responsive">
+                        <div style={{gridColumn: '1 / -1'}}>
                             <label style={styles.label}>Razón Social / Nombre <span style={{color:'red'}}>*</span></label>
                             <input 
                                 name="nombre" 
@@ -96,24 +98,24 @@ function EditProviderModal({ provider, onClose, onSave }) {
                             />
                         </div>
 
-                        <div style={{gridColumn: 'span 2'}}>
+                        <div style={{gridColumn: '1 / -1'}}>
                             <label style={styles.label}>Correo Electrónico</label>
                             <input 
                                 name="correo" 
-                                type="email"
+                                type="email" // Añadido type email para validación navegador
                                 value={formData.correo} 
                                 onChange={handleChange} 
                                 style={styles.input} 
                             />
                         </div>
 
-                        <div style={{gridColumn: 'span 2'}}>
+                        <div style={{gridColumn: '1 / -1'}}>
                             <label style={styles.label}>Dirección Fiscal</label>
                             <textarea 
                                 name="direccion" 
                                 value={formData.direccion} 
                                 onChange={handleChange} 
-                                style={{...styles.input, resize: 'vertical', minHeight: '80px'}} 
+                                style={{...styles.input, resize: 'vertical', minHeight: '80px', fontFamily: 'inherit'}} 
                             />
                         </div>
                     </div>
@@ -130,7 +132,6 @@ function EditProviderModal({ provider, onClose, onSave }) {
     );
 }
 
-// --- ESTILOS PREMIUM ---
 const styles = {
     overlay: {
         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -138,16 +139,12 @@ const styles = {
         display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000,
         animation: 'fadeIn 0.2s ease-out'
     },
-    modal: {
-        backgroundColor: '#ffffff', width: '600px', maxHeight: '90vh',
-        borderRadius: '20px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        border: '1px solid #f1f5f9'
-    },
+    // El modal principal se controla por clase CSS .modal-content-responsive
+    
     header: {
-        padding: '24px', borderBottom: '1px solid #e2e8f0',
+        paddingBottom: '20px', borderBottom: '1px solid #e2e8f0',
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        backgroundColor: '#f8fafc'
+        marginBottom: '20px'
     },
     iconBox: {
         width: '40px', height: '40px', borderRadius: '10px', background: '#e0f2fe',
@@ -160,8 +157,12 @@ const styles = {
         color: '#94a3b8', padding: '4px', borderRadius: '50%',
         transition: 'all 0.2s', display: 'flex', alignItems: 'center'
     },
-    formContent: { padding: '24px', overflowY: 'auto' },
-    formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' },
+    formContent: { 
+        display: 'flex', 
+        flexDirection: 'column', 
+        gap: '20px',
+        overflowY: 'auto' // Permite scroll si el contenido es muy largo en móvil
+    },
     
     label: { display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#475569', marginBottom: '6px' },
     input: {
@@ -172,8 +173,7 @@ const styles = {
     },
     
     footer: {
-        padding: '20px 24px', backgroundColor: '#fff', borderTop: '1px solid #e2e8f0',
-        display: 'flex', justifyContent: 'flex-end', gap: '12px'
+        display: 'flex', justifyContent: 'flex-end', gap: '12px', paddingTop: '10px'
     },
     btnCancel: {
         padding: '12px 24px', border: 'none', backgroundColor: '#f1f5f9',

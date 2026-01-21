@@ -12,32 +12,31 @@ const IconSearch = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="n
 const IconRefresh = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>;
 const IconUser = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>;
 const IconInfo = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>;
-const IconCalendar = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
 
-// --- ESTILOS PREMIUM DIGRAS ---
+// --- ESTILOS PREMIUM DIGRAS (Responsive) ---
 const styles = {
-  page: { paddingTop: "40px", paddingBottom: "40px", fontFamily: "'Segoe UI', 'Roboto', sans-serif", maxWidth: "1400px", margin: "0 auto" },
+  // Los contenedores principales ahora se manejan con clases CSS globales
+  
   headerRow: { display: "flex", alignItems: "center", gap: "15px", marginBottom: "25px", paddingLeft: "10px" },
   iconCircle: { width: '56px', height: '56px', borderRadius: '14px', backgroundColor: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' },
   title: { fontSize: "1.8rem", fontWeight: "800", color: "#0f172a", margin: 0, letterSpacing: "-0.5px" },
   subtitle: { fontSize: "1rem", color: "#64748b", marginTop: "4px" },
   
-  card: { background: "#ffffff", borderRadius: "20px", boxShadow: "0 10px 30px rgba(0,0,0,0.05)", padding: "30px", border: "1px solid #f0f0f0" },
+  // Toolbar adaptado a clases globales pero mantenemos estilos específicos
+  toolbarContainer: { marginBottom: "25px", background: "#f8fafc", padding: "20px", borderRadius: "16px", border: "1px solid #e2e8f0" },
   
-  toolbar: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px", marginBottom: "25px", background: "#f8fafc", padding: "20px", borderRadius: "16px", border: "1px solid #e2e8f0", alignItems: 'end' },
   label: { fontSize: "0.75rem", fontWeight: "700", color: "#475569", marginBottom: "6px", textTransform: "uppercase", display: 'block' },
   input: { height: "40px", width: "100%", borderRadius: "10px", border: "1px solid #cbd5e1", padding: "0 12px", fontSize: "0.9rem", outline: "none", color: "#334155", backgroundColor: "#fff", boxSizing: 'border-box' },
   select: { height: "40px", width: "100%", borderRadius: "10px", border: "1px solid #cbd5e1", padding: "0 12px", fontSize: "0.9rem", outline: "none", color: "#334155", backgroundColor: "#fff", boxSizing: 'border-box' },
   
-  actionsContainer: { display: 'flex', gap: '10px', justifyContent: 'flex-end', height: '40px' },
+  actionsContainer: { display: 'flex', gap: '10px', height: '40px', marginTop: 'auto' }, // marginTop auto para alinear con inputs
   buttonPrimary: { border: "none", borderRadius: "10px", padding: "0 20px", height: "100%", background: "#0f172a", color: "#ffffff", cursor: "pointer", fontSize: "0.9rem", fontWeight: "600", display: "flex", alignItems: "center", gap: "8px", boxShadow: "0 4px 12px rgba(15, 23, 42, 0.2)", transition: "transform 0.1s" },
   buttonGhost: { borderRadius: "10px", padding: "0 15px", height: "100%", background: "transparent", border: "1px solid #cbd5e1", color: "#64748b", cursor: "pointer", fontSize: "0.9rem", fontWeight: "600", display: 'flex', alignItems:'center', gap:'6px' },
   
-  tableWrapper: { borderRadius: "12px", border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 2px 5px rgba(0,0,0,0.02)" },
-  table: { width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" },
+  // Tabla ahora usa table-responsive-wrapper
+  table: { width: "100%", borderCollapse: "collapse", fontSize: "0.85rem", minWidth: "800px" },
   th: { background: "#f8fafc", textAlign: "left", padding: "15px", borderBottom: "1px solid #e2e8f0", color: "#475569", fontWeight: "700", textTransform: "uppercase", fontSize: "0.75rem" },
   td: { padding: "14px 15px", borderBottom: "1px solid #f1f5f9", color: "#334155", verticalAlign: "middle" },
-  rowAlt: { background: "#f8fafc" },
   
   userCell: { fontWeight: '700', color: '#0f172a' },
   moduleBadge: { display: 'inline-block', padding: '3px 10px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: '700', background: '#e0f2fe', color: '#0369a1', border:'1px solid #bae6fd', textTransform: 'uppercase' },
@@ -47,15 +46,15 @@ const styles = {
   emptyState: { padding: '40px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' },
   errorText: { padding: '15px', background: '#fee2e2', color: '#991b1b', borderRadius: '10px', marginBottom: '20px', border:'1px solid #fecaca', textAlign:'center' },
 
-  // --- ESTILOS DEL DETALLE (NUEVO) ---
+  // --- ESTILOS DEL DETALLE ---
   detailWrapper: { marginTop: "30px", animation: "fadeIn 0.4s ease-out" },
   detailCard: { backgroundColor: "#ffffff", borderRadius: "20px", padding: "30px", boxShadow: "0 20px 40px -10px rgba(0, 0, 0, 0.1)", border: "1px solid #e2e8f0" },
-  detailHeader: { display:'flex', justifyContent:'space-between', borderBottom:'1px solid #e2e8f0', paddingBottom:15, marginBottom:25 },
+  detailHeader: { display:'flex', justifyContent:'space-between', borderBottom:'1px solid #e2e8f0', paddingBottom:15, marginBottom:25, flexWrap: 'wrap', gap: '10px' },
   detailTitle: { margin:0, color:'#0f172a', display:'flex', alignItems:'center', gap:'10px', fontSize: '1.4rem' },
   
-  gridDetail: { display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '30px' },
+  // gridDetail reemplazado por form-grid-responsive
   
-  infoBox: { backgroundColor: "#f8fafc", padding: "25px", borderRadius: "16px", border: "1px solid #f1f5f9", display:'flex', flexDirection:'column', gap:'12px' },
+  infoBox: { backgroundColor: "#f8fafc", padding: "25px", borderRadius: "16px", border: "1px solid #f1f5f9", display:'flex', flexDirection:'column', gap:'12px', height: '100%' },
   sectionTitle: { margin: "0 0 10px 0", fontSize: "0.9rem", fontWeight: "800", color: "#64748b", textTransform: "uppercase", display:'flex', alignItems:'center', gap:'8px' },
   
   detailRow: { display: "flex", justifyContent: "space-between", fontSize: "0.95rem", color: "#334155", borderBottom: '1px dashed #e2e8f0', paddingBottom: '8px' },
@@ -205,7 +204,8 @@ export default function RegistroAcciones() {
   if (checkingPermission) return null; 
 
   return (
-    <div style={styles.page}>
+    // 🚨 CLASE GLOBAL RESPONSIVA
+    <div className="page-container">
       
       {/* HEADER */}
       <div style={styles.headerRow}>
@@ -218,45 +218,61 @@ export default function RegistroAcciones() {
 
       {error && <div style={styles.errorText}>{error}</div>}
 
-      {/* TARJETA PRINCIPAL */}
-      <div style={styles.card}>
+      {/* TARJETA PRINCIPAL RESPONSIVA */}
+      <div className="card-responsive">
         
-        {/* FILTROS */}
-        <div style={styles.toolbar}>
-            <div style={{gridColumn: 'span 2'}}> 
-                <label style={styles.label}>Buscar (Usuario / Acción)</label>
-                <div style={{display:'flex', alignItems:'center', position:'relative'}}>
-                    <input style={styles.input} placeholder="Ej: crear orden..." value={search} onChange={(e) => setSearch(e.target.value)} />
-                    <div style={{position:'absolute', right:12, color:'#94a3b8'}}><IconSearch /></div>
+        {/* FILTROS (GRID RESPONSIVO) */}
+        <div style={styles.toolbarContainer}>
+            <div className="form-grid-responsive" style={{gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr'}}>
+                {/* Override de grid para pantallas grandes, en móvil será 1 columna */}
+                <div style={{gridColumn: 'span 2'}}> 
+                    <label style={styles.label}>Buscar (Usuario / Acción)</label>
+                    <div style={{display:'flex', alignItems:'center', position:'relative'}}>
+                        <input style={styles.input} placeholder="Ej: crear orden..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                        <div style={{position:'absolute', right:12, color:'#94a3b8'}}><IconSearch /></div>
+                    </div>
+                </div>
+
+                <div>
+                    <label style={styles.label}>Módulo</label>
+                    <select style={styles.select} value={filterModulo} onChange={(e) => setFilterModulo(e.target.value)}>
+                        <option value="">Todos</option>
+                        {modulosUnicos.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                </div>
+
+                <div>
+                    <label style={styles.label}>Desde</label>
+                    <input type="date" style={styles.input} value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
+                </div>
+                <div>
+                    <label style={styles.label}>Hasta</label>
+                    <input type="date" style={styles.input} value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
+                </div>
+
+                <div style={styles.actionsContainer}>
+                    <button style={styles.buttonGhost} onClick={limpiarFiltros} title="Limpiar filtros"><IconRefresh /></button>
+                    <button style={styles.buttonPrimary} onClick={cargarAcciones} disabled={loading}>{loading ? "..." : "Actualizar"}</button>
                 </div>
             </div>
-
-            <div>
-                <label style={styles.label}>Módulo</label>
-                <select style={styles.select} value={filterModulo} onChange={(e) => setFilterModulo(e.target.value)}>
-                    <option value="">Todos</option>
-                    {modulosUnicos.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-            </div>
-
-            <div>
-                <label style={styles.label}>Desde</label>
-                <input type="date" style={styles.input} value={dateStart} onChange={(e) => setDateStart(e.target.value)} />
-            </div>
-            <div>
-                <label style={styles.label}>Hasta</label>
-                <input type="date" style={styles.input} value={dateEnd} onChange={(e) => setDateEnd(e.target.value)} />
-            </div>
-
-            <div style={styles.actionsContainer}>
-                <button style={styles.buttonGhost} onClick={limpiarFiltros} title="Limpiar filtros"><IconRefresh /></button>
-                <button style={styles.buttonPrimary} onClick={cargarAcciones} disabled={loading}>{loading ? "..." : "Actualizar"}</button>
-            </div>
+            
+            {/* Hack para hacer que el grid sea responsive en el componente inline */}
+            <style>{`
+                @media (max-width: 1024px) {
+                    .form-grid-responsive { grid-template-columns: 1fr 1fr !important; }
+                    .form-grid-responsive > div:first-child { grid-column: span 2 !important; }
+                }
+                @media (max-width: 768px) {
+                    .form-grid-responsive { grid-template-columns: 1fr !important; }
+                    .form-grid-responsive > div { grid-column: span 1 !important; }
+                    .actionsContainer { width: 100%; justify-content: space-between; }
+                }
+            `}</style>
         </div>
 
-        {/* TABLA */}
-        <div style={styles.tableWrapper}>
-            <table style={styles.table}>
+        {/* TABLA CON SCROLL RESPONSIVO */}
+        <div className="table-responsive-wrapper">
+            <table className="table-responsive" style={styles.table}>
                 <thead>
                     <tr>
                         <th style={styles.th}>Fecha y Hora</th>
@@ -315,7 +331,8 @@ export default function RegistroAcciones() {
                       <div style={styles.moduleBadge}>{accionSeleccionada.modulo}</div>
                   </div>
 
-                  <div style={styles.gridDetail}>
+                  {/* 🚨 GRID RESPONSIVO PARA DETALLES */}
+                  <div className="form-grid-responsive">
                       
                       {/* CAJA 1: INFORMACIÓN DEL ACTOR (USUARIO) */}
                       <div style={styles.infoBox}>

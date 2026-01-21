@@ -124,8 +124,9 @@ function PurchaseHistoryTable({ refreshTrigger, onUpdate, onEditClick, onRowClic
                 />
             </div>
 
-            <div style={{overflowX: 'auto'}}>
-                <table style={styles.table}>
+            {/* 🚨 WRAPPER DE TABLA RESPONSIVA */}
+            <div className="table-responsive-wrapper">
+                <table className="table-responsive" style={styles.table}>
                     <thead>
                         <tr style={styles.theadRow}>
                             <th style={styles.th}>ID</th>

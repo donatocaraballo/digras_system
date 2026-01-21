@@ -27,29 +27,32 @@ function QrLabelModal({ lote, onClose, productName }) {
 
     return (
         <div style={styles.overlay}>
-            <div style={styles.modal}>
+            {/* 🚨 CLASE RESPONSIVA */}
+            <div className="modal-content-responsive" style={{width: '400px', maxWidth: '95vw'}}>
                 <button onClick={onClose} style={styles.closeBtn}>X</button>
-                <h3 style={{textAlign: 'center', color: '#333'}}>Etiqueta de Trazabilidad</h3>
+                <h3 style={{textAlign: 'center', color: '#333', marginTop: 0}}>Etiqueta de Trazabilidad</h3>
                 
-                {/* ÁREA IMPRIMIBLE */}
-                <div ref={labelRef} style={styles.printArea}>
-                    <div style={styles.labelContainer}>
-                        <div style={styles.header}>
-                            <span style={styles.brand}>DIGRAS</span>
-                            <span style={styles.date}>Ingreso: {lote.fecha_pedido}</span>
-                        </div>
-                        
-                        <h2 style={styles.productName}>{productName}</h2>
-                        
-                        <div style={styles.body}>
-                            <div style={styles.qrWrapper}>
-                                <QRCodeCanvas value={qrData} size={90} />
+                {/* ÁREA IMPRIMIBLE (Centrada y con scroll si es necesario) */}
+                <div style={{overflowX: 'auto', display:'flex', justifyContent:'center'}}>
+                    <div ref={labelRef} style={styles.printArea}>
+                        <div style={styles.labelContainer}>
+                            <div style={styles.header}>
+                                <span style={styles.brand}>DIGRAS</span>
+                                <span style={styles.date}>Ingreso: {lote.fecha_pedido}</span>
                             </div>
-                            <div style={styles.info}>
-                                <p><strong>LOTE:</strong> {lote.numero_lote}</p>
-                                <p><strong>CANT:</strong> {lote.cantidad} Unid.</p>
-                                <p style={{color: '#d32f2f'}}><strong>VENCE:</strong> {lote.fecha_vencimiento || 'N/A'}</p>
-                                <p style={{fontSize: '0.7em', marginTop: '5px'}}>ID Interno: #{lote.id_lote}</p>
+                            
+                            <h2 style={styles.productName}>{productName}</h2>
+                            
+                            <div style={styles.body}>
+                                <div style={styles.qrWrapper}>
+                                    <QRCodeCanvas value={qrData} size={90} />
+                                </div>
+                                <div style={styles.info}>
+                                    <p style={{margin: '2px 0'}}><strong>LOTE:</strong> {lote.numero_lote}</p>
+                                    <p style={{margin: '2px 0'}}><strong>CANT:</strong> {lote.cantidad} Unid.</p>
+                                    <p style={{margin: '2px 0', color: '#d32f2f'}}><strong>VENCE:</strong> {lote.fecha_vencimiento || 'N/A'}</p>
+                                    <p style={{fontSize: '0.7em', marginTop: '5px', color: '#666'}}>ID Interno: #{lote.id_lote}</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -69,17 +72,15 @@ const styles = {
         backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 5000,
         display: 'flex', justifyContent: 'center', alignItems: 'center'
     },
-    modal: {
-        backgroundColor: 'white', padding: '20px', borderRadius: '10px', width: '400px',
-        position: 'relative'
-    },
+    // El modal principal se controla por clase CSS .modal-content-responsive
+    
     closeBtn: {
         position: 'absolute', top: 10, right: 10, border: 'none', background: 'none',
-        fontSize: '1.2em', cursor: 'pointer'
+        fontSize: '1.2em', cursor: 'pointer', color: '#666', fontWeight: 'bold'
     },
     // Estilos de la Etiqueta (Simulando una etiqueta adhesiva de 10x6cm aprox)
     printArea: {
-        display: 'flex', justifyContent: 'center', padding: '20px',
+        display: 'flex', justifyContent: 'center', padding: '10px',
         backgroundColor: '#f0f0f0', borderRadius: '5px', margin: '15px 0'
     },
     labelContainer: {
@@ -96,16 +97,17 @@ const styles = {
     date: { fontSize: '0.7em' },
     productName: {
         fontSize: '1.1em', margin: '0 0 5px 0', textAlign: 'center',
-        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 'bold'
     },
     body: { display: 'flex', gap: '10px', alignItems: 'center' },
-    qrWrapper: { border: '1px solid #eee' },
-    info: { fontSize: '0.85em', lineHeight: '1.3' },
+    qrWrapper: { border: '1px solid #eee', padding: '2px' },
+    info: { fontSize: '0.85em', lineHeight: '1.3', flex: 1 },
     
-    actions: { textAlign: 'center' },
+    actions: { textAlign: 'center', marginTop: '10px' },
     printBtn: {
-        padding: '10px 20px', backgroundColor: '#2c3e50', color: 'white',
-        border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold'
+        padding: '12px 24px', backgroundColor: '#2c3e50', color: 'white',
+        border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold',
+        width: '100%' // Botón full width en móvil
     }
 };
 

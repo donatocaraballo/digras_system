@@ -129,7 +129,7 @@ function AdvancedSearchBar({
                 )}
 
                 {/* Botón de Limpiar Global */}
-                <div style={{...styles.filterGroup, justifyContent: 'flex-end', flex: 1}}>
+                <div style={{...styles.filterGroup, justifyContent: 'flex-end', flex: 1, marginTop: 'auto', minWidth:'140px'}}>
                     {hasActiveFilters && (
                         <button onClick={() => onFilterChange('CLEAR', null)} style={styles.resetBtn}>
                             <IconX /> Limpiar Filtros
@@ -141,12 +141,13 @@ function AdvancedSearchBar({
     );
 }
 
-// --- ESTILOS MODERNOS (CSS-in-JS) ---
+// --- ESTILOS MODERNOS (CSS-in-JS + Responsive Tweaks) ---
 const styles = {
     container: {
         display: 'flex',
         flexDirection: 'column',
-        gap: '20px'
+        gap: '20px',
+        width: '100%'
     },
     
     // Barra de Búsqueda Principal (Estilo Cápsula/Floating)
@@ -159,7 +160,8 @@ const styles = {
         padding: '6px 16px',
         boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
         transition: 'all 0.2s ease',
-        maxWidth: '100%'
+        width: '100%', // Full width responsive
+        boxSizing: 'border-box'
     },
     searchWrapperFocus: {
         borderColor: '#3b82f6',
@@ -177,7 +179,8 @@ const styles = {
         fontSize: '1rem',
         color: '#1e293b',
         padding: '10px 0',
-        backgroundColor: 'transparent'
+        backgroundColor: 'transparent',
+        minWidth: 0 // Evita overflow en flexbox
     },
     clearTextBtn: {
         background: '#f1f5f9',
@@ -193,18 +196,20 @@ const styles = {
         marginLeft: '10px'
     },
 
-    // Grid de Filtros
+    // Grid de Filtros (Responsive: Flex Wrap)
     filtersGrid: {
         display: 'flex',
-        flexWrap: 'wrap',
-        gap: '24px',
+        flexWrap: 'wrap', // CLAVE: Permite que los filtros bajen de línea en móvil
+        gap: '20px',
         alignItems: 'flex-end',
         paddingTop: '10px'
     },
     filterGroup: {
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px'
+        gap: '8px',
+        flexGrow: 1, // Ocupa espacio disponible
+        minWidth: '200px' // Ancho mínimo antes de saltar línea
     },
     labelGroup: {
         display: 'flex',
@@ -221,7 +226,8 @@ const styles = {
     row: {
         display: 'flex',
         alignItems: 'center',
-        gap: '10px'
+        gap: '10px',
+        flexWrap: 'wrap' // Permite inputs en dos líneas si es muy estrecho
     },
 
     // Inputs de Filtros (Estilo Filled Moderno)
@@ -234,7 +240,9 @@ const styles = {
         color: '#334155',
         outline: 'none',
         transition: 'all 0.2s',
-        cursor: 'pointer'
+        cursor: 'pointer',
+        flex: 1, // Responsive
+        minWidth: '130px'
     },
     inputSmall: {
         width: '80px',
@@ -244,7 +252,8 @@ const styles = {
         padding: '8px 10px',
         fontSize: '0.9rem',
         outline: 'none',
-        textAlign: 'center'
+        textAlign: 'center',
+        flex: 1
     },
     select: {
         backgroundColor: '#f8fafc',
@@ -256,6 +265,7 @@ const styles = {
         outline: 'none',
         minWidth: '160px',
         cursor: 'pointer',
+        flex: 1, // Responsive
         appearance: 'none', // Quita el estilo nativo feo
         backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23007CB2%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E")',
         backgroundRepeat: 'no-repeat',
@@ -268,6 +278,7 @@ const styles = {
     resetBtn: {
         display: 'flex',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: '6px',
         backgroundColor: '#fff1f2',
         color: '#e11d48',
@@ -278,7 +289,8 @@ const styles = {
         fontWeight: '600',
         cursor: 'pointer',
         transition: 'all 0.2s',
-        height: '38px' // Para alinear con inputs
+        height: '38px', // Para alinear con inputs
+        width: '100%' // Full width en móvil si está solo en la fila
     }
 };
 

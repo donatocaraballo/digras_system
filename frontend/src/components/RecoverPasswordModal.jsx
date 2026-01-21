@@ -1,7 +1,7 @@
 // frontend/src/components/RecoverPasswordModal.jsx
 
 import React, { useState } from 'react';
-import api from '../api/api'; // O axios directo si no requiere auth
+import api from '../api/api'; 
 
 const IconLock = () => <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>;
 const IconMail = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>;
@@ -24,7 +24,6 @@ export default function RecoverPasswordModal({ isOpen, onClose }) {
         e.preventDefault();
         setLoading(true); setError(''); setSuccess('');
         try {
-            // Nota: Este endpoint debe ser público (sin token) en el backend si axios/api tiene interceptores
             await api.post('/base/usuarios/solicitar-reset/', { email });
             setSuccess("Hemos enviado un código a tu correo.");
             setTimeout(() => {
@@ -63,7 +62,9 @@ export default function RecoverPasswordModal({ isOpen, onClose }) {
 
     return (
         <div style={styles.overlay}>
-            <div style={styles.modal}>
+            {/* 🚨 CLASE RESPONSIVA APLICADA */}
+            <div className="modal-content-responsive" style={{maxWidth: '400px', textAlign: 'center'}}>
+                
                 <div style={styles.header}>
                     <div style={styles.iconContainer}>
                         <IconLock />
@@ -140,17 +141,14 @@ export default function RecoverPasswordModal({ isOpen, onClose }) {
     );
 }
 
-// ESTILOS (Mismo lenguaje visual que el Login)
+// ESTILOS RESPONSIVOS
 const styles = {
     overlay: {
         position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.7)',
         backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000
     },
-    modal: {
-        backgroundColor: '#fff', width: '90%', maxWidth: '400px',
-        borderRadius: '24px', padding: '32px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
-        textAlign: 'center', position: 'relative'
-    },
+    // El modal se controla con .modal-content-responsive
+    
     header: { marginBottom: '24px' },
     iconContainer: {
         width: '64px', height: '64px', backgroundColor: '#e2e8f0',
@@ -173,7 +171,7 @@ const styles = {
         background: 'linear-gradient(135deg, #0f172a 0%, #334155 100%)',
         color: '#fff', padding: '14px', borderRadius: '12px', border: 'none',
         fontSize: '1rem', fontWeight: '700', cursor: 'pointer', marginTop: '8px',
-        transition: 'transform 0.1s'
+        transition: 'transform 0.1s', width: '100%'
     },
     btnLink: {
         background: 'none', border: 'none', color: '#3b82f6', fontSize: '0.85rem',

@@ -29,7 +29,7 @@ function Navbar() {
     const [notifications, setNotifications] = useState([]);
     const [loadingNotif, setLoadingNotif] = useState(false);
     
-    // 🚨 ESTADO NUEVO: Última vez que se leyó la campanita (Persistente)
+    // ESTADO: Última vez que se leyó la campanita
     const [lastReadTime, setLastReadTime] = useState(() => {
         return localStorage.getItem('notifLastRead') || null;
     });
@@ -68,7 +68,7 @@ function Navbar() {
     const userRole = getUserRole();
 
     // ---------------------------------------------------------
-    // PASO 1: CONTEXTO
+    // PASO 1: CONTEXTO (Obtener Mis IDs)
     // ---------------------------------------------------------
     useEffect(() => {
         const fetchContext = async () => {
@@ -80,6 +80,7 @@ function Navbar() {
 
             try {
                 if (userRole === 'VENDEDOR') {
+                    // Doble fetch para asegurar que no fallamos por la ruta
                     const [res1, res2] = await Promise.allSettled([
                         api.get(`base/ordenes/?page_size=200`),
                         api.get(`ordenes/?page_size=200`)
@@ -94,6 +95,7 @@ function Navbar() {
                         if (typeof o.id_usuario === 'object' && o.id_usuario !== null) {
                             oUserId = o.id_usuario.id_usuario || o.id_usuario.id;
                         }
+                        // Guardamos el ID de la orden si me pertenece
                         if (Number(oUserId) === userId) {
                             newIds.add(Number(o.id_orden));
                         }
@@ -119,7 +121,7 @@ function Navbar() {
 
 
     // ---------------------------------------------------------
-    // PASO 2: BUSCAR LOGS
+    // PASO 2: BUSCAR LOGS (FILTRO CORREGIDO)
     // ---------------------------------------------------------
     const fetchNotifications = async () => {
         if (!currentUser) return;
@@ -133,17 +135,20 @@ function Navbar() {
                 const action = (log.accion || "").toUpperCase();
                 const refId = Number(log.id_referencia);
                 
-                // VENDEDOR
+                // --- VENDEDOR ---
                 if (userRole === 'VENDEDOR') {
-                    if ((mod === 'VENTAS' || mod === 'ORDENES') && myRelevantIds.has(refId)) {
+                    if (myRelevantIds.has(refId)) {
                         const keywords = ['APROB', 'DESPACH', 'ENTREG', 'PREPARADA', 'CANCEL', 'RECHAZ', 'CAMINO', 'LISTO'];
                         if (keywords.some(k => action.includes(k))) return true;
                     }
-                    if ((mod.includes('TRANSP') || mod.includes('ENVI')) && myRelevantIds.has(refId) && action.includes('INCIDENCIA')) return true;
+                    
+                    if ((mod.includes('TRANSP') || mod.includes('ENVI')) && myRelevantIds.has(refId) && action.includes('INCIDENCIA')) {
+                         return true;
+                    }
                     return false;
                 }
 
-                // TRANSPORTISTA
+                // --- TRANSPORTISTA ---
                 if (userRole === 'TRANSPORTISTA') {
                     if ((mod.includes('ENVI') || mod.includes('TRANSP')) && myRelevantIds.has(refId)) {
                         const keywords = ['ASIGNAR', 'LISTO', 'SALIDA', 'TERMIN'];
@@ -152,7 +157,7 @@ function Navbar() {
                     return false;
                 }
 
-                // ALMACENISTA
+                // --- ALMACENISTA ---
                 if (userRole === 'ALMACENISTA') {
                     if ((mod === 'VENTAS' || mod === 'ORDENES') && action.includes('APROB')) return true; 
                     if (mod === 'COMPRAS' && action.includes('APROB')) return true; 
@@ -160,7 +165,7 @@ function Navbar() {
                     return false;
                 }
 
-                // GERENTE
+                // --- GERENTE ---
                 if (userRole === 'GERENTE' || userRole === 'ADMINISTRADOR') {
                     if (action.includes('LOGIN')) return false; 
                     return true;
@@ -172,7 +177,7 @@ function Navbar() {
                 title: log.accion, 
                 msg: log.descripcion, 
                 date: new Date(log.fecha_y_hora).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-                rawDate: log.fecha_y_hora, // 🚨 Guardamos fecha cruda para comparar
+                rawDate: log.fecha_y_hora,
                 type: determineNotifType(log.accion),
                 link: determineLink(log.modulo)
             }));
@@ -200,22 +205,21 @@ function Navbar() {
 
     useEffect(() => {
         fetchNotifications();
-        const interval = setInterval(fetchNotifications, 15000); 
+        // 🚨 INTERVALO AJUSTADO A 5 SEGUNDOS
+        const interval = setInterval(fetchNotifications, 5000); 
         return () => clearInterval(interval);
     }, [userRole, currentUser, myRelevantIds]); 
 
     
-    // 🚨 CÁLCULO DE NO LEÍDAS:
-    // Solo contamos las que tengan fecha posterior a lastReadTime
+    // CÁLCULO DE NO LEÍDAS
     const unreadCount = notifications.filter(n => {
-        if (!lastReadTime) return true; // Si nunca ha abierto, todas son nuevas
+        if (!lastReadTime) return true;
         return new Date(n.rawDate) > new Date(lastReadTime);
     }).length;
 
-    // 🚨 MANEJADOR DEL CLIC EN CAMPANA
+    // CLICK EN CAMPANA
     const handleBellClick = () => {
         if (!showNotifMenu) {
-            // Al abrir, marcamos como leído (actualizamos timestamp)
             const now = new Date().toISOString();
             setLastReadTime(now);
             localStorage.setItem('notifLastRead', now);
@@ -275,6 +279,7 @@ function Navbar() {
         <div style={styles.navWrapper}>
             <nav style={styles.island}>
                 <div style={{display:'flex', alignItems:'center', gap:10}}>
+                    {/* 🚨 CLASE RESPONSIVA: mobile-only maneja la visibilidad */}
                     <button className="mobile-only" style={styles.hamburgerBtn} onClick={() => setShowMobileMenu(true)}>
                         <IconMenu />
                     </button>
@@ -310,10 +315,8 @@ function Navbar() {
 
                 <div style={styles.rightSection}>
                     <div style={{position: 'relative'}} ref={notifRef}>
-                        {/* 🚨 CLICK MANEJADO CON handleBellClick PARA BORRAR BADGE */}
                         <button onClick={handleBellClick} style={styles.notifBtn}>
                             <IconBell />
-                            {/* 🚨 SOLO MOSTRAMOS EL BADGE SI unreadCount > 0 */}
                             {unreadCount > 0 && <span style={styles.notifBadge}>{unreadCount}</span>}
                         </button>
                         
@@ -327,7 +330,7 @@ function Navbar() {
                                     {loadingNotif ? <div style={{padding:20, textAlign:'center', color:'#94a3b8'}}>Cargando...</div> : 
                                     notifications.length === 0 ? <div style={{padding:20, textAlign:'center', color:'#94a3b8', fontSize:'0.9rem'}}>Sin novedades.</div> : 
                                     (
-                                        // Mostramos las últimas 8, leídas o no leídas (historial)
+                                        // Mostramos las últimas 8 (historial)
                                         notifications.slice(0, 8).map((notif, idx) => (
                                             <div key={idx} style={styles.notifItem}>
                                                 <div style={{marginTop:'3px'}}>
@@ -406,11 +409,21 @@ function Navbar() {
                 .nav-label-container { overflow: hidden; white-space: nowrap; transition: all 0.3s ease; margin-left: 0; }
                 .nav-pill:hover { background-color: rgba(255, 255, 255, 0.08) !important; padding-right: 16px; }
                 .nav-pill:hover .nav-label-container { max-width: 100px !important; opacity: 1 !important; margin-left: 8px; }
+                
+                /* --- RESPONSIVE LOGIC --- */
                 .desktop-menu { display: flex; }
                 .mobile-only { display: none; }
                 .user-meta-visible { display: flex; }
-                @media (max-width: 1024px) { .user-meta-visible { display: none !important; } }
-                @media (max-width: 768px) { .desktop-menu { display: none !important; } .mobile-only { display: flex !important; } .user-meta-visible { display: none !important; } }
+
+                @media (max-width: 1024px) { 
+                    .user-meta-visible { display: none !important; } 
+                }
+
+                @media (max-width: 768px) { 
+                    .desktop-menu { display: none !important; } 
+                    .mobile-only { display: flex !important; } 
+                    .user-meta-visible { display: none !important; } 
+                }
             `}</style>
         </div>
     );
@@ -423,7 +436,8 @@ const styles = {
     logoContainer: { display: 'flex', alignItems: 'center', height: '40px' },
     logoImage: { height: '32px', width: 'auto', objectFit: 'contain' },
     fallbackLogoText: { display: 'none', color: '#fff', fontWeight: '900' },
-    hamburgerBtn: { background: 'transparent', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer', padding: '5px', display: 'flex', alignItems: 'center' },
+    // 🚨 QUITAR DISPLAY:FLEX DE AQUÍ PARA QUE LA MEDIA QUERY CONTROLE LA VISIBILIDAD
+    hamburgerBtn: { background: 'transparent', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer', padding: '5px', alignItems: 'center' },
     menuItems: { gap: '6px', alignItems: 'center', overflowX: 'auto', padding: '0 10px', flex: 1, justifyContent: 'center', scrollbarWidth: 'none' },
     label: { fontSize: '0.85rem', fontWeight: '600', whiteSpace: 'nowrap' },
     rightSection: { display: 'flex', alignItems: 'center', gap: '15px' },

@@ -1,6 +1,6 @@
 // frontend/src/pages/InventoryDashboard.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import CreateProductForm from '../components/CreateProductForm'; 
@@ -25,7 +25,6 @@ const IconX = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" 
 
 const PRODUCTOS_URL = '/api/inventario/productos/';
 const EXISTENCIAS_URL = '/api/inventario/existencias/';
-// 🚨 CAMBIO: Usamos la URL base de compras que SÍ existe
 const COMPRAS_BASE_URL = '/api/compras/compras/'; 
 
 function InventoryDashboard({ refreshTrigger, onUpdate }) {
@@ -249,7 +248,7 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
     const puedeGestionar = user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'GERENTE';
 
     if (loading) return (
-        <div style={styles.container}>
+        <div className="page-container">
             <div style={styles.header}>
                 <div style={styles.titleGroup}>
                     <div style={styles.iconCircle}><IconBox /></div>
@@ -263,7 +262,7 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
     if (error) return <div style={{padding:40, textAlign:'center', color:'#ef4444'}}>🛑 {error}</div>;
 
     return (
-        <div style={styles.container}>
+        <div className="page-container">
             <Toaster position="top-center" />
             
             {/* 1. HEADER & KPIs */}
@@ -284,7 +283,8 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
                     )}
                 </div>
 
-                <div style={styles.kpiGrid}>
+                {/* 🚨 GRILLA RESPONSIVA PARA KPIs */}
+                <div className="grid-responsive" style={{gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))'}}>
                     <div style={styles.kpiCard}>
                         <span style={styles.kpiLabel}>Total Productos</span>
                         <span style={styles.kpiValue}>{products.length}</span>
@@ -305,8 +305,8 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
             </div>
 
             {/* 2. FILTROS & TABLA */}
-            <div style={styles.content}>
-                <div style={styles.toolbar}>
+            <div className="card-responsive">
+                <div className="toolbar-responsive">
                     <div style={{flex: 1}}>
                         <AdvancedSearchBar 
                             searchTerm={searchTerm} onSearchChange={setSearchTerm}
@@ -328,8 +328,9 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
                     </button>
                 </div>
 
-                <div style={{overflowX: 'auto'}}>
-                    <table style={styles.table}>
+                {/* 🚨 WRAPPER DE TABLA RESPONSIVA */}
+                <div className="table-responsive-wrapper">
+                    <table className="table-responsive" style={styles.table}>
                         <thead>
                             <tr style={styles.theadRow}>
                                 <th style={styles.th}></th>
@@ -389,7 +390,7 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
                                             </td>
                                         </tr>
 
-                                        {/* DETALLE LIMPIO DEL PRODUCTO (MODIFICADO) */}
+                                        {/* DETALLE LIMPIO DEL PRODUCTO */}
                                         {isExpanded && (
                                             <tr style={{backgroundColor: '#f8fafc'}}>
                                                 <td colSpan="8" style={{padding: '0 20px 20px 20px', borderBottom: '1px solid #e2e8f0'}}>
@@ -453,7 +454,8 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
             {/* MODAL HISTORIAL DE PROVEEDORES (NUEVO & FUNCIONAL) */}
             {providerModalOpen && selectedProductForHistory && (
                 <div style={styles.modalOverlay} onClick={() => setProviderModalOpen(false)}>
-                    <div style={styles.modalContent} onClick={e => e.stopPropagation()}>
+                    {/* 🚨 MODAL RESPONSIVO */}
+                    <div className="modal-content-responsive" style={{maxWidth: '600px'}} onClick={e => e.stopPropagation()}>
                         <div style={styles.modalHeader}>
                             <h3 style={{margin:0, color:'#0f172a'}}>Historial de Compras</h3>
                             <button onClick={() => setProviderModalOpen(false)} style={styles.closeBtn}><IconX /></button>
@@ -472,32 +474,34 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
                                     No se han encontrado registros recientes para este producto.
                                 </div>
                             ) : (
-                                <table style={{width:'100%', fontSize:'0.85rem', borderCollapse:'collapse'}}>
-                                    <thead>
-                                        <tr style={{background:'#f1f5f9', textAlign:'left', color: '#475569'}}>
-                                            <th style={{padding:8, borderBottom: '1px solid #e2e8f0'}}>Fecha</th>
-                                            <th style={{padding:8, borderBottom: '1px solid #e2e8f0'}}>Proveedor</th>
-                                            <th style={{padding:8, borderBottom: '1px solid #e2e8f0', textAlign: 'center'}}>Cant.</th>
-                                            <th style={{padding:8, borderBottom: '1px solid #e2e8f0', textAlign: 'right'}}>Costo U.</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {providerHistory.map((hist, idx) => {
-                                            // Manejo robusto de datos anidados
-                                            const fecha = hist.fecha_compra ? hist.fecha_compra.toString().substring(0,10) : 'N/A';
-                                            const proveedor = hist.proveedor_nombre || "Desconocido";
-                                            
-                                            return (
-                                                <tr key={idx} style={{borderBottom:'1px solid #f1f5f9'}}>
-                                                    <td style={{padding:8}}>{fecha}</td>
-                                                    <td style={{padding:8, fontWeight: '600'}}>{proveedor}</td>
-                                                    <td style={{padding:8, textAlign: 'center'}}>{hist.cantidad}</td>
-                                                    <td style={{padding:8, textAlign: 'right'}}>${hist.precio_unitario}</td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                                /* 🚨 TABLA INTERNA RESPONSIVA */
+                                <div className="table-responsive-wrapper">
+                                    <table className="table-responsive" style={{width:'100%', fontSize:'0.85rem', borderCollapse:'collapse'}}>
+                                        <thead>
+                                            <tr style={{background:'#f1f5f9', textAlign:'left', color: '#475569'}}>
+                                                <th style={{padding:8, borderBottom: '1px solid #e2e8f0'}}>Fecha</th>
+                                                <th style={{padding:8, borderBottom: '1px solid #e2e8f0'}}>Proveedor</th>
+                                                <th style={{padding:8, borderBottom: '1px solid #e2e8f0', textAlign: 'center'}}>Cant.</th>
+                                                <th style={{padding:8, borderBottom: '1px solid #e2e8f0', textAlign: 'right'}}>Costo U.</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {providerHistory.map((hist, idx) => {
+                                                const fecha = hist.fecha_compra ? hist.fecha_compra.toString().substring(0,10) : 'N/A';
+                                                const proveedor = hist.proveedor_nombre || "Desconocido";
+                                                
+                                                return (
+                                                    <tr key={idx} style={{borderBottom:'1px solid #f1f5f9'}}>
+                                                        <td style={{padding:8}}>{fecha}</td>
+                                                        <td style={{padding:8, fontWeight: '600'}}>{proveedor}</td>
+                                                        <td style={{padding:8, textAlign: 'center'}}>{hist.cantidad}</td>
+                                                        <td style={{padding:8, textAlign: 'right'}}>${hist.precio_unitario}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
                             )}
                         </div>
                         <div style={{padding: '15px', textAlign: 'right', borderTop: '1px solid #e2e8f0'}}>
@@ -519,9 +523,10 @@ const getStatusStyle = (status) => {
 };
 
 const styles = {
-    container: { padding: '24px 32px', maxWidth: '1400px', margin: '0 auto', fontFamily: "'Inter', sans-serif" },
+    // page-container controla el layout
+    
     topSection: { marginBottom: '32px' },
-    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' },
+    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '15px' },
     titleGroup: { display: 'flex', alignItems: 'center', gap: '16px' },
     iconCircle: { width: '48px', height: '48px', borderRadius: '12px', backgroundColor: '#f0f9ff', color: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center' },
     title: { margin: 0, fontSize: '1.5rem', color: '#0f172a', fontWeight: '700' },
@@ -531,17 +536,22 @@ const styles = {
         padding: '10px 20px', borderRadius: '10px', fontSize: '0.9rem', fontWeight: '600',
         cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-        transition: 'transform 0.1s ease'
+        transition: 'transform 0.1s ease',
+        whiteSpace: 'nowrap'
     },
-    kpiGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' },
+    
+    // grid-responsive controla los KPIs
+    
     kpiCard: { backgroundColor: '#fff', padding: '16px 20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' },
     kpiLabel: { display: 'block', fontSize: '0.8rem', color: '#64748b', marginBottom: '4px', textTransform: 'uppercase', fontWeight: '600' },
     kpiValue: { fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', lineHeight: 1 },
-    content: { backgroundColor: '#ffffff', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', overflow: 'hidden', border: '1px solid #e2e8f0' },
     
-    toolbar: { padding: '20px 24px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '15px', flexWrap: 'wrap' },
+    // card-responsive controla el contenido
     
-    table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' },
+    // toolbar-responsive controla la barra superior
+    
+    // table-responsive-wrapper controla el scroll de la tabla
+    table: { width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '800px' },
     theadRow: { backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' },
     th: { padding: '16px 24px', textAlign: 'left', fontWeight: '600', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' },
     thRight: { padding: '16px 24px', textAlign: 'right', fontWeight: '600', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' },
@@ -559,9 +569,9 @@ const styles = {
         display: 'inline-flex', alignItems: 'center', gap: '6px',
         color: '#3b82f6', textDecoration: 'none', fontWeight: '600', fontSize: '0.85rem',
         padding: '6px 12px', borderRadius: '6px', backgroundColor: '#eff6ff',
-        transition: 'background 0.2s'
+        transition: 'background 0.2s', whiteSpace: 'nowrap'
     },
-    btnGhost: { display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px", backgroundColor: "transparent", color: "#64748b", border: "1px solid #cbd5e1", borderRadius: "8px", fontWeight: "600", cursor: "pointer", fontSize: "0.85rem", height: '42px' },
+    btnGhost: { display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px", backgroundColor: "transparent", color: "#64748b", border: "1px solid #cbd5e1", borderRadius: "10px", fontWeight: "600", cursor: "pointer", fontSize: "0.85rem", height: '42px', whiteSpace: 'nowrap' },
     btnSmall: { display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', fontSize: '0.75rem', border: '1px solid #cbd5e1', borderRadius: '6px', background: 'white', cursor: 'pointer' },
     
     // Estilos del Panel de Detalle
@@ -572,7 +582,7 @@ const styles = {
 
     // Modal Proveedor
     modalOverlay: { position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 },
-    modalContent: { backgroundColor: '#fff', width: '600px', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' },
+    // modalContent reemplazado por modal-content-responsive
     modalHeader: { padding: '15px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc' },
     closeBtn: { background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' },
 
