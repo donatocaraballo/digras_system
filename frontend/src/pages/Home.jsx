@@ -164,9 +164,8 @@ function Home() {
         
         } else if (user.tipo === 'ALMACENISTA') {
             const porPreparar = rawData.ordenes.filter(o => o.estado_de_envio === 'APROBADA').length;
-            const porRecibir = rawData.compras.filter(c => ['APROBADA', 'RECIBIDA_PARCIAL'].includes((c.estado_de_envio || c.estado || "").toUpperCase())).length;
+            const porRecibir = rawData.compras.filter(c => (c.estado_de_envio || "").toUpperCase() === 'APROBADA').length;
             
-            // 🚨 USO DE LA NUEVA LÓGICA DE CRÍTICOS
             const criticos = calcularStockCritico(rawData.productos, rawData.existencias);
             const listos = rawData.ordenes.filter(o => o.estado_de_envio === 'PREPARADA').length;
 
@@ -207,7 +206,6 @@ function Home() {
                 .filter(o => ['APROBADA', 'PREPARADA', 'DESPACHADA', 'ENTREGADA'].includes(o.estado_de_envio))
                 .reduce((acc, curr) => acc + parseFloat(curr.precio_final || 0), 0);
 
-            // 🚨 USO DE LA NUEVA LÓGICA DE CRÍTICOS
             const criticos = calcularStockCritico(rawData.productos, rawData.existencias);
             
             let valorInv = 0;
@@ -222,26 +220,37 @@ function Home() {
                 valorInv += parseFloat(p.precio_venta || 0) * qty;
             });
 
-            const ventasPend = rawData.ordenes.filter(o => o.estado_de_envio === 'PENDIENTE POR APROBACIÓN').length;
-            const comprasPend = rawData.compras.filter(c => c.estado_de_envio === 'PENDIENTE_APROBACION').length;
-            const totalPend = ventasPend + comprasPend;
+            // 🚨 LOGICA SEPARADA PARA GERENTE Y ADMIN 🚨
+            let card3Config = {};
+            
+            if (user.tipo === 'GERENTE') {
+                const ventasPend = rawData.ordenes.filter(o => o.estado_de_envio === 'PENDIENTE POR APROBACIÓN').length;
+                const comprasPend = rawData.compras.filter(c => c.estado_de_envio === 'PENDIENTE_APROBACION').length;
+                const totalPend = ventasPend + comprasPend;
 
-            setMetrics({
-                card1: { title: `Ventas (${timeRange.toUpperCase()})`, value: `$${ventasPeriodo.toLocaleString()}`, icon: "📈", color: "#2e7d32" },
-                card2: { title: "Valor Inventario", value: `$${valorInv.toLocaleString()}`, icon: "💎", color: "#0277bd" },
-                
-                card3: { 
+                card3Config = { 
                     title: "Total Pendientes", 
                     value: totalPend, 
                     icon: "🔔", 
                     color: "#f57c00", 
                     isAlert: totalPend > 0,
-                    details: { 
-                        compras: comprasPend, 
-                        ventas: ventasPend 
-                    }
-                },
-                
+                    details: { compras: comprasPend, ventas: ventasPend }
+                };
+            } else {
+                // 🚨 ADMINISTRADOR: AHORA VE TOTAL DE COMPRAS (O VENTAS SI PREFIERES), PERO NO PENDIENTES
+                card3Config = { 
+                    title: "Total Compras", 
+                    value: rawData.compras.length, 
+                    icon: "🛒", 
+                    color: "#6366f1", // Color indigo para diferenciar
+                    isAlert: false
+                };
+            }
+
+            setMetrics({
+                card1: { title: `Ventas (${timeRange.toUpperCase()})`, value: `$${ventasPeriodo.toLocaleString()}`, icon: "📈", color: "#2e7d32" },
+                card2: { title: "Valor Inventario", value: `$${valorInv.toLocaleString()}`, icon: "💎", color: "#0277bd" },
+                card3: card3Config, 
                 card4: { title: "Stock Crítico", value: criticos, icon: "🚨", color: "#c62828", isAlert: criticos > 0 }
             });
 
@@ -376,7 +385,7 @@ function Home() {
                 {/* SECCIÓN 1: KPIs DINÁMICOS */}
                 <div style={styles.kpiGrid} className="responsive-grid">
                     <KpiCard {...metrics.card1} onClick={() => {
-                        if(user.tipo==='ALMACENISTA') navigate('/preparacion');
+                        if(user.tipo==='ALMACENISTA') navigate('/inventario');
                         if(user.tipo==='TRANSPORTISTA') navigate('/transporte');
                     }} />
                     
@@ -387,13 +396,14 @@ function Home() {
                     }} />
                     
                     <KpiCard {...metrics.card3} onClick={() => {
-                        if(user.tipo==='GERENTE' || user.tipo==='ADMINISTRADOR') navigate('/aprobaciones');
+                        if(user.tipo==='GERENTE') navigate('/aprobaciones');
+                        else if (user.tipo==='ADMINISTRADOR') navigate('/compras');
                         else if(user.tipo==='VENDEDOR') navigate('/ordenes');
                         else if(user.tipo==='ALMACENISTA') navigate('/inventario');
                     }} />
                     
                     <KpiCard {...metrics.card4} onClick={() => {
-                        if(user.tipo==='ALMACENISTA') navigate('/envios');
+                        if(user.tipo==='ALMACENISTA') navigate('/inventario');
                         if(user.tipo==='GERENTE' || user.tipo==='ADMINISTRADOR' || user.is_superuser) navigate('/inventario');
                     }} />
                 </div>
