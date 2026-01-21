@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.db.models import F
+from decimal import Decimal
 
 from base.models import Orden, Usuario, Envio, Unidad
 from inventario.models import Existencia, Lote
@@ -181,6 +182,19 @@ class TransporteViewSet(viewsets.GenericViewSet):
                 }
             )
 
+        # Al iniciar el viaje, todas las órdenes asociadas pasan a EN CURSO
+        ordenes_envio = (
+            Orden.objects
+            .select_for_update()
+            .filter(id_envio=envio)
+        )
+        for o in ordenes_envio:
+            # Solo movemos a EN CURSO las órdenes que estén asignadas al envío
+            estado_o = (o.estado_de_envio or "").strip().upper().replace("_", " ").replace("-", " ")
+            if estado_o == "ASIGNADA A ENVIO":
+                o.estado_de_envio = "EN CURSO"
+                o.save(update_fields=["estado_de_envio"])
+
         envio.estado = "EN CURSO"
         envio.save(update_fields=["estado"])
 
@@ -241,10 +255,14 @@ class TransporteViewSet(viewsets.GenericViewSet):
         for o in qs:
             detalles = [
                 {
+                    "id_detalleo": d.id_detalleo,
                     "producto": d.id_producto.nombre,
                     "cantidad": d.cantidad,
                     "peso": str(d.peso_subtotal),
                     "subtotal": str(d.subtotal),
+                    "devolucion": getattr(d, "devolucion", False),
+                    "cantidad_devolvida": getattr(d, "cantidad_devolvida", 0),
+                    "nota": getattr(d, "nota", ""),
                 }
                 for d in o.detalleorden_set.all()
             ]
@@ -287,7 +305,7 @@ class TransporteViewSet(viewsets.GenericViewSet):
         self._check_orden_pertenece_a_transportista(orden, usuario)
 
         estado_normalizado = (orden.estado_de_envio or "").upper().replace(" ", "_")
-        if estado_normalizado != "ASIGNADA_A_ENVIO":
+        if estado_normalizado != "EN_CURSO":
             raise ValidationError(
                 {
                     "detail": (
@@ -317,10 +335,6 @@ class TransporteViewSet(viewsets.GenericViewSet):
     @transaction.atomic
     def marcar_no_entregada(self, request, pk=None):
         usuario = self._require_transportista(request)
-        nota = request.data.get("nota", "").strip()
-
-        if not nota:
-            raise ValidationError({"detail": "Debes indicar una nota explicando por qué no se entregó."})
 
         try:
             orden = (
@@ -335,7 +349,7 @@ class TransporteViewSet(viewsets.GenericViewSet):
         self._check_orden_pertenece_a_transportista(orden, usuario)
 
         estado_normalizado = (orden.estado_de_envio or "").upper().replace(" ", "_")
-        if estado_normalizado != "ASIGNADA_A_ENVIO":
+        if estado_normalizado != "EN_CURSO":
             raise ValidationError(
                 {
                     "detail": (
@@ -345,20 +359,14 @@ class TransporteViewSet(viewsets.GenericViewSet):
                 }
             )
 
-        if hasattr(orden, "nota"):
-            orden.nota = nota
-            update_fields = ["estado_de_envio", "nota"]
-        else:
-            update_fields = ["estado_de_envio"]
-
         orden.estado_de_envio = "NO ENTREGADA"
-        orden.save(update_fields=update_fields)
+        orden.save(update_fields=["estado_de_envio"])
 
         registrar_accion(
             usuario,
             "Transporte",
             "Orden no entregada",
-            f"Orden {orden.id_orden} marcada como NO ENTREGADA. Motivo: {nota}",
+            f"Orden {orden.id_orden} marcada como NO ENTREGADA.",
             id_referencia=orden.id_orden,
         )
 
@@ -372,9 +380,14 @@ class TransporteViewSet(viewsets.GenericViewSet):
     def marcar_devuelta(self, request, pk=None):
         usuario = self._require_transportista(request)
         nota = request.data.get("nota", "").strip()
+        devoluciones = request.data.get("devoluciones", [])
+        tipo_devolucion_raw = (request.data.get("tipo_devolucion", "") or "").strip().upper()
 
         if not nota:
             raise ValidationError({"detail": "Debes indicar una nota explicando por qué la orden fue devuelta."})
+
+        if not isinstance(devoluciones, list) or not devoluciones:
+            raise ValidationError({"detail": "Debes indicar al menos un producto devuelto."})
 
         try:
             orden = (
@@ -385,11 +398,12 @@ class TransporteViewSet(viewsets.GenericViewSet):
         except Orden.DoesNotExist:
             raise ValidationError({"detail": "Orden no encontrada."})
 
-        # ✅ Usamos el helper correcto
+        # Verificamos que la orden le pertenezca al transportista
         self._check_orden_pertenece_a_transportista(orden, usuario)
 
+        # Solo se permite devolución si la orden está en EN CURSO (viaje iniciado)
         estado_normalizado = (orden.estado_de_envio or "").upper().replace(" ", "_")
-        if estado_normalizado != "ASIGNADA_A_ENVIO":
+        if estado_normalizado != "EN_CURSO":
             raise ValidationError(
                 {
                     "detail": (
@@ -399,61 +413,191 @@ class TransporteViewSet(viewsets.GenericViewSet):
                 }
             )
 
+        # Mapeamos devoluciones por id_detalleo (aceptamos también id_detalle / id_detallec por compatibilidad)
+        mapa_devoluciones = {}
+        for item in devoluciones:
+            raw_det_id = (
+                item.get("id_detalleo")
+                or item.get("id_detalle")
+                or item.get("id_detallec")
+            )
+
+            try:
+                det_id = int(raw_det_id)
+            except (TypeError, ValueError):
+                raise ValidationError(
+                    {
+                        "detail": (
+                            "Cada devolución debe incluir un id_detalleo válido "
+                            "(o un id_detalle / id_detallec equivalente)."
+                        )
+                    }
+                )
+
+            try:
+                cant_dev = int(item.get("cantidad_devolvida", 0))
+            except (TypeError, ValueError):
+                raise ValidationError({"detail": "La cantidad devuelta debe ser un número entero."})
+
+            if cant_dev < 0:
+                raise ValidationError({"detail": "La cantidad devuelta no puede ser negativa."})
+
+            # Nos quedamos con la última cantidad indicada para ese detalle
+            mapa_devoluciones[det_id] = cant_dev
+
+        if not any(cant > 0 for cant in mapa_devoluciones.values()):
+            raise ValidationError({"detail": "Debes devolver al menos una unidad de algún producto."})
+
         detalles = (
             orden.detalleorden_set
+            .select_for_update()
             .select_related("id_producto")
             .all()
         )
 
+        if not detalles:
+            raise ValidationError({"detail": "La orden no tiene detalles asociados."})
+
+        total_subtotal_entregado = Decimal("0")
+        total_peso_entregado = Decimal("0")
+        total_monto_devuelto = Decimal("0")
+
+        # Recorremos los detalles y aplicamos devoluciones
         for det in detalles:
-            existencia = (
-                Existencia.objects.select_for_update()
-                .filter(id_producto=det.id_producto)
-                .first()
-            )
+            original = det.cantidad
+            previa_dev = getattr(det, "cantidad_devolvida", 0) or 0
+            cant_dev_solicitada = mapa_devoluciones.get(det.id_detalleo, previa_dev)
 
-            if existencia is None:
-                existencia = Existencia.objects.create(
-                    id_producto=det.id_producto,
-                    cantidad=0,
-                    estado="DISPONIBLE",
+            if cant_dev_solicitada < previa_dev:
+                raise ValidationError(
+                    {
+                        "detail": (
+                            f"No se puede reducir la cantidad devuelta en el detalle {det.id_detalleo}. "
+                            f"Actual: {previa_dev}, nueva: {cant_dev_solicitada}."
+                        )
+                    }
                 )
 
-            Existencia.objects.filter(pk=existencia.pk).update(
-                cantidad=F("cantidad") + det.cantidad
-            )
-
-            lotes = (
-                Lote.objects.select_for_update()
-                .filter(id_producto=det.id_producto)
-                .order_by("-fecha_pedido", "-id_lote")
-            )
-            primer_lote = lotes.first()
-            if primer_lote:
-                Lote.objects.filter(pk=primer_lote.pk).update(
-                    cantidad=F("cantidad") + det.cantidad,
-                    estado="ACTIVO",
+            if cant_dev_solicitada > original:
+                raise ValidationError(
+                    {
+                        "detail": (
+                            f"La cantidad devuelta del detalle {det.id_detalleo} ({cant_dev_solicitada}) "
+                            f"no puede ser mayor que la cantidad original ({original})."
+                        )
+                    }
                 )
+
+            nueva_dev = cant_dev_solicitada
+            delta_devuelta = nueva_dev - previa_dev
+
+            # Reintegramos al inventario solo el delta nuevo
+            if delta_devuelta > 0:
+                existencia = (
+                    Existencia.objects.select_for_update()
+                    .filter(id_producto=det.id_producto)
+                    .first()
+                )
+
+                if existencia is None:
+                    existencia = Existencia.objects.create(
+                        id_producto=det.id_producto,
+                        cantidad=0,
+                        estado="DISPONIBLE",
+                    )
+
+                Existencia.objects.filter(pk=existencia.pk).update(
+                    cantidad=F("cantidad") + delta_devuelta
+                )
+
+                # Ajuste de lotes: devolvemos al lote más reciente (mejor esfuerzo)
+                lotes = (
+                    Lote.objects.select_for_update()
+                    .filter(id_producto=det.id_producto)
+                    .order_by("-fecha_pedido", "-id_lote")
+                )
+                primer_lote = lotes.first()
+                if primer_lote:
+                    Lote.objects.filter(pk=primer_lote.pk).update(
+                        cantidad=F("cantidad") + delta_devuelta,
+                        estado="ACTIVO",
+                    )
+
+            # Actualizamos campos de devolución en el detalle
+            det.cantidad_devolvida = nueva_dev
+            det.devolucion = nueva_dev > 0
+            if nueva_dev > 0:
+                det.nota = nota
+
+            # Recalculamos subtotal y peso solo para la parte entregada
+            cant_entregada = original - nueva_dev
+            precio_unitario = det.precio_unitario or Decimal("0")
+            peso_unitario = det.peso_unitario or Decimal("0")
+
+            subtotal_entregado = precio_unitario * Decimal(cant_entregada)
+            peso_entregado = peso_unitario * Decimal(cant_entregada)
+
+            det.subtotal = subtotal_entregado
+            det.peso_subtotal = peso_entregado
+            det.save(update_fields=[
+                "cantidad_devolvida",
+                "devolucion",
+                "nota",
+                "subtotal",
+                "peso_subtotal",
+            ])
+
+            total_subtotal_entregado += subtotal_entregado
+            total_peso_entregado += peso_entregado
+            total_monto_devuelto += precio_unitario * Decimal(delta_devuelta)
+
+        # Determinamos si la devolución fue total o parcial, en caso de que no venga bien del front
+        todas_devuelta = all(
+            (getattr(d, "cantidad_devolvida", 0) or 0) == d.cantidad and d.cantidad > 0
+            for d in detalles
+        )
+
+        if tipo_devolucion_raw not in {"TOTAL", "PARCIAL"}:
+            tipo_devolucion = "TOTAL" if todas_devuelta else "PARCIAL"
+        else:
+            tipo_devolucion = tipo_devolucion_raw
+
+        if tipo_devolucion == "TOTAL" and not todas_devuelta:
+            # Coherencia: si se envió TOTAL pero no todas las líneas quedaron devueltas, lo tratamos como parcial
+            tipo_devolucion = "PARCIAL"
+
+        # Actualizamos totales de la orden
+        orden.precio_final = total_subtotal_entregado
+        orden.peso_total = total_peso_entregado
 
         if hasattr(orden, "nota"):
             orden.nota = nota
-            update_fields = ["estado_de_envio", "nota"]
+            update_fields = ["estado_de_envio", "nota", "precio_final", "peso_total"]
         else:
-            update_fields = ["estado_de_envio"]
+            update_fields = ["estado_de_envio", "precio_final", "peso_total"]
 
-        orden.estado_de_envio = "DEVUELTA"
+        if tipo_devolucion == "TOTAL":
+            orden.estado_de_envio = "DEVUELTA"
+        else:
+            orden.estado_de_envio = "DEVOLUCION PARCIAL"
+
         orden.save(update_fields=update_fields)
 
         registrar_accion(
             usuario,
             "Transporte",
             "Orden devuelta",
-            f"Orden {orden.id_orden} marcada como DEVUELTA. Motivo: {nota}",
+            f"Orden {orden.id_orden} marcada como {orden.estado_de_envio}. Monto devuelto: {total_monto_devuelto}.",
             id_referencia=orden.id_orden,
         )
 
         return Response(
-            {"mensaje": "Orden marcada como DEVUELTA y stock reintegrado."},
+            {
+                "mensaje": "Orden actualizada con devolución.",
+                "estado": orden.estado_de_envio,
+                "monto_final": str(orden.precio_final),
+                "monto_devuelto": str(total_monto_devuelto),
+            },
             status=status.HTTP_200_OK,
         )
 
@@ -482,7 +626,7 @@ class TransporteViewSet(viewsets.GenericViewSet):
         if not ordenes.exists():
             raise ValidationError({"detail": "El envío no tiene órdenes asociadas."})
 
-        estados_validos = ["ENTREGADA", "NO ENTREGADA", "DEVUELTA"]
+        estados_validos = ["ENTREGADA", "NO ENTREGADA", "DEVUELTA", "DEVOLUCION PARCIAL"]
 
         for o in ordenes:
             if o.estado_de_envio not in estados_validos:

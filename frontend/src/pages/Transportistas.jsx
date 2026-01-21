@@ -114,7 +114,7 @@ export default function TransporteEnvio() {
         setEnvio(res.data);
 
         // 👇 Solo cargamos órdenes si el envío ya está EN CURSO
-        if (res.data.estado === "EN CURSO") {
+        if ((res.data.estado || "").toUpperCase() === "EN CURSO") {
           await cargarOrdenes();
         } else {
           setOrdenes([]);
@@ -283,13 +283,22 @@ export default function TransporteEnvio() {
     if (!orden) return;
 
     const detalles = Array.isArray(orden.detalles) ? orden.detalles : [];
-    const lineas = detalles.map((d) => ({
-      id_detalleo: d.id_detalleo || d.id_detalleo || d.id_detalle || d.id,
-      producto: d.producto || d.id_producto_nombre || "Producto",
-      cantidadOriginal: Number(d.cantidad || 0),
-      cantidadDevuelta: 0,
-      selected: false,
-    }));
+
+    // Ahora usamos directamente el id_detalleo que envía el backend
+    // y, si ya existe devolución, prellenamos la info.
+    const lineas = detalles.map((d) => {
+      const cantidadOriginal = Number(d.cantidad || 0);
+      const cantidadDevueltaBackend = Number(d.cantidad_devolvida || 0);
+      const hayDevolucion = !!d.devolucion && cantidadDevueltaBackend > 0;
+
+      return {
+        id_detalleo: d.id_detalleo, // clave principal para el backend
+        producto: d.producto || d.id_producto_nombre || "Producto",
+        cantidadOriginal,
+        cantidadDevuelta: hayDevolucion ? cantidadDevueltaBackend : 0,
+        selected: hayDevolucion,
+      };
+    });
 
     setOrdenDevolucion(orden);
     setLineasDevolucion(lineas);
@@ -320,6 +329,7 @@ export default function TransporteEnvio() {
       return;
     }
 
+    // Validamos cantidades
     for (const l of seleccionadas) {
       if (l.cantidadDevuelta > l.cantidadOriginal) {
         setErrorDevolucion(
@@ -329,17 +339,44 @@ export default function TransporteEnvio() {
       }
     }
 
+    // Validamos que todas las líneas seleccionadas tengan un id_detalleo válido
+    const seleccionadasValidas = seleccionadas.filter(
+      (l) =>
+        l.id_detalleo !== null &&
+        l.id_detalleo !== undefined &&
+        l.id_detalleo !== ""
+    );
+
+    if (seleccionadasValidas.length !== seleccionadas.length) {
+      setErrorDevolucion(
+        "Hay productos seleccionados sin identificador interno de detalle. Vuelve a cargar la página e inténtalo de nuevo."
+      );
+      return;
+    }
+
+    // ¿Se está devolviendo toda la orden?
+    const devolucionTotal =
+      lineasDevolucion.length > 0 &&
+      lineasDevolucion.every(
+        (l) =>
+          l.selected &&
+          l.cantidadDevuelta > 0 &&
+          l.cantidadDevuelta === l.cantidadOriginal
+      );
+    const tipoDevolucion = devolucionTotal ? "TOTAL" : "PARCIAL";
+
     if (!notaDevolucion.trim()) {
       setErrorDevolucion("Escribe una nota explicando la devolución.");
       return;
     }
 
     const payload = {
-      devoluciones: seleccionadas.map((l) => ({
+      devoluciones: seleccionadasValidas.map((l) => ({
         id_detalleo: l.id_detalleo,
         cantidad_devolvida: l.cantidadDevuelta,
       })),
       nota: notaDevolucion.trim(),
+      tipo_devolucion: tipoDevolucion,
     };
 
     setLoadingAccion(true);
@@ -375,7 +412,7 @@ export default function TransporteEnvio() {
     const s = estado.toUpperCase();
     if (s.includes("PREPARADA")) return { bg: "#dbeafe", text: "#1d4ed8" };
     if (s.includes("ENTREGADA")) return { bg: "#dcfce7", text: "#15803d" };
-    if (s.includes("DEVUELTA") || s.includes("PARCIALMENTE")) {
+    if (s.includes("DEVUELTA") || s.includes("DEVOLUCION")) {
       return { bg: "#fee2e2", text: "#b91c1c" };
     }
     if (s.includes("NO ENTREGADA"))
@@ -435,10 +472,13 @@ export default function TransporteEnvio() {
   // Detectar cuando todas las órdenes están en estado final
   const todasEntregasCompletas = useMemo(() => {
     if (!ordenes || ordenes.length === 0) return false;
-    const finales = ["ENTREGADA", "NO ENTREGADA", "DEVUELTA", "PARCIALMENTE DEVUELTA"];
-    return ordenes.every((o) =>
-      finales.includes((o.estado_de_envio || "").toUpperCase())
-    );
+    return ordenes.every((o) => {
+      const s = (o.estado_de_envio || "").toUpperCase();
+      if (s === "ENTREGADA" || s === "NO ENTREGADA") return true;
+      if (s.includes("DEVUELTA")) return true; // DEVUELTA
+      if (s.includes("DEVOLUCION")) return true; // DEVOLUCION PARCIAL, etc.
+      return false;
+    });
   }, [ordenes]);
 
   return (
@@ -1116,21 +1156,75 @@ export default function TransporteEnvio() {
             {modalDevolucionVisible && ordenDevolucion && (
               <div style={styles.modalOverlay}>
                 <div style={styles.modal}>
-                  <h3 style={{ marginTop: 0, marginBottom: 10 }}>
-                    Registrar devolución · Orden #{ordenDevolucion.id_orden}
-                  </h3>
-                  <p
+                  <div
                     style={{
-                      fontSize: "0.9rem",
-                      color: "#64748b",
-                      marginBottom: 12,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 10,
+                      paddingBottom: 8,
+                      borderBottom: "1px solid #e5e7eb",
                     }}
                   >
-                    Marca los productos devueltos, indica la cantidad devuelta
-                    de cada uno y escribe una nota explicando la situación. El
-                    sistema recalculará los montos de la orden y devolverá el
-                    stock de los productos seleccionados.
-                  </p>
+                    <div>
+                      <h3 style={{ marginTop: 0, marginBottom: 4 }}>
+                        Registrar devolución · Orden #{ordenDevolucion.id_orden}
+                      </h3>
+                      <p
+                        style={{
+                          fontSize: "0.85rem",
+                          color: "#64748b",
+                          margin: 0,
+                        }}
+                      >
+                        Marca los productos devueltos, indica la cantidad
+                        devuelta de cada uno y escribe una nota explicativa.
+                      </p>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        padding: "4px 10px",
+                        borderRadius: 999,
+                        backgroundColor: "#eff6ff",
+                        color: "#1d4ed8",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Monto actual: $
+                      {Number(ordenDevolucion.precio_final || 0).toFixed(2)}
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      marginBottom: 10,
+                      padding: "8px 10px",
+                      borderRadius: 10,
+                      backgroundColor: "#f9fafb",
+                      border: "1px solid #e5e7eb",
+                      fontSize: "0.8rem",
+                      color: "#475569",
+                    }}
+                  >
+                    Las cantidades devueltas se restarán del monto de la orden y
+                    los productos volverán automáticamente al inventario,
+                    respetando sus lotes.
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: "0.75rem",
+                      color: "#64748b",
+                      textTransform: "uppercase",
+                      marginBottom: 4,
+                    }}
+                  >
+                    <span>Producto</span>
+                    <span style={{ marginRight: 4 }}>Cant. devuelta</span>
+                  </div>
 
                   <div
                     style={{
@@ -1138,6 +1232,9 @@ export default function TransporteEnvio() {
                       overflowY: "auto",
                       marginBottom: 12,
                       paddingRight: 4,
+                      borderRadius: 10,
+                      border: "1px solid #e5e7eb",
+                      backgroundColor: "#ffffff",
                     }}
                   >
                     {lineasDevolucion.length === 0 && (
@@ -1145,6 +1242,7 @@ export default function TransporteEnvio() {
                         style={{
                           fontSize: "0.85rem",
                           color: "#94a3b8",
+                          padding: 12,
                         }}
                       >
                         Esta orden no tiene productos para devolución.
@@ -1159,11 +1257,14 @@ export default function TransporteEnvio() {
                           alignItems: "center",
                           justifyContent: "space-between",
                           gap: 10,
-                          padding: "8px 0",
+                          padding: "8px 10px",
                           borderBottom:
                             idx === lineasDevolucion.length - 1
                               ? "none"
                               : "1px solid #e5e7eb",
+                          backgroundColor: l.selected
+                            ? "#fef2f2"
+                            : "transparent",
                         }}
                       >
                         <label
@@ -1188,10 +1289,10 @@ export default function TransporteEnvio() {
                                     ? {
                                         ...x,
                                         selected: checked,
-                                        // si se activa por primera vez, sugerimos cantidad 1
                                         cantidadDevuelta:
-                                          checked && x.cantidadDevuelta === 0
-                                            ? 1
+                                          checked &&
+                                          x.cantidadDevuelta === 0
+                                            ? x.cantidadOriginal
                                             : x.cantidadDevuelta,
                                       }
                                     : x
@@ -1220,10 +1321,16 @@ export default function TransporteEnvio() {
                           value={l.cantidadDevuelta}
                           disabled={!l.selected}
                           onChange={(e) => {
-                            const value = Number(e.target.value || 0);
+                            let value = Number(e.target.value || 0);
+                            if (value < 0) value = 0;
+                            if (value > l.cantidadOriginal) {
+                              value = l.cantidadOriginal;
+                            }
                             setLineasDevolucion((prev) =>
                               prev.map((x, i) =>
-                                i === idx ? { ...x, cantidadDevuelta: value } : x
+                                i === idx
+                                  ? { ...x, cantidadDevuelta: value }
+                                  : x
                               )
                             );
                           }}
@@ -1235,12 +1342,70 @@ export default function TransporteEnvio() {
                             fontSize: "0.85rem",
                             padding: "0 8px",
                             textAlign: "right",
+                            backgroundColor: l.selected
+                              ? "#ffffff"
+                              : "#f1f5f9",
                           }}
                         />
                       </div>
                     ))}
                   </div>
 
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 10,
+                      fontSize: "0.8rem",
+                      color: "#64748b",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      style={{
+                        ...styles.btnGhost,
+                        padding: "6px 12px",
+                        fontSize: "0.78rem",
+                      }}
+                      onClick={() =>
+                        setLineasDevolucion((prev) =>
+                          prev.map((l) => ({
+                            ...l,
+                            selected: true,
+                            cantidadDevuelta: l.cantidadOriginal,
+                          }))
+                        )
+                      }
+                      disabled={loadingAccion || lineasDevolucion.length === 0}
+                    >
+                      Marcar toda la orden como devuelta
+                    </button>
+
+                    <div>
+                      Unidades devueltas seleccionadas:{" "}
+                      <strong>
+                        {lineasDevolucion.reduce(
+                          (acc, l) =>
+                            acc +
+                            (l.selected && l.cantidadDevuelta
+                              ? l.cantidadDevuelta
+                              : 0),
+                          0
+                        )}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <label
+                    style={{
+                      ...styles.label,
+                      marginTop: 4,
+                      marginBottom: 4,
+                    }}
+                  >
+                    Nota de devolución
+                  </label>
                   <textarea
                     style={{
                       width: "100%",
@@ -1278,6 +1443,8 @@ export default function TransporteEnvio() {
                       justifyContent: "flex-end",
                       gap: 8,
                       marginTop: 16,
+                      paddingTop: 10,
+                      borderTop: "1px solid #e5e7eb",
                     }}
                   >
                     <button
@@ -1449,11 +1616,13 @@ const styles = {
   },
   modal: {
     width: "100%",
-    maxWidth: "460px",
+    maxWidth: "520px",
+    maxHeight: "80vh",
     backgroundColor: "#ffffff",
     borderRadius: "16px",
     padding: "20px 24px 18px",
     boxShadow: "0 20px 40px rgba(15, 23, 42, 0.3)",
     border: "1px solid #e2e8f0",
+    overflowY: "auto",
   },
 };

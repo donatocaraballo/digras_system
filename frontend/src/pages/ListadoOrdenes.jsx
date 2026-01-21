@@ -996,6 +996,77 @@ export default function ListadoOrdenes() {
     }, 0);
   };
 
+  // --- RESUMEN DEVOLUCIÓN (DETALLE ORDEN) ---
+  const infoDevolucion = useMemo(() => {
+    if (!ordenSeleccionada) return null;
+
+    const estado = (ordenSeleccionada.estado_de_envio || "")
+      .toString()
+      .toUpperCase();
+
+    const esDevueltaTotal = estado.includes("DEVUELTA");
+    const esDevolucionParcial =
+      estado.includes("DEVOLUCION") || estado.includes("DEVOLUCIÓN");
+
+    // Solo mostramos el bloque especial si es devuelta total o devolución parcial
+    if (!esDevueltaTotal && !esDevolucionParcial) return null;
+
+    if (!detallesOrdenSeleccionada || !detallesOrdenSeleccionada.length) {
+      return null;
+    }
+
+    let totalDevueltos = 0;
+    let totalEntregados = 0;
+    let montoDevuelto = 0;
+    const notasSet = new Set();
+
+    detallesOrdenSeleccionada.forEach((d) => {
+      const cantidad = Number(d.cantidad || 0);
+      const cantidadDevueltaRaw =
+        d.cantidad_devolvida ?? d.cantidad_devuelta ?? (d.devolucion ? d.cantidad : 0);
+      const cantidadDevuelta = Math.min(
+        Math.max(Number(cantidadDevueltaRaw || 0), 0),
+        cantidad
+      );
+
+      // Determinar precio unitario
+      let precioUnitario = Number(d.precio_unitario || 0);
+      if (!precioUnitario) {
+        const prodId = d.id_producto?.id_producto || d.id_producto;
+        const prod = productos.find((p) => p.id_producto === prodId);
+        if (prod && prod.precio_venta) {
+          precioUnitario = Number(prod.precio_venta || 0);
+        }
+      }
+
+      totalDevueltos += cantidadDevuelta;
+      totalEntregados += Math.max(cantidad - cantidadDevuelta, 0);
+
+      if (cantidadDevuelta > 0 && precioUnitario) {
+        montoDevuelto += precioUnitario * cantidadDevuelta;
+      }
+
+      if (d.nota) {
+        notasSet.add(String(d.nota));
+      }
+    });
+
+    const montoFinal = Number(
+      ordenSeleccionada.precio_final ?? totalOrdenDesdeDetalles()
+    );
+    const montoOriginalEstimado = montoFinal + montoDevuelto;
+
+    return {
+      totalDevueltos,
+      totalEntregados,
+      montoDevuelto,
+      montoFinal,
+      montoOriginalEstimado,
+      notas: Array.from(notasSet),
+      tipo: esDevueltaTotal ? "total" : "parcial",
+    };
+  }, [ordenSeleccionada, detallesOrdenSeleccionada, productos]);
+
   const calcularMontoBsDetalle = async () => {
     if (!ordenSeleccionada) return;
 
@@ -1453,6 +1524,7 @@ export default function ListadoOrdenes() {
                 <option value="ENTREGADA">Entregada</option>
                 <option value="CANCELADA">Cancelada</option>
                 <option value="DEVUELTA">Devuelta</option>
+                <option value="DEVOLUCION PARCIAL">Devolución parcial</option>
               </select>
             </div>
 
@@ -1877,71 +1949,229 @@ export default function ListadoOrdenes() {
                 </div>
 
                 <h4 style={styles.sectionTitle}>Productos</h4>
-                <table
-                  style={{
-                    width: "100%",
-                    fontSize: "0.9rem",
-                    borderCollapse: "collapse",
-                    marginBottom: 20,
-                  }}
-                >
-                  <thead
+                {infoDevolucion ? (
+                  <table
                     style={{
-                      background: "#f8fafc",
-                      borderBottom: "1px solid #e2e8f0",
+                      width: "100%",
+                      fontSize: "0.9rem",
+                      borderCollapse: "collapse",
+                      marginBottom: 20,
                     }}
                   >
-                    <tr>
-                      <th style={styles.thDetalle}>Producto</th>
-                      <th
-                        style={{
-                          ...styles.thDetalle,
-                          textAlign: "center",
-                        }}
-                      >
-                        Cant.
-                      </th>
-                      <th
-                        style={{
-                          ...styles.thDetalle,
-                          textAlign: "right",
-                        }}
-                      >
-                        Subtotal
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detallesOrdenSeleccionada.map((d, i) => (
-                      <tr
-                        key={i}
-                        style={{ borderBottom: "1px solid #f1f5f9" }}
-                      >
-                        <td style={styles.tdDetalle}>
-                          {d.id_producto?.nombre || d.producto || "-"}
-                        </td>
-                        <td
+                    <thead
+                      style={{
+                        background: "#f8fafc",
+                        borderBottom: "1px solid #e2e8f0",
+                      }}
+                    >
+                      <tr>
+                        <th style={styles.thDetalle}>Producto</th>
+                        <th
                           style={{
-                            ...styles.tdDetalle,
+                            ...styles.thDetalle,
                             textAlign: "center",
                           }}
                         >
-                          {d.cantidad}
-                        </td>
-                        <td
+                          Cant. original
+                        </th>
+                        <th
                           style={{
-                            ...styles.tdDetalle,
-                            textAlign: "right",
-                            fontWeight: 600,
-                            color: "#0f172a",
+                            ...styles.thDetalle,
+                            textAlign: "center",
                           }}
                         >
-                          $ {Number(d.subtotal).toFixed(2)}
-                        </td>
+                          Devueltos
+                        </th>
+                        <th
+                          style={{
+                            ...styles.thDetalle,
+                            textAlign: "center",
+                          }}
+                        >
+                          Entregados
+                        </th>
+                        <th
+                          style={{
+                            ...styles.thDetalle,
+                            textAlign: "right",
+                          }}
+                        >
+                          Subtotal
+                        </th>
+                        <th
+                          style={{
+                            ...styles.thDetalle,
+                            textAlign: "right",
+                          }}
+                        >
+                          Monto devuelto
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {detallesOrdenSeleccionada.map((d, i) => {
+                        const cantidad = Number(d.cantidad || 0);
+                        const cantidadDevueltaRaw =
+                          d.cantidad_devolvida ?? d.cantidad_devuelta ?? (d.devolucion ? d.cantidad : 0);
+                        const cantidadDevuelta = Math.min(
+                          Math.max(Number(cantidadDevueltaRaw || 0), 0),
+                          cantidad
+                        );
+                        const cantidadEntregada = Math.max(
+                          cantidad - cantidadDevuelta,
+                          0
+                        );
+
+                        let precioUnitario = Number(d.precio_unitario || 0);
+                        if (!precioUnitario) {
+                          const prodId = d.id_producto?.id_producto || d.id_producto;
+                          const prod = productos.find(
+                            (p) => p.id_producto === prodId
+                          );
+                          if (prod && prod.precio_venta) {
+                            precioUnitario = Number(prod.precio_venta || 0);
+                          }
+                        }
+
+                        const subtotal =
+                          typeof d.subtotal !== "undefined" && d.subtotal !== null
+                            ? Number(d.subtotal)
+                            : precioUnitario * cantidad;
+                        const subtotalDevuelto = precioUnitario * cantidadDevuelta;
+
+                        const esDevuelto = cantidadDevuelta > 0;
+
+                        return (
+                          <tr
+                            key={i}
+                            style={{
+                              borderBottom: "1px solid #f1f5f9",
+                              backgroundColor: esDevuelto ? "#fef2f2" : "transparent",
+                            }}
+                          >
+                            <td style={styles.tdDetalle}>
+                              {d.id_producto?.nombre || d.producto || "-"}
+                            </td>
+                            <td
+                              style={{
+                                ...styles.tdDetalle,
+                                textAlign: "center",
+                              }}
+                            >
+                              {cantidad}
+                            </td>
+                            <td
+                              style={{
+                                ...styles.tdDetalle,
+                                textAlign: "center",
+                                color: esDevuelto ? "#b91c1c" : "#0f172a",
+                                fontWeight: esDevuelto ? 600 : 400,
+                              }}
+                            >
+                              {cantidadDevuelta}
+                            </td>
+                            <td
+                              style={{
+                                ...styles.tdDetalle,
+                                textAlign: "center",
+                                color: cantidadEntregada > 0 ? "#15803d" : "#64748b",
+                                fontWeight: cantidadEntregada > 0 ? 600 : 400,
+                              }}
+                            >
+                              {cantidadEntregada}
+                            </td>
+                            <td
+                              style={{
+                                ...styles.tdDetalle,
+                                textAlign: "right",
+                                fontWeight: 600,
+                                color: "#0f172a",
+                              }}
+                            >
+                              $ {subtotal.toFixed(2)}
+                            </td>
+                            <td
+                              style={{
+                                ...styles.tdDetalle,
+                                textAlign: "right",
+                                fontWeight: esDevuelto ? 600 : 400,
+                                color: esDevuelto ? "#b91c1c" : "#64748b",
+                              }}
+                            >
+                              $ {subtotalDevuelto.toFixed(2)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : (
+                  <table
+                    style={{
+                      width: "100%",
+                      fontSize: "0.9rem",
+                      borderCollapse: "collapse",
+                      marginBottom: 20,
+                    }}
+                  >
+                    <thead
+                      style={{
+                        background: "#f8fafc",
+                        borderBottom: "1px solid #e2e8f0",
+                      }}
+                    >
+                      <tr>
+                        <th style={styles.thDetalle}>Producto</th>
+                        <th
+                          style={{
+                            ...styles.thDetalle,
+                            textAlign: "center",
+                          }}
+                        >
+                          Cant.
+                        </th>
+                        <th
+                          style={{
+                            ...styles.thDetalle,
+                            textAlign: "right",
+                          }}
+                        >
+                          Subtotal
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detallesOrdenSeleccionada.map((d, i) => (
+                        <tr
+                          key={i}
+                          style={{ borderBottom: "1px solid #f1f5f9" }}
+                        >
+                          <td style={styles.tdDetalle}>
+                            {d.id_producto?.nombre || d.producto || "-"}
+                          </td>
+                          <td
+                            style={{
+                              ...styles.tdDetalle,
+                              textAlign: "center",
+                            }}
+                          >
+                            {d.cantidad}
+                          </td>
+                          <td
+                            style={{
+                              ...styles.tdDetalle,
+                              textAlign: "right",
+                              fontWeight: 600,
+                              color: "#0f172a",
+                            }}
+                          >
+                            $ {Number(d.subtotal).toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
                 <div
                   style={{
                     textAlign: "right",
@@ -1949,6 +2179,49 @@ export default function ListadoOrdenes() {
                     paddingTop: 15,
                   }}
                 >
+                  {infoDevolucion && (
+                    <div
+                      style={{
+                        textAlign: "right",
+                        marginBottom: 12,
+                        paddingBottom: 12,
+                        borderBottom: "1px dashed #e2e8f0",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, color: "#0f172a" }}>
+                        Resumen de devolución
+                      </div>
+                      <div style={{ color: "#64748b", marginTop: 2 }}>
+                        Productos devueltos:{" "}
+                        <strong>{infoDevolucion.totalDevueltos}</strong>
+                      </div>
+                      <div style={{ color: "#64748b" }}>
+                        Productos entregados:{" "}
+                        <strong>{infoDevolucion.totalEntregados}</strong>
+                      </div>
+                      <div style={{ color: "#b91c1c", marginTop: 4 }}>
+                        Monto restado por devolución:{" "}
+                        <strong>
+                          $ {infoDevolucion.montoDevuelto.toFixed(2)}
+                        </strong>
+                      </div>
+                      <div style={{ color: "#0f172a", marginTop: 2 }}>
+                        Monto final de la orden:{" "}
+                        <strong>
+                          $ {infoDevolucion.montoFinal.toFixed(2)}
+                        </strong>
+                      </div>
+                      <div
+                        style={{ color: "#94a3b8", marginTop: 2, fontSize: "0.8rem" }}
+                      >
+                        Monto estimado antes de la devolución:{" "}
+                        <strong>
+                          $ {infoDevolucion.montoOriginalEstimado.toFixed(2)}
+                        </strong>
+                      </div>
+                    </div>
+                  )}
                   {/* Peso total de la orden */}
                   <div
                     style={{
@@ -2022,6 +2295,39 @@ export default function ListadoOrdenes() {
                       </div>
                     )}
                   </div>
+                  {infoDevolucion && infoDevolucion.notas.length > 0 && (
+                    <div
+                      style={{
+                        marginTop: 12,
+                        paddingTop: 10,
+                        borderTop: "1px dashed #e2e8f0",
+                        textAlign: "left",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "0.9rem",
+                          fontWeight: 600,
+                          color: "#0f172a",
+                          marginBottom: 4,
+                        }}
+                      >
+                        Notas de la devolución
+                      </div>
+                      <ul
+                        style={{
+                          margin: 0,
+                          paddingLeft: 18,
+                          fontSize: "0.85rem",
+                          color: "#475569",
+                        }}
+                      >
+                        {infoDevolucion.notas.map((n, idx) => (
+                          <li key={idx}>{n}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
