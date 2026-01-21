@@ -169,8 +169,19 @@ class UsuarioViewSet(BaseViewSet):
 class RegistroAccionViewSet(BaseViewSet):
     queryset = RegistroAccion.objects.all().order_by("-fecha_y_hora")
     serializer_class = RegistroAccionSerializer
+    
+    # 1. PERMISOS: Permitir lectura a cualquier usuario logueado
+    permission_classes = [permissions.IsAuthenticated]
+    
+    # 2. SEGURIDAD: Solo lectura
+    http_method_names = ['get', 'head', 'options']
+
     search_fields = ["modulo", "accion", "descripcion"]
     ordering_fields = ["fecha_y_hora", "id_registro"]
+
+    # 3. VER TODO: Sobreescribir para que el vendedor vea acciones de otros (Gerente)
+    def get_queryset(self):
+        return RegistroAccion.objects.all().order_by("-fecha_y_hora")
 
 
 # ============================================================
@@ -361,6 +372,41 @@ class OrdenViewSet(BaseViewSet):
 
     # Filtros
     search_fields = ["id_orden", "id_cliente__nombre", "id_usuario__username"]
+
+    def perform_update(self, serializer):
+        usuario = self.request.user
+        
+        # 1. Estado anterior
+        orden_anterior = self.get_object()
+        estado_viejo = orden_anterior.estado_de_envio
+        
+        # 2. Guardar cambios
+        orden_nueva = serializer.save()
+        
+        # 3. Detectar cambio de estado
+        estado_nuevo = orden_nueva.estado_de_envio
+
+        if estado_viejo != estado_nuevo:
+            accion_texto = "Actualizar Orden"
+            
+            # Palabras clave para el filtro del Frontend
+            if estado_nuevo == "APROBADA":
+                accion_texto = "APROBAR ORDEN"
+            elif estado_nuevo in ["DESPACHADA", "EN_CURSO", "EN CAMINO"]:
+                accion_texto = "DESPACHAR ORDEN"
+            elif estado_nuevo == "ENTREGADA":
+                accion_texto = "ENTREGA EXITOSA"
+            elif estado_nuevo == "CANCELADA":
+                accion_texto = "CANCELAR ORDEN"
+
+            # 4. Crear Log
+            registrar_accion(
+                usuario,
+                "Ventas", 
+                accion_texto, 
+                f"Orden #{orden_nueva.id_orden} cambió de {estado_viejo} a {estado_nuevo}", 
+                id_referencia=orden_nueva.id_orden
+            )
 
     def create(self, request, *args, **kwargs):
         """

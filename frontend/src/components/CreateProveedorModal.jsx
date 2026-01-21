@@ -1,6 +1,7 @@
 // frontend/src/components/CreateProveedorModal.jsx
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom'; // 🚨 IMPORTANTE
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
@@ -10,46 +11,84 @@ const IconBuilding = () => <svg width="24" height="24" viewBox="0 0 24 24" fill=
 const IconClose = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>;
 
 function CreateProveedorModal({ isOpen, onClose, onProveedorCreated }) {
-    const [formData, setFormData] = useState({
-        nombre: '',
-        rif: '',
-        direccion: '',
-        correo: '',
-        telefono: ''
-    });
+    const [tipoDoc, setTipoDoc] = useState('J'); 
+    const [numDoc, setNumDoc] = useState('');
+    const [ciudad, setCiudad] = useState('');
+    const [dirDetalle, setDirDetalle] = useState('');
+    const [formData, setFormData] = useState({ nombre: '', correo: '', telefono: '' });
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (!isOpen) {
+            setFormData({ nombre: '', correo: '', telefono: '' });
+            setTipoDoc('J'); setNumDoc(''); setCiudad(''); setDirDetalle('');
+        }
+    }, [isOpen]);
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    const handleNumInput = (e, setter, maxChars) => {
+        const val = e.target.value.replace(/[^0-9-]/g, ''); 
+        if (val.length <= maxChars) setter(val);
+    };
+
+    const handlePhoneInput = (e) => {
+        const val = e.target.value.replace(/[^0-9]/g, '');
+        if (val.length <= 11) setFormData({ ...formData, telefono: val });
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        if (!formData.nombre || !formData.rif) {
-            return toast.error("El nombre y el RIF son obligatorios.");
+        if (!formData.nombre.trim()) return toast.error("El nombre es obligatorio.");
+        
+        const docClean = numDoc.replace(/-/g, '');
+        if (docClean.length < 6) return toast.error(`El número de documento es muy corto.`);
+        if (!ciudad.trim() || !dirDetalle.trim()) return toast.error("Complete la ciudad y la dirección.");
+
+        if (formData.telefono.length > 0 && formData.telefono.length !== 11) {
+            return toast.error("El teléfono debe tener 11 dígitos.");
         }
+        if (formData.correo.length > 0) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(formData.correo)) return toast.error("Correo electrónico no válido.");
+        }
+
+        const rifFinal = `${tipoDoc}-${numDoc}`;
+        const direccionFinal = `${ciudad.trim()}, ${dirDetalle.trim()}`;
 
         setIsSubmitting(true);
         const loadingToast = toast.loading("Registrando proveedor...");
 
         try {
-            const response = await axios.post(PROVEEDORES_URL, formData);
+            const payload = {
+                nombre: formData.nombre,
+                rif: rifFinal,
+                telefono: formData.telefono,
+                correo: formData.correo,
+                direccion: direccionFinal
+            };
+
+            const response = await axios.post(PROVEEDORES_URL, payload);
             
             toast.dismiss(loadingToast);
-            toast.success(`Proveedor "${formData.nombre}" creado exitosamente.`);
+            toast.success(`Proveedor creado exitosamente.`);
             
-            // Callback
             if (onProveedorCreated) onProveedorCreated(response.data.id_proveedor);
-            
-            // Limpieza
-            setFormData({ nombre: '', rif: '', direccion: '', correo: '', telefono: '' });
             onClose();
             
         } catch (error) {
             toast.dismiss(loadingToast);
-            const errMsg = error.response ? JSON.stringify(error.response.data) : error.message;
-            toast.error('Error: ' + errMsg);
+            let errMsg = "Error desconocido";
+            if (error.response?.data) {
+                if (error.response.data.rif) errMsg = "El documento (RIF/Cédula) ya existe.";
+                else errMsg = JSON.stringify(error.response.data);
+            } else {
+                errMsg = error.message;
+            }
+            toast.error(errMsg);
         } finally {
             setIsSubmitting(false);
         }
@@ -57,11 +96,11 @@ function CreateProveedorModal({ isOpen, onClose, onProveedorCreated }) {
 
     if (!isOpen) return null;
 
-    return (
+    // 🚨 RENDERIZADO VIA PORTAL
+    return ReactDOM.createPortal(
         <div style={styles.overlay}>
             <div style={styles.modal}>
                 
-                {/* Header */}
                 <div style={styles.header}>
                     <div style={{display:'flex', alignItems:'center', gap:'12px'}}>
                         <div style={styles.iconBox}><IconBuilding /></div>
@@ -77,60 +116,46 @@ function CreateProveedorModal({ isOpen, onClose, onProveedorCreated }) {
                     <div style={styles.formGrid}>
                         <div style={{gridColumn: 'span 2'}}>
                             <label style={styles.label}>Razón Social / Nombre <span style={{color:'red'}}>*</span></label>
-                            <input 
-                                name="nombre" 
-                                value={formData.nombre} 
-                                onChange={handleChange} 
-                                style={styles.input} 
-                                placeholder="Ej: Distribuidora Los Andes C.A."
-                                required 
-                            />
+                            <input name="nombre" value={formData.nombre} onChange={handleChange} style={styles.input} placeholder="Ej: Inversiones Globales C.A." autoFocus />
                         </div>
 
-                        <div>
-                            <label style={styles.label}>RIF / Cédula <span style={{color:'red'}}>*</span></label>
-                            <input 
-                                name="rif" 
-                                value={formData.rif} 
-                                onChange={handleChange} 
-                                style={styles.input} 
-                                placeholder="J-12345678-9"
-                                required 
-                            />
+                        <div style={{gridColumn: 'span 2'}}>
+                            <label style={styles.label}>Documento de Identidad <span style={{color:'red'}}>*</span></label>
+                            <div style={{display: 'flex', gap: '10px'}}>
+                                <div style={{width: '70px'}}>
+                                    <select value={tipoDoc} onChange={(e) => setTipoDoc(e.target.value)} style={styles.selectPrefix}>
+                                        <option value="J">J</option><option value="V">V</option><option value="E">E</option><option value="G">G</option><option value="P">P</option>
+                                    </select>
+                                </div>
+                                <div style={{flex: 1}}>
+                                    <input value={numDoc} onChange={(e) => handleNumInput(e, setNumDoc, 10)} style={styles.input} placeholder={['J','G'].includes(tipoDoc) ? '12345678-9' : '12345678'} />
+                                </div>
+                            </div>
+                            <p style={styles.helperText}>Registrando: <strong>{tipoDoc}-{numDoc || '...'}</strong></p>
                         </div>
 
                         <div>
                             <label style={styles.label}>Teléfono</label>
-                            <input 
-                                name="telefono" 
-                                value={formData.telefono} 
-                                onChange={handleChange} 
-                                style={styles.input} 
-                                placeholder="0414-1234567"
-                            />
+                            <input name="telefono" value={formData.telefono} onChange={handlePhoneInput} style={styles.input} placeholder="04141234567 (Opcional)" type="tel" />
                         </div>
 
-                        <div style={{gridColumn: 'span 2'}}>
+                        <div>
                             <label style={styles.label}>Correo Electrónico</label>
-                            <input 
-                                name="correo" 
-                                type="email"
-                                value={formData.correo} 
-                                onChange={handleChange} 
-                                style={styles.input} 
-                                placeholder="contacto@proveedor.com"
-                            />
+                            <input name="correo" type="email" value={formData.correo} onChange={handleChange} style={styles.input} placeholder="Opcional" />
                         </div>
 
-                        <div style={{gridColumn: 'span 2'}}>
-                            <label style={styles.label}>Dirección Fiscal</label>
-                            <textarea 
-                                name="direccion" 
-                                value={formData.direccion} 
-                                onChange={handleChange} 
-                                style={{...styles.input, resize: 'vertical', minHeight: '80px'}} 
-                                placeholder="Av. Principal, Edificio Central..."
-                            />
+                        <div style={{gridColumn: 'span 2', borderTop:'1px solid #e2e8f0', paddingTop:'15px', marginTop:'5px'}}>
+                            <label style={{...styles.label, color:'#0f172a', fontSize:'0.9rem'}}>Ubicación Fiscal</label>
+                        </div>
+
+                        <div>
+                            <label style={styles.label}>Ciudad / Estado <span style={{color:'red'}}>*</span></label>
+                            <input value={ciudad} onChange={(e) => setCiudad(e.target.value)} style={styles.input} placeholder="Ej: Caracas, Dtto. Capital" />
+                        </div>
+
+                        <div>
+                            <label style={styles.label}>Calle / Edificio / Oficina <span style={{color:'red'}}>*</span></label>
+                            <input value={dirDetalle} onChange={(e) => setDirDetalle(e.target.value)} style={styles.input} placeholder="Av. Bolívar, Torre A..." />
                         </div>
                     </div>
 
@@ -142,23 +167,23 @@ function CreateProveedorModal({ isOpen, onClose, onProveedorCreated }) {
                     </div>
                 </form>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
 
-// --- ESTILOS PREMIUM ---
 const styles = {
     overlay: {
-        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)',
-        display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000,
+        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+        backgroundColor: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(10px)',
+        display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999999,
         animation: 'fadeIn 0.2s ease-out'
     },
     modal: {
-        backgroundColor: '#ffffff', width: '600px', maxHeight: '90vh',
-        borderRadius: '20px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+        backgroundColor: '#ffffff', width: '650px', maxHeight: '90vh',
+        borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        border: '1px solid #f1f5f9'
+        border: '1px solid rgba(255, 255, 255, 0.1)'
     },
     header: {
         padding: '24px', borderBottom: '1px solid #e2e8f0',
@@ -166,46 +191,49 @@ const styles = {
         backgroundColor: '#f8fafc'
     },
     iconBox: {
-        width: '40px', height: '40px', borderRadius: '10px', background: '#e0f2fe',
+        width: '42px', height: '42px', borderRadius: '12px', background: '#e0f2fe',
         color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center'
     },
     title: { margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' },
     subtitle: { margin: '4px 0 0', fontSize: '0.875rem', color: '#64748b' },
     closeBtn: {
         background: 'transparent', border: 'none', cursor: 'pointer',
-        color: '#94a3b8', padding: '4px', borderRadius: '50%',
+        color: '#94a3b8', padding: '6px', borderRadius: '50%',
         transition: 'all 0.2s', display: 'flex', alignItems: 'center'
     },
-    formContent: { padding: '24px', overflowY: 'auto' },
+    formContent: { padding: '30px', overflowY: 'auto' },
     formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' },
-    
-    label: { display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#475569', marginBottom: '6px' },
+    label: { display: 'block', fontSize: '0.8rem', fontWeight: '600', color: '#475569', marginBottom: '6px' },
     input: {
         width: '100%', padding: '12px', borderRadius: '10px',
         border: '1px solid #cbd5e1', fontSize: '0.95rem', color: '#1e293b',
-        outline: 'none', transition: 'border-color 0.2s, box-shadow 0.2s',
-        boxSizing: 'border-box'
+        outline: 'none', transition: 'border-color 0.2s', boxSizing: 'border-box'
     },
-    
+    selectPrefix: {
+        width: '100%', padding: '12px', borderRadius: '10px',
+        border: '1px solid #cbd5e1', fontSize: '0.95rem', color: '#0f172a', fontWeight: 'bold',
+        outline: 'none', backgroundColor: '#f8fafc', cursor: 'pointer', textAlign: 'center'
+    },
+    helperText: { fontSize: '0.75rem', color: '#64748b', marginTop: '4px', margin: '4px 0 0 0' },
     footer: {
-        padding: '20px 24px', backgroundColor: '#fff', borderTop: '1px solid #e2e8f0',
-        display: 'flex', justifyContent: 'flex-end', gap: '12px'
+        padding: '24px', backgroundColor: '#fff', borderTop: '1px solid #e2e8f0',
+        display: 'flex', justifyContent: 'flex-end', gap: '15px'
     },
     btnCancel: {
         padding: '12px 24px', border: 'none', backgroundColor: '#f1f5f9',
-        color: '#475569', borderRadius: '10px', cursor: 'pointer', fontWeight: '600'
+        color: '#475569', borderRadius: '12px', cursor: 'pointer', fontWeight: '600'
     },
     btnSubmit: {
         padding: '12px 24px', border: 'none', backgroundColor: '#0f172a',
-        color: '#fff', borderRadius: '10px', cursor: 'pointer', fontWeight: '600',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+        color: '#fff', borderRadius: '12px', cursor: 'pointer', fontWeight: '600',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)'
     }
 };
 
 const styleSheet = document.createElement("style");
 styleSheet.innerText = `
-    @keyframes fadeIn { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
-    input:focus, textarea:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important; }
+    @keyframes fadeIn { from { opacity:0; transform:scale(0.98); } to { opacity:1; transform:scale(1); } }
+    input:focus, textarea:focus, select:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1) !important; }
 `;
 document.head.appendChild(styleSheet);
 

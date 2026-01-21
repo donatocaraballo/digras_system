@@ -5,83 +5,147 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import api from '../api/api';
 
-// Iconos SVG
-const IconBell = () => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>;
+// --- ICONOS ---
+const IconBell = () => <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>;
 const IconCheck = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2"><polyline points="20 6 9 17 4 12"></polyline></svg>;
-const IconAlert = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>;
+const IconAlert = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>;
 const IconInfo = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>;
-const IconArrowLeft = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>;
+const IconWarning = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>;
+const IconArrowLeft = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>;
 
 export default function Notificaciones() {
     const { user: currentUser } = useAuth();
     const navigate = useNavigate();
+    
+    // Data States
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
+    
+    // Contexto de IDs propios (Igual que en Navbar para consistencia)
+    const [myRelevantIds, setMyRelevantIds] = useState(new Set());
 
     const userRole = currentUser?.tipo || (currentUser?.is_superuser ? 'GERENTE' : 'INVITADO');
 
-    // Misma lógica de filtrado del Navbar
-    const filterLogsByRole = (logs, role) => {
-        return logs.filter(log => {
-            const mod = (log.modulo || "").toUpperCase();
-            const action = (log.accion || "").toUpperCase();
-            
-            if (role === 'VENDEDOR') {
-                if (mod === 'VENTAS' && (action.includes('APROB') || action.includes('DESPACH') || action.includes('ENTREGA'))) return true;
-                if (mod === 'TRANSPORTE' && action.includes('INCIDENCIA')) return true;
-                return false;
-            }
-            if (role === 'ALMACENISTA') {
-                if (mod === 'VENTAS' && action.includes('APROB')) return true;
-                if (mod === 'COMPRAS' && action.includes('APROB')) return true;
-                if (mod === 'TRANSPORTE' && action.includes('ASIGNAR')) return true;
-                return false;
-            }
-            if (role === 'TRANSPORTISTA') {
-                if (mod === 'TRANSPORTE' && (action.includes('ASIGNAR') || action.includes('LISTO'))) return true;
-                return false;
-            }
-            if (role === 'GERENTE' || role === 'ADMINISTRADOR') {
-                if (action.includes('CREAR') || action.includes('ELIMINAR') || action.includes('AJUSTE')) return true;
-                if (action.includes('INCIDENCIA') || action.includes('DEVUELTA')) return true;
-                return true; 
-            }
-            return false;
-        }).map(log => ({
-            id: log.id_registro,
-            title: `${log.modulo} - ${log.accion}`,
-            msg: log.descripcion,
-            date: new Date(log.fecha_y_hora).toLocaleString(),
-            type: determineNotifType(log.accion),
-            link: determineLink(log.modulo)
-        }));
-    };
+    // ---------------------------------------------------------
+    // PASO 1: CARGAR CONTEXTO (Ids Propios)
+    // ---------------------------------------------------------
+    useEffect(() => {
+        const fetchContext = async () => {
+            if (!currentUser) return;
+            // Solo Vendedor y Transportista requieren filtro por ID
+            if (userRole !== 'VENDEDOR' && userRole !== 'TRANSPORTISTA') return;
 
-    const determineNotifType = (action) => {
-        const a = action.toUpperCase();
-        if (a.includes('CREAR') || a.includes('PENDIENTE')) return 'warning';
-        if (a.includes('APROB') || a.includes('ENTREGA') || a.includes('LISTO')) return 'success';
-        if (a.includes('ELIMINAR') || a.includes('INCIDENCIA') || a.includes('DEVUELTA')) return 'danger';
-        return 'info';
-    };
+            const newIds = new Set();
+            const userId = Number(currentUser.id_usuario || currentUser.id);
 
-    const determineLink = (modulo) => {
-        const m = (modulo || "").toUpperCase();
-        if (m === 'VENTAS' || m === 'ORDENES') return '/ordenes';
-        if (m === 'COMPRAS') return '/compras';
-        if (m === 'TRANSPORTE' || m === 'ENVIOS') return '/envios';
-        if (m === 'INVENTARIO') return '/inventario';
-        return '/registros';
-    };
+            try {
+                if (userRole === 'VENDEDOR') {
+                    // Doble fetch para asegurar rutas (Blindaje)
+                    const [res1, res2] = await Promise.allSettled([
+                        api.get(`base/ordenes/?page_size=300`), // Traemos más historial aquí
+                        api.get(`ordenes/?page_size=300`)
+                    ]);
 
+                    let ordenes = [];
+                    if (res1.status === 'fulfilled') ordenes = [...ordenes, ...res1.value.data.results || res1.value.data];
+                    if (res2.status === 'fulfilled') ordenes = [...ordenes, ...res2.value.data.results || res2.value.data];
+
+                    ordenes.forEach(o => {
+                        let oUserId = o.id_usuario; 
+                        if (typeof o.id_usuario === 'object' && o.id_usuario !== null) {
+                            oUserId = o.id_usuario.id_usuario || o.id_usuario.id;
+                        }
+                        if (Number(oUserId) === userId) {
+                            newIds.add(Number(o.id_orden));
+                        }
+                    });
+                } 
+                else if (userRole === 'TRANSPORTISTA') {
+                    const res = await api.get(`base/transporte/mi-envio/`);
+                    if (res.data && res.data.id_envio) {
+                        newIds.add(Number(res.data.id_envio));
+                    }
+                }
+            } catch (error) {
+                console.error("Error cargando contexto en página notificaciones:", error);
+            }
+            setMyRelevantIds(newIds);
+        };
+
+        fetchContext();
+    }, [userRole, currentUser]);
+
+    // ---------------------------------------------------------
+    // PASO 2: CARGAR HISTORIAL DE NOTIFICACIONES
+    // ---------------------------------------------------------
     useEffect(() => {
         const fetchAll = async () => {
+            // Esperamos un poco si es vendedor para que cargue el contexto primero
+            if ((userRole === 'VENDEDOR' || userRole === 'TRANSPORTISTA') && myRelevantIds.size === 0) {
+                // Pequeño hack: Si aún no ha cargado IDs y debería tener, esperamos el siguiente ciclo
+                // (Opcional, pero ayuda a que no salga vacío al inicio)
+            }
+
             setLoading(true);
             try {
-                // Traemos los últimos 100 registros para tener un historial decente
-                const res = await api.get(`/base/registros/?page_size=100`); 
+                // Traemos un historial más largo (ej. 100 eventos)
+                const res = await api.get(`base/registros/?page_size=100`); 
                 const logs = Array.isArray(res.data) ? res.data : res.data.results || [];
-                const filtered = filterLogsByRole(logs, userRole);
+                
+                const filtered = logs.filter(log => {
+                    const mod = (log.modulo || "").toUpperCase();
+                    const action = (log.accion || "").toUpperCase();
+                    const refId = Number(log.id_referencia);
+                    
+                    // --- VENDEDOR ---
+                    if (userRole === 'VENDEDOR') {
+                        if ((mod === 'VENTAS' || mod === 'ORDENES') && myRelevantIds.has(refId)) {
+                            const keywords = ['APROB', 'DESPACH', 'ENTREG', 'PREPARADA', 'CANCEL', 'RECHAZ', 'CAMINO', 'LISTO'];
+                            if (keywords.some(k => action.includes(k))) return true;
+                        }
+                        if ((mod.includes('TRANSP') || mod.includes('ENVI')) && myRelevantIds.has(refId) && action.includes('INCIDENCIA')) {
+                             return true;
+                        }
+                        return false;
+                    }
+
+                    // --- TRANSPORTISTA ---
+                    if (userRole === 'TRANSPORTISTA') {
+                        if ((mod.includes('ENVI') || mod.includes('TRANSP')) && myRelevantIds.has(refId)) {
+                            const keywords = ['ASIGNAR', 'LISTO', 'SALIDA', 'TERMIN'];
+                            if (keywords.some(k => action.includes(k))) return true;
+                        }
+                        return false;
+                    }
+
+                    // --- ALMACENISTA ---
+                    if (userRole === 'ALMACENISTA') {
+                        if ((mod === 'VENTAS' || mod === 'ORDENES') && action.includes('APROB')) return true; 
+                        if (mod === 'COMPRAS' && action.includes('APROB')) return true; 
+                        if (mod.includes('ENVI') && action.includes('ASIGNAR')) return true; 
+                        return false;
+                    }
+
+                    // --- GERENTE ---
+                    if (userRole === 'GERENTE' || userRole === 'ADMINISTRADOR') {
+                        if (action.includes('LOGIN')) return false; 
+                        return true;
+                    }
+
+                    return false;
+
+                }).map(log => ({
+                    id: log.id_registro,
+                    title: log.accion,
+                    msg: log.descripcion,
+                    // Fecha completa para el historial
+                    date: new Date(log.fecha_y_hora).toLocaleString([], {
+                        day: '2-digit', month: '2-digit', year: 'numeric', 
+                        hour: '2-digit', minute:'2-digit'
+                    }),
+                    type: determineNotifType(log.accion),
+                }));
+                
                 setNotifications(filtered);
             } catch (err) {
                 console.error(err);
@@ -91,40 +155,60 @@ export default function Notificaciones() {
         };
 
         if (currentUser) fetchAll();
-    }, [currentUser, userRole]);
+    }, [currentUser, userRole, myRelevantIds]); // Dependencia clave: myRelevantIds
+
+    const determineNotifType = (action) => {
+        const a = action.toUpperCase();
+        if (a.includes('CREAR') || a.includes('PENDIENTE')) return 'warning';
+        if (a.includes('APROB') || a.includes('ENTREG') || a.includes('LISTO')) return 'success';
+        if (a.includes('ELIMINAR') || a.includes('INCIDENCIA') || a.includes('DEVUELTA') || a.includes('CANCEL')) return 'danger';
+        return 'info';
+    };
 
     return (
         <div style={styles.page}>
             <div style={styles.header}>
-                <button onClick={() => navigate(-1)} style={styles.backBtn}><IconArrowLeft /></button>
-                <div style={styles.iconCircle}><IconBell /></div>
-                <div>
-                    <h2 style={styles.title}>Centro de Notificaciones</h2>
-                    <p style={styles.subtitle}>Historial de alertas y actividad reciente del sistema.</p>
+                <button onClick={() => navigate(-1)} style={styles.backBtn} title="Volver">
+                    <IconArrowLeft />
+                </button>
+                <div style={styles.headerContent}>
+                    <div style={styles.iconCircle}><IconBell /></div>
+                    <div>
+                        <h2 style={styles.title}>Centro de Actividad</h2>
+                        <p style={styles.subtitle}>Historial de eventos y notificaciones recientes.</p>
+                    </div>
                 </div>
             </div>
 
             <div style={styles.card}>
                 {loading ? (
-                    <div style={styles.empty}>Cargando historial de notificaciones...</div>
+                    <div style={styles.empty}>
+                        <div style={{marginBottom: 10, fontSize: '1.2rem'}}>⏳</div>
+                        Cargando historial...
+                    </div>
                 ) : notifications.length === 0 ? (
                     <div style={styles.empty}>
                         <div style={{fontSize:'3rem', marginBottom:10}}>🎉</div>
-                        No tienes notificaciones recientes. ¡Estás al día!
+                        <div style={{color: '#0f172a', fontWeight: 600}}>Todo está tranquilo</div>
+                        <div style={{fontSize: '0.9rem'}}>No tienes nuevas notificaciones ni eventos recientes.</div>
                     </div>
                 ) : (
                     <div style={styles.list}>
                         {notifications.map((n, i) => (
-                            <div key={i} style={styles.item} onClick={() => n.link && navigate(n.link)}>
+                            <div key={i} style={styles.item}>
                                 <div style={styles.iconBox}>
-                                    {n.type === 'success' ? <IconCheck /> : n.type === 'warning' ? <IconAlert /> : <IconInfo />}
+                                    {n.type === 'success' ? <IconCheck /> : 
+                                     n.type === 'warning' ? <IconWarning /> : 
+                                     n.type === 'danger' ? <IconAlert /> : <IconInfo />}
                                 </div>
                                 <div style={{flex:1}}>
-                                    <div style={styles.itemTitle}>{n.title}</div>
+                                    <div style={styles.itemHeader}>
+                                        <span style={styles.itemTitle}>{n.title}</span>
+                                        <span style={styles.itemDateMobile}>{n.date}</span>
+                                    </div>
                                     <div style={styles.itemMsg}>{n.msg}</div>
                                 </div>
                                 <div style={styles.itemDate}>{n.date}</div>
-                                {n.link && <button style={styles.actionBtn}>Ver</button>}
                             </div>
                         ))}
                     </div>
@@ -135,24 +219,141 @@ export default function Notificaciones() {
 }
 
 const styles = {
-    page: { padding: '40px', maxWidth: '1000px', margin: '0 auto', fontFamily: "'Inter', sans-serif" },
-    header: { display: 'flex', gap: '20px', alignItems: 'center', marginBottom: '30px' },
-    iconCircle: { width: '56px', height: '56px', borderRadius: '16px', background: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-    title: { margin: 0, fontSize: '1.8rem', color: '#0f172a', fontWeight: '800' },
-    subtitle: { margin: '4px 0 0', color: '#64748b' },
-    backBtn: { background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', padding: '8px', borderRadius: '50%', transition: 'background 0.2s' },
+    page: { 
+        padding: '40px 20px', 
+        maxWidth: '900px', 
+        margin: '0 auto', 
+        fontFamily: "'Inter', sans-serif",
+        animation: 'fadeIn 0.3s ease-out'
+    },
+    header: { 
+        display: 'flex', 
+        gap: '20px', 
+        alignItems: 'center', 
+        marginBottom: '30px' 
+    },
+    headerContent: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '20px'
+    },
+    backBtn: {
+        background: 'white',
+        border: '1px solid #e2e8f0',
+        borderRadius: '50%',
+        width: '40px',
+        height: '40px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        color: '#64748b',
+        transition: 'all 0.2s',
+        boxShadow: '0 2px 5px rgba(0,0,0,0.05)'
+    },
+    iconCircle: { 
+        width: '56px', 
+        height: '56px', 
+        borderRadius: '16px', 
+        background: 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)', 
+        color: '#0284c7', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        boxShadow: '0 4px 12px rgba(2, 132, 199, 0.15)'
+    },
+    title: { 
+        margin: 0, 
+        fontSize: '1.8rem', 
+        color: '#0f172a', 
+        fontWeight: '800', 
+        letterSpacing: '-0.5px' 
+    },
+    subtitle: { 
+        margin: '4px 0 0', 
+        color: '#64748b', 
+        fontSize: '0.95rem' 
+    },
     
-    card: { backgroundColor: '#fff', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', overflow: 'hidden', border: '1px solid #e2e8f0', minHeight: '400px' },
+    card: { 
+        backgroundColor: '#fff', 
+        borderRadius: '24px', 
+        boxShadow: '0 10px 40px -10px rgba(0,0,0,0.08)', 
+        overflow: 'hidden', 
+        border: '1px solid #e2e8f0', 
+        minHeight: '400px' 
+    },
     
-    list: { display: 'flex', flexDirection: 'column' },
-    item: { padding: '20px 25px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '20px', cursor: 'pointer', transition: 'background 0.2s', ':hover': { backgroundColor: '#f8fafc' } },
+    list: { 
+        display: 'flex', 
+        flexDirection: 'column' 
+    },
+    item: { 
+        padding: '24px', 
+        borderBottom: '1px solid #f1f5f9', 
+        display: 'flex', 
+        alignItems: 'flex-start', 
+        gap: '20px', 
+        transition: 'background 0.2s',
+        ':hover': { backgroundColor: '#f8fafc' }
+    },
     
-    iconBox: { padding: '10px', borderRadius: '50%', background: '#f8fafc', border: '1px solid #e2e8f0' },
-    itemTitle: { fontWeight: '700', color: '#0f172a', marginBottom: '4px' },
-    itemMsg: { color: '#475569', fontSize: '0.95rem' },
-    itemDate: { fontSize: '0.8rem', color: '#94a3b8', marginLeft: 'auto', whiteSpace:'nowrap' },
+    iconBox: { 
+        padding: '12px', 
+        borderRadius: '14px', 
+        background: '#f8fafc', 
+        border: '1px solid #e2e8f0',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    itemHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '6px'
+    },
+    itemTitle: { 
+        fontWeight: '700', 
+        color: '#0f172a', 
+        fontSize: '1rem' 
+    },
+    itemMsg: { 
+        color: '#475569', 
+        fontSize: '0.95rem', 
+        lineHeight: '1.5' 
+    },
+    itemDate: { 
+        fontSize: '0.8rem', 
+        color: '#94a3b8', 
+        whiteSpace: 'nowrap',
+        marginTop: '4px',
+        fontWeight: '500'
+    },
+    itemDateMobile: {
+        display: 'none', // Se mostrará con media query
+        fontSize: '0.75rem',
+        color: '#94a3b8'
+    },
     
-    actionBtn: { padding: '6px 12px', borderRadius: '8px', background: '#eff6ff', color: '#2563eb', border: 'none', fontWeight: '600', fontSize: '0.8rem', cursor: 'pointer' },
-    
-    empty: { padding: '60px', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }
+    empty: { 
+        padding: '80px 20px', 
+        textAlign: 'center', 
+        color: '#94a3b8', 
+        fontStyle: 'italic',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center'
+    }
 };
+
+// Media queries inyectadas
+const styleSheet = document.createElement("style");
+styleSheet.innerText = `
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @media (max-width: 600px) {
+        .item-date { display: none !important; }
+        .item-date-mobile { display: block !important; }
+    }
+`;
+document.head.appendChild(styleSheet);
