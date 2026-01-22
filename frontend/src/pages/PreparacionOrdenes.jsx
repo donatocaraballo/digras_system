@@ -1497,7 +1497,9 @@ export default function PreparacionOrdenes() {
                   <table style={styles.modalDetalleTable}>
                     <thead>
                       <tr>
+                        {/* ✅ AÑADIDA COLUMNA 'DATOS' PARA MARCA Y SKU */}
                         <th style={styles.modalDetalleTh}>Producto</th>
+                        <th style={styles.modalDetalleTh}>Datos</th>
                         <th style={styles.modalDetalleTh}>Cant.</th>
                         <th style={styles.modalDetalleTh}>Peso unit.</th>
                         <th style={styles.modalDetalleTh}>Peso subtotal</th>
@@ -1508,7 +1510,14 @@ export default function PreparacionOrdenes() {
                       {ordenDetalle.detalles.map((d) => (
                         <tr key={d.id_detalleo}>
                           <td style={styles.modalDetalleTd}>
-                            {d.producto || d.id_producto_nombre || "-"}
+                            <strong>{d.producto || d.id_producto_nombre || "-"}</strong>
+                          </td>
+                          {/* ✅ NUEVA CELDA CON MARCA Y SKU */}
+                          <td style={styles.modalDetalleTd}>
+                            <div style={{fontSize: '0.8rem', color: '#64748b'}}>
+                                {d.marca_nombre && <div>Marca: {d.marca_nombre}</div>}
+                                {d.sku && <div style={{fontFamily: 'monospace'}}>SKU: {d.sku}</div>}
+                            </div>
                           </td>
                           <td style={styles.modalDetalleTd}>{d.cantidad ?? "-"}</td>
                           <td style={styles.modalDetalleTd}>

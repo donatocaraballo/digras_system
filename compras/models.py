@@ -17,6 +17,7 @@ class Proveedor(models.Model):
     id_proveedor = models.AutoField(primary_key=True)
     nombre = models.CharField(max_length=120)
     direccion = models.TextField(blank=True, null=True)
+    rif_cedula = models.CharField(max_length=30, blank=True, null=True)
     correo = models.CharField(max_length=120, blank=True, null=True)
     telefono = models.CharField(max_length=20, blank=True, null=True)
 

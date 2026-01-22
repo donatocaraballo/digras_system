@@ -30,10 +30,14 @@ export default function ReceivePurchaseModal({ compra, onClose, onSuccess }) {
                 const initialItems = detallesApi.map(d => {
                     const nombre = d.id_producto_nombre || d.producto_nombre || d.producto?.nombre || "Producto desconocido";
                     const sku = d.producto_sku || d.id_producto?.sku || "";
+                    // Intentamos obtener la marca de varias formas posibles
+                    const marca = d.producto_marca || d.id_producto?.marca?.nombre || d.id_producto_marca || ""; 
+
                     return {
                         ...d,
                         display_nombre: nombre,
                         display_sku: sku,
+                        display_marca: marca, // Guardamos la marca
                         cantidad_recibida: d.cantidad, 
                         devolver: false, 
                         nota: '',
@@ -160,7 +164,12 @@ export default function ReceivePurchaseModal({ compra, onClose, onSuccess }) {
                                             <div style={{fontWeight:'700', fontSize:'0.9rem', color: isReturned ? '#991b1b' : '#0f172a', textDecoration: isReturned ? 'line-through' : 'none'}}>
                                                 {item.display_nombre}
                                             </div>
-                                            {item.display_sku && <div style={{fontSize:'0.75rem', color:'#64748b'}}>SKU: {item.display_sku}</div>}
+                                            
+                                            {/* ✅ AÑADIDO: MOSTRAR SKU Y MARCA */}
+                                            <div style={{display:'flex', gap:'10px', fontSize:'0.75rem', color:'#64748b', marginTop:'4px'}}>
+                                                {item.display_marca && <span>Marca: <strong>{item.display_marca}</strong></span>}
+                                                {item.display_sku && <span>SKU: <span style={{fontFamily:'monospace'}}>{item.display_sku}</span></span>}
+                                            </div>
                                         </div>
 
                                         {/* INPUTS RESPONSIVOS */}
@@ -264,7 +273,6 @@ export default function ReceivePurchaseModal({ compra, onClose, onSuccess }) {
 
 const styles = {
     overlay: { position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 20000 },
-    // El modal principal se controla con la clase CSS .modal-content-responsive
     
     // RESPONSIVE FLEX LAYOUT PARA LAS FILAS
     itemRow: { 

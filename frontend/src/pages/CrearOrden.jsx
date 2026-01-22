@@ -875,6 +875,7 @@ export default function CrearOrden() {
       setMensaje(`Orden creada correctamente. ID: ${res.data.id_orden}`);
       setDetalles([{ producto_id: "", cantidad: 1, filtro: "" }]);
       setTieneCambios(false);
+
     } catch (err) {
       console.error("Error creando orden:", err);
       const msg = getErrorMessageFromResponse(
@@ -1011,12 +1012,22 @@ export default function CrearOrden() {
     navigate("/");
   };
 
+  // Función para recargar la página e iniciar una nueva orden
+  const handleCrearOtraOrden = () => {
+    window.location.reload();
+  };
+
   const clienteObj =
     clienteSeleccionado &&
     clientes.find((c) => c.id_cliente === Number(clienteSeleccionado));
 
+  // Bloquea el formulario si hay una orden confirmada (resumenOrden existe)
   const formularioDeshabilitado =
-    !esVendedor || !!permisoError || loadingDatos || loadingSubmit;
+    !esVendedor ||
+    !!permisoError ||
+    loadingDatos ||
+    loadingSubmit ||
+    !!resumenOrden;
 
   const clientesFiltrados = filtroCliente
     ? clientes.filter((c) => {
@@ -1098,7 +1109,7 @@ export default function CrearOrden() {
                     value={filtroCliente}
                     onChange={(e) => setFiltroCliente(e.target.value)}
                     onKeyDown={manejarEnterBuscarCliente}
-                    disabled={loadingDatos}
+                    disabled={loadingDatos || !!resumenOrden}
                   />
 
                   <label style={{ ...styles.label, marginTop: "8px" }}>
@@ -1112,7 +1123,7 @@ export default function CrearOrden() {
                       setClienteSeleccionado(e.target.value);
                       setClienteError("");
                     }}
-                    disabled={loadingDatos}
+                    disabled={loadingDatos || !!resumenOrden}
                   >
                     <option value="">-- Selecciona un Cliente --</option>
                     {clientesFiltrados.map((c) => (
@@ -1163,7 +1174,7 @@ export default function CrearOrden() {
                     fontSize: "0.8rem",
                     color: "#2563eb",
                   }}
-                  disabled={loadingDatos || loadingSubmit}
+                  disabled={loadingDatos || loadingSubmit || !!resumenOrden}
                 >
                   {mostrarNuevoCliente
                     ? "Cancelar registro"
@@ -1171,7 +1182,7 @@ export default function CrearOrden() {
                 </button>
 
                 {/* FORMULARIO NUEVO CLIENTE (ANIDADO) */}
-                {mostrarNuevoCliente && (
+                {mostrarNuevoCliente && !resumenOrden && (
                   <div style={styles.nestedCard}>
                     <div style={{ ...styles.sectionTitle, borderBottom: "none" }}>
                       Nuevo Cliente
@@ -1353,7 +1364,7 @@ export default function CrearOrden() {
                       setMetodoPago(e.target.value);
                     }}
                     required
-                    disabled={loadingDatos}
+                    disabled={loadingDatos || !!resumenOrden}
                   >
                     {METODOS_PAGO.map((m) => (
                       <option key={m} value={m}>
@@ -1377,14 +1388,16 @@ export default function CrearOrden() {
                 >
                   3. Productos
                 </h3>
-                <button
-                  type="button"
-                  style={styles.btnSecondary}
-                  onClick={agregarLinea}
-                  disabled={loadingDatos || loadingSubmit}
-                >
-                  <IconPlus /> Agregar Línea
-                </button>
+                {!resumenOrden && (
+                  <button
+                    type="button"
+                    style={styles.btnSecondary}
+                    onClick={agregarLinea}
+                    disabled={loadingDatos || loadingSubmit}
+                  >
+                    <IconPlus /> Agregar Línea
+                  </button>
+                )}
               </div>
 
               {detalles.map((det, idx) => {
@@ -1484,7 +1497,7 @@ export default function CrearOrden() {
                           )
                         }
                         onKeyDown={manejarEnterFiltro}
-                        disabled={loadingDatos}
+                        disabled={loadingDatos || !!resumenOrden}
                       />
                       <select
                         style={styles.select}
@@ -1496,7 +1509,7 @@ export default function CrearOrden() {
                             e.target.value
                           )
                         }
-                        disabled={loadingDatos}
+                        disabled={loadingDatos || !!resumenOrden}
                       >
                         <option value="">Seleccionar producto...</option>
                         {productosFiltrados.map((p) => {
@@ -1508,7 +1521,9 @@ export default function CrearOrden() {
                                 ).toFixed(2)} kg`
                               : "s/peso";
                           const skuLabel = p.sku || "s/SKU";
-                          const label = `${p.nombre} · SKU: ${skuLabel} · Peso: ${pesoLabel}`;
+                          const marcaLabel = p.marca_nombre || p.id_marca_nombre || "S/M"; 
+                          
+                          const label = `${p.nombre} · ${marcaLabel} · SKU: ${skuLabel} · Peso: ${pesoLabel}`;
                           return (
                             <option
                               key={p.id_producto}
@@ -1535,6 +1550,7 @@ export default function CrearOrden() {
                             <strong>
                               $ {precioUnitario.toFixed(2)}
                             </strong>{" "}
+                            · Marca: <strong>{prod.marca_nombre || prod.id_marca_nombre || "S/M"}</strong>
                             · Peso unit.:{" "}
                             <strong>
                               {pesoUnitario.toFixed(2)} kg
@@ -1583,7 +1599,7 @@ export default function CrearOrden() {
                           )
                         }
                         required
-                        disabled={loadingDatos}
+                        disabled={loadingDatos || !!resumenOrden}
                       />
                       <div
                         style={{
@@ -1615,7 +1631,7 @@ export default function CrearOrden() {
                       </div>
                     </div>
 
-                    {detalles.length > 1 && (
+                    {detalles.length > 1 && !resumenOrden && (
                       <div
                         style={{
                           display: "flex",
@@ -1677,34 +1693,40 @@ export default function CrearOrden() {
               }}
             >
               <div style={{ display: "flex", gap: "10px" }}>
-                <button
-                  type="button"
-                  onClick={limpiarFormulario}
-                  style={styles.btnGhost}
-                  disabled={formularioDeshabilitado}
-                >
-                  Limpiar formulario
-                </button>
+                {!resumenOrden && (
+                  <button
+                    type="button"
+                    onClick={limpiarFormulario}
+                    style={styles.btnGhost}
+                    disabled={formularioDeshabilitado}
+                  >
+                    Limpiar formulario
+                  </button>
+                )}
               </div>
               <div style={{ display: "flex", gap: "10px" }}>
-                <button
-                  type="button"
-                  onClick={manejarCancelar}
-                  style={styles.btnGhost}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  style={{
-                    ...styles.btnPrimary,
-                    opacity: loadingSubmit ? 0.7 : 1,
-                    cursor: loadingSubmit ? "not-allowed" : "pointer",
-                  }}
-                  disabled={formularioDeshabilitado}
-                >
-                  {loadingSubmit ? "Creando orden..." : "CONFIRMAR ORDEN"}
-                </button>
+                {!resumenOrden && (
+                  <button
+                    type="button"
+                    onClick={manejarCancelar}
+                    style={styles.btnGhost}
+                  >
+                    Cancelar
+                  </button>
+                )}
+                {!resumenOrden && (
+                  <button
+                    type="submit"
+                    style={{
+                      ...styles.btnPrimary,
+                      opacity: loadingSubmit ? 0.7 : 1,
+                      cursor: loadingSubmit ? "not-allowed" : "pointer",
+                    }}
+                    disabled={formularioDeshabilitado}
+                  >
+                    {loadingSubmit ? "Creando orden..." : "CONFIRMAR ORDEN"}
+                  </button>
+                )}
               </div>
             </div>
           </form>
@@ -1863,6 +1885,19 @@ export default function CrearOrden() {
                 flexWrap: "wrap",
               }}
             >
+              {/* Botón para crear OTRA orden (refresca página) */}
+              <button
+                type="button"
+                onClick={handleCrearOtraOrden}
+                style={{
+                  ...styles.btnPrimary,
+                  backgroundColor: "#16a34a",
+                  borderColor: "#16a34a",
+                }}
+              >
+                + Crear otra orden
+              </button>
+
               <button
                 type="button"
                 onClick={handleDescargarResumenPDF}
@@ -1870,10 +1905,11 @@ export default function CrearOrden() {
               >
                 Descargar resumen (PDF)
               </button>
+              
               <button
                 type="button"
                 onClick={() => navigate("/")}
-                style={styles.btnPrimary}
+                style={styles.btnGhost}
               >
                 Volver al Inicio
               </button>

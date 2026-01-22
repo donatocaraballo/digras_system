@@ -245,7 +245,10 @@ function InventoryDashboard({ refreshTrigger, onUpdate }) {
     const agotadosCount = products.filter(p => p.stock_status === 'AGOTADO').length;
 
     // Verificar Rol
-    const puedeGestionar = user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'GERENTE';
+    const puedeGestionar = 
+    user?.is_superuser || 
+    user?.tipo?.toUpperCase() === 'ADMINISTRADOR' || 
+    user?.tipo?.toUpperCase() === 'GERENTE';
 
     if (loading) return (
         <div className="page-container">

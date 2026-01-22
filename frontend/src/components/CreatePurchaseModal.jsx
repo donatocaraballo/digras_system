@@ -137,16 +137,18 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
 
         try {
             const finalPrice = detalles.reduce((sum, d) => sum + d.subtotal, 0);
+            
+            // 🚨 AQUÍ ESTÁ LA CORRECCIÓN: REDONDEO DE DECIMALES 🚨
             const purchaseData = {
                 id_proveedor: parseInt(selectedProviderId),
                 fecha_pedido: fechaPedido,
                 id_usuario: userId, 
-                precio_final: finalPrice, 
+                precio_final: parseFloat(finalPrice.toFixed(2)), // Redondear total global
                 detalles: detalles.map(d => ({
                     id_producto: d.id_producto,
                     cantidad: d.cantidad,
                     precio_unitario: d.precio_unitario,
-                    subtotal: d.subtotal,
+                    subtotal: parseFloat(Number(d.subtotal).toFixed(2)), // Redondear subtotales individuales
                 })),
             };
 
@@ -261,7 +263,9 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
                                                 <label style={styles.miniLabel}>Subtotal</label>
                                                 <div style={styles.subtotalText}>${(detalle.subtotal || 0).toFixed(2)}</div>
                                             </div>
-                                            <button type="button" onClick={() => handleRemoveDetail(index)} style={styles.removeBtn}><IconTrash /></button>
+                                            <div style={{flex: 0.5, display: 'flex', alignItems: 'flex-end', justifyContent: 'center'}}>
+                                                <button type="button" onClick={() => handleRemoveDetail(index)} style={styles.removeBtn}><IconTrash /></button>
+                                            </div>
                                         </div>
                                     );
                                 })}

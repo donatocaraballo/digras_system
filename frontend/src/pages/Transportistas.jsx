@@ -1168,6 +1168,16 @@ export default function TransporteEnvio() {
                                         >
                                           Producto
                                         </th>
+                                        {/* ✅ NUEVA COLUMNA DATOS (MARCA/SKU) */}
+                                        <th
+                                          style={{
+                                            textAlign: "left",
+                                            paddingBottom: 4,
+                                            color: "#475569",
+                                          }}
+                                        >
+                                          Datos
+                                        </th>
                                         <th
                                           style={{
                                             textAlign: "center",
@@ -1207,6 +1217,23 @@ export default function TransporteEnvio() {
                                             }}
                                           >
                                             {d.producto}
+                                          </td>
+                                          {/* ✅ NUEVA CELDA CON MARCA Y SKU */}
+                                          <td
+                                            style={{
+                                              padding: "4px 0",
+                                              fontSize: "0.75rem",
+                                              color: "#64748b",
+                                            }}
+                                          >
+                                            {d.marca_nombre && (
+                                              <div>Marca: {d.marca_nombre}</div>
+                                            )}
+                                            {d.sku && (
+                                              <div style={{ fontFamily: "monospace" }}>
+                                                SKU: {d.sku}
+                                              </div>
+                                            )}
                                           </td>
                                           <td
                                             style={{

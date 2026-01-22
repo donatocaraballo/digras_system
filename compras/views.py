@@ -6,7 +6,7 @@ from rest_framework.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Sum
 from decimal import Decimal, InvalidOperation
-from base.utils import registrar_accion
+
 # Importa los modelos necesarios:
 from .models import Compra, DetalleCompra, Proveedor, PagoCompra
 from inventario.models import Lote, Existencia 
@@ -74,14 +74,15 @@ class CompraViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
     
-    # 🚨 ACCIÓN: Recibir Mercancía (LÓGICA CORREGIDA + AJUSTE DE PRECIO) 🚨
+    # 🚨 ACCIÓN: Recibir Mercancía (CORREGIDO) 🚨
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def recibir_mercancia(self, request, pk=None):
         """
         1. Recibe mercancía y genera lotes.
-        2. Marca items no recibidos como devueltos.
-        3. RECALCULA EL TOTAL DE LA COMPRA basado en lo recibido.
+        2. Actualiza cantidades y subtotales en el detalle.
+        3. Marca items no recibidos como devueltos.
+        4. RECALCULA EL TOTAL DE LA COMPRA.
         """
         compra = self.get_object()
         
@@ -115,15 +116,19 @@ class CompraViewSet(viewsets.ModelViewSet):
                     except DetalleCompra.DoesNotExist:
                         continue 
                     
-                    # Calcular devoluciones / faltantes
-                    cantidad_ordenada = detalle.cantidad
-                    cantidad_rechazada = cantidad_ordenada - cantidad_recibida
+                    # Calcular devoluciones / faltantes basado en lo que se pidió originalmente
+                    cantidad_original = detalle.cantidad
+                    cantidad_rechazada = cantidad_original - cantidad_recibida
                     
-                    # Actualizamos el detalle
+                    # --- CORRECCIÓN AQUÍ ---
+                    # 1. Actualizamos la cantidad "oficial" del detalle para que coincida con lo recibido
+                    detalle.cantidad = cantidad_recibida 
+                    
+                    # 2. Guardamos registro de lo recibido y notas
                     detalle.cantidad_recibida = cantidad_recibida
                     detalle.nota = nota
                     
-                    # Logica de devolución
+                    # Logica de devolución (meramente informativa ahora que actualizamos la cantidad)
                     if cantidad_rechazada > 0:
                         detalle.devolucion = True
                         detalle.cantidad_devolvida = cantidad_rechazada
@@ -131,13 +136,12 @@ class CompraViewSet(viewsets.ModelViewSet):
                         detalle.devolucion = False
                         detalle.cantidad_devolvida = 0
                     
-                    # 🚨 IMPORTANTE: Ajustamos el subtotal de la línea
-                    # Ahora el subtotal refleja lo que realmente se va a pagar (precio * recibido)
+                    # 3. Ajustamos el subtotal de la línea para mantener consistencia (Cant * Precio = Subtotal)
                     detalle.subtotal = detalle.precio_unitario * cantidad_recibida
                     detalle.save()
                     
-                    # Acumuladores
-                    total_unidades_pedidas += cantidad_ordenada
+                    # Acumuladores para el estado del pedido
+                    total_unidades_pedidas += cantidad_original
                     total_unidades_recibidas += cantidad_recibida
                     
                     # 2. Crear el Lote (SOLO SI SE RECIBIÓ ALGO)
@@ -152,7 +156,6 @@ class CompraViewSet(viewsets.ModelViewSet):
                         )
 
                 # 3. 🚨 RECALCULAR EL PRECIO FINAL DE LA COMPRA 🚨
-                # Sumamos todos los subtotales actualizados
                 nuevo_total = DetalleCompra.objects.filter(id_compra=compra).aggregate(
                     total=Sum('subtotal')
                 )['total'] or 0
@@ -193,7 +196,6 @@ class CompraViewSet(viewsets.ModelViewSet):
         compra = self.get_object()
         
         # 1. VALIDACIÓN ESTRICTA DE ESTADO
-        # Solo permitir pago si ya se recibió mercancía (Parcial o Completa)
         estados_pagables = ['RECIBIDA_COMPLETA', 'RECIBIDA_PARCIAL']
         if compra.estado_de_envio not in estados_pagables:
             return Response({

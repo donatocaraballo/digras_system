@@ -65,7 +65,7 @@ function CreateProveedorModal({ isOpen, onClose, onProveedorCreated }) {
         try {
             const payload = {
                 nombre: formData.nombre,
-                rif: rifFinal,
+                rif_cedula: rifFinal,
                 telefono: formData.telefono,
                 correo: formData.correo,
                 direccion: direccionFinal
