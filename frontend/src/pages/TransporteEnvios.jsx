@@ -1,7 +1,7 @@
-//Trasporte envío funcional con mejoras solicitadas.
 // frontend/src/pages/TransporteEnvios.jsx
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import api from "../api/api";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../AuthContext";
@@ -318,9 +318,10 @@ const styles = {
   tableWrapper: {
     borderRadius: "12px",
     border: "1px solid #e2e8f0",
-    overflow: "hidden",
+    overflow: "auto",
     background: "#ffffff",
     boxShadow: "0 2px 5px rgba(0,0,0,0.02)",
+    position: 'relative'
   },
   table: { width: "100%", borderCollapse: "collapse", fontSize: "0.78rem" },
   th: {
@@ -628,17 +629,16 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
   },
+  // 🚨 MENU: position fixed y zIndex alto para flotar sobre todo
   menu: {
-    position: "absolute",
-    right: 0,
-    top: 40,
+    position: "fixed", 
     background: "#fff",
     border: "1px solid #e2e8f0",
     borderRadius: 12,
-    boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
+    boxShadow: "0 12px 30px rgba(0,0,0,0.15)",
     minWidth: 220,
     overflow: "hidden",
-    zIndex: 5000, // Aumentado para que quede por delante de marcos/interfaz
+    zIndex: 99999, 
   },
   menuItem: {
     padding: "10px 12px",
@@ -950,7 +950,11 @@ export default function TransporteEnvios() {
   const [pesoMax, setPesoMax] = useState("");
   const [sortEnvio, setSortEnvio] = useState("recientes");
 
+  // 🚨 RESTAURADO: Variable original para evitar error de referencia
   const [menuEnvioOpenId, setMenuEnvioOpenId] = useState(null);
+  // 🚨 NUEVO: Estado para posición del menú flotante
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+
   const [busyKey, setBusyKey] = useState(null);
 
   const [showUnidadModal, setShowUnidadModal] = useState(false);
@@ -1184,6 +1188,7 @@ export default function TransporteEnvios() {
   }, []);
 
   useEffect(() => {
+    // 🚨 CAMBIO: Cerrar menú si se hace click fuera
     const onDocClick = () => setMenuEnvioOpenId(null);
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
@@ -1433,27 +1438,25 @@ export default function TransporteEnvios() {
     list = list.slice().sort((a, b) => {
       const da = a.fecha_salida ? new Date(a.fecha_salida) : new Date(0);
       const db = b.fecha_salida ? new Date(b.fecha_salida) : new Date(0);
-    
+      
       const ta = da.getTime();
       const tb = db.getTime();
-    
-      // Usamos id_envio (o id) como desempate dentro del mismo día,
-      // para simular “hora” de creación (más alto = más reciente).
+      
       const ida = toNumber(a.id_envio ?? a.id);
       const idb = toNumber(b.id_envio ?? b.id);
-    
+      
       if (sortEnvio === "antiguos") {
         if (ta === tb) {
-          return ida - idb; // menor id primero = más antiguo
+          return ida - idb; 
         }
-        return ta - tb; // fecha más vieja primero
+        return ta - tb; 
       }
-    
+      
       // sortEnvio === "recientes"
       if (ta === tb) {
-        return idb - ida; // mayor id primero = más reciente
+        return idb - ida; 
       }
-      return tb - ta; // fecha más nueva primero
+      return tb - ta; 
     });
 
     return list;
@@ -1485,7 +1488,6 @@ export default function TransporteEnvios() {
     });
   };
 
-  // -------- Scroll sutil al abrir tarjetas de detalle
   const handleSeleccionarUnidad = (unidad) => {
     setUnidadSeleccionada(unidad);
     setTimeout(() => {
@@ -1658,10 +1660,8 @@ export default function TransporteEnvios() {
     }
   };
 
-  // Nueva lógica de eliminación y reactivación de unidades
   const eliminarUnidad = (unidad) => {
     if (!unidad) return;
-    // Solo permitir eliminar si la unidad NO tiene ningún envío relacionado
     const relacionados = envios.filter(
       (e) => String(e.id_unidad) === String(unidad.id_unidad)
     );
@@ -1715,7 +1715,6 @@ export default function TransporteEnvios() {
     });
   };
 
-  // NUEVO: Lógica para desactivar y reactivar unidad, liberando/obligando asignar chofer
   const toggleUnidadEstado = (unidad, targetEstado) => {
     if (!unidad) return;
     if (
@@ -1729,7 +1728,6 @@ export default function TransporteEnvios() {
       return;
     }
 
-    // Si desactivamos, liberamos el chofer (id_usuario pasa a null)
     if (targetEstado === "INACTIVA") {
       openConfirm({
         title: "Desactivar unidad",
@@ -1781,7 +1779,6 @@ export default function TransporteEnvios() {
       return;
     }
 
-    // Si reactivamos, pero la unidad NO tiene chofer asignado, forzar selección de chofer disponible
     if (targetEstado === "ACTIVA" && !unidad.id_usuario) {
       let setChoferId;
       let setModalError;
@@ -1799,11 +1796,9 @@ export default function TransporteEnvios() {
         const [nuevoError, setNuevoError] = useState("");
         const [creating, setCreating] = useState(false);
 
-        // Exponer setters (por si se usan desde fuera, mantenemos la estructura)
         setChoferId = setLocalChoferId;
         setModalError = setLocalError;
 
-        // Solo mostrar transportistas que NO estén asignados a otra unidad activa (excepto esta)
         const disponibles = transportistas.filter((t) => {
           const tid = String(t.id_usuario ?? t.id);
           return !unidades.some(
@@ -1860,7 +1855,6 @@ export default function TransporteEnvios() {
               "Usuarios"
             );
 
-            // Recargar lista de transportistas y seleccionar el nuevo
             await cargarTransportistas();
             const idNuevo = res.data?.id_usuario ?? res.data?.id;
             if (idNuevo) {
@@ -1913,7 +1907,6 @@ export default function TransporteEnvios() {
                 <div style={styles.errorText}>{localError}</div>
               ) : null}
 
-              {/* Bloque para crear un nuevo transportista */}
               <div
                 style={{
                   marginTop: 14,
@@ -2011,7 +2004,7 @@ export default function TransporteEnvios() {
                           password: e.target.value,
                         }))
                       }
-                      placeholder="Contraseña inicial"
+                      placeholder="Ingresa una contraseña"
                     />
                   </div>
                 </div>
@@ -2115,7 +2108,6 @@ export default function TransporteEnvios() {
       return;
     }
 
-    // Reactivación normal (unidad ya tiene chofer asignado)
     openConfirm({
       title: "Activar unidad",
       tone: "primary",
@@ -3939,6 +3931,7 @@ export default function TransporteEnvios() {
                                   style={{
                                     fontSize: "0.75rem",
                                     color: "#94a3b8",
+                                    marginLeft: 4,
                                   }}
                                 >
                                   +
@@ -3971,138 +3964,155 @@ export default function TransporteEnvios() {
                             style={styles.menuBtn}
                             onClick={(ev) => {
                               ev.stopPropagation();
-                              setMenuEnvioOpenId((prev) =>
-                                prev === e.id_envio
-                                  ? null
-                                  : e.id_envio
-                              );
+                              if (menuEnvioOpenId === e.id_envio) {
+                                setMenuEnvioOpenId(null);
+                              } else {
+                                const rect = ev.currentTarget.getBoundingClientRect();
+                                setMenuEnvioOpenId(e.id_envio);
+                                setMenuPosition({ top: rect.bottom, left: rect.left - 180 });
+                              }
                             }}
                             title="Acciones"
                           >
                             <IconDots />
                           </button>
 
-                          {menuEnvioOpenId === e.id_envio ? (
-                            <div
-                              style={styles.menu}
-                              onClick={(ev) =>
-                                ev.stopPropagation()
-                              }
-                            >
+                          {/* 🚨 AQUÍ EL CAMBIO: createPortal */}
+                          {menuEnvioOpenId === e.id_envio && createPortal(
+                            <>
+                              {/* 🚨 FONDO INVISIBLE PARA CERRAR */}
+                              <div 
+                                style={{ position: 'fixed', inset: 0, zIndex: 99998 }} 
+                                onClick={(ev) => {
+                                  ev.stopPropagation();
+                                  setMenuEnvioOpenId(null);
+                                }}
+                              />
+                              {/* 🚨 MENÚ FLOTANTE */}
                               <div
                                 style={{
-                                  ...styles.menuItem,
-                                  ...(caps.canEdit
-                                    ? {}
-                                    : styles.menuItemDisabled),
+                                  ...styles.menu,
+                                  top: menuPosition.top,
+                                  left: menuPosition.left,
                                 }}
-                                onClick={() => {
-                                  if (!caps.canEdit) return;
-                                  setMenuEnvioOpenId(null);
-                                  abrirEditarEnvio(e);
-                                }}
-                                title={
-                                  caps.canEdit
-                                    ? ""
-                                    : caps.reasonFull
-                                }
+                                onClick={(ev) => ev.stopPropagation()}
                               >
-                                <span>Editar</span>
-                                {!caps.canEdit ? (
-                                  <span
-                                    style={styles.menuHint}
-                                  >
-                                    Bloqueado
-                                  </span>
-                                ) : null}
-                              </div>
+                                <div
+                                  style={{
+                                    ...styles.menuItem,
+                                    ...(caps.canEdit
+                                      ? {}
+                                      : styles.menuItemDisabled),
+                                  }}
+                                  onClick={() => {
+                                    if (!caps.canEdit) return;
+                                    setMenuEnvioOpenId(null);
+                                    abrirEditarEnvio(e);
+                                  }}
+                                  title={
+                                    caps.canEdit
+                                      ? ""
+                                      : caps.reasonFull
+                                  }
+                                >
+                                  <span>Editar</span>
+                                  {!caps.canEdit ? (
+                                    <span
+                                      style={styles.menuHint}
+                                    >
+                                      Bloqueado
+                                    </span>
+                                  ) : null}
+                                </div>
 
-                              <div
-                                style={{
-                                  ...styles.menuItem,
-                                  ...(caps.canAssign
-                                    ? {}
-                                    : styles.menuItemDisabled),
-                                }}
-                                onClick={() => {
-                                  if (!caps.canAssign) return;
-                                  setMenuEnvioOpenId(null);
-                                  abrirAsignarOrdenes(e);
-                                }}
-                                title={
-                                  caps.canAssign
-                                    ? ""
-                                    : caps.reasonFull
-                                }
-                              >
-                                <span>Asignar órdenes</span>
-                                {!caps.canAssign ? (
-                                  <span
-                                    style={styles.menuHint}
-                                  >
-                                    Bloqueado
-                                  </span>
-                                ) : null}
-                              </div>
+                                <div
+                                  style={{
+                                    ...styles.menuItem,
+                                    ...(caps.canAssign
+                                      ? {}
+                                      : styles.menuItemDisabled),
+                                  }}
+                                  onClick={() => {
+                                    if (!caps.canAssign) return;
+                                    setMenuEnvioOpenId(null);
+                                    abrirAsignarOrdenes(e);
+                                  }}
+                                  title={
+                                    caps.canAssign
+                                      ? ""
+                                      : caps.reasonFull
+                                  }
+                                >
+                                  <span>Asignar órdenes</span>
+                                  {!caps.canAssign ? (
+                                    <span
+                                      style={styles.menuHint}
+                                    >
+                                      Bloqueado
+                                    </span>
+                                  ) : null}
+                                </div>
 
-                              <div
-                                style={{
-                                  ...styles.menuItem,
-                                  ...(caps.canClose
-                                    ? {}
-                                    : styles.menuItemDisabled),
-                                }}
-                                onClick={() => {
-                                  if (!caps.canClose) return;
-                                  setMenuEnvioOpenId(null);
-                                  cerrarEnvio(e);
-                                }}
-                                title={
-                                  caps.canClose
-                                    ? ""
-                                    : caps.reasonFull
-                                }
-                              >
-                                <span>Cerrar envío</span>
-                                {!caps.canClose ? (
-                                  <span
-                                    style={styles.menuHint}
-                                  >
-                                    Bloqueado
-                                  </span>
-                                ) : null}
-                              </div>
+                                <div
+                                  style={{
+                                    ...styles.menuItem,
+                                    ...(caps.canClose
+                                      ? {}
+                                      : styles.menuItemDisabled),
+                                  }}
+                                  onClick={() => {
+                                    if (!caps.canClose) return;
+                                    setMenuEnvioOpenId(null);
+                                    cerrarEnvio(e);
+                                  }}
+                                  title={
+                                    caps.canClose
+                                      ? ""
+                                      : caps.reasonFull
+                                  }
+                                >
+                                  <span>Cerrar envío</span>
+                                  {!caps.canClose ? (
+                                    <span
+                                      style={styles.menuHint}
+                                    >
+                                      Bloqueado
+                                    </span>
+                                  ) : null}
+                                </div>
 
-                              <div
-                                style={{
-                                  ...styles.menuItem,
-                                  borderBottom: "none",
-                                  ...(caps.canDelete
-                                    ? {}
-                                    : styles.menuItemDisabled),
-                                }}
-                                title={
-                                  caps.canDelete
-                                    ? "Eliminar envío"
-                                    : "Solo permitido en PENDIENTE POR ASIGNACIÓN"
-                                }
-                                onClick={() => {
-                                  if (!caps.canDelete) return;
-                                  setMenuEnvioOpenId(null);
-                                  eliminarEnvio(e);
-                                }}
-                              >
-                                <span>Eliminar</span>
-                                {!caps.canDelete ? (
-                                  <span
-                                    style={styles.menuHint}
-                                  >
-                                    Bloqueado
-                                  </span>
-                                ) : null}
+                                <div
+                                  style={{
+                                    ...styles.menuItem,
+                                    borderBottom: "none",
+                                    ...(caps.canDelete
+                                      ? {}
+                                      : styles.menuItemDisabled),
+                                  }}
+                                  title={
+                                    caps.canDelete
+                                      ? "Eliminar envío"
+                                      : "Solo permitido en PENDIENTE POR ASIGNACIÓN"
+                                  }
+                                  onClick={() => {
+                                    if (!caps.canDelete) return;
+                                    setMenuEnvioOpenId(null);
+                                    eliminarEnvio(e);
+                                  }}
+                                >
+                                  <span>Eliminar</span>
+                                  {!caps.canDelete ? (
+                                    <span
+                                      style={styles.menuHint}
+                                    >
+                                      Bloqueado
+                                    </span>
+                                  ) : null}
+                                </div>
                               </div>
-                            </div>
-                          ) : null}
+                            </>,
+                            document.body
+                          )}
                         </td>
                       </tr>
                     );

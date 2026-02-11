@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from django.db.models import Sum
+from django.utils import timezone  # <--- Importante para comparar fechas
 from .models import Categoria, Marca, Producto, Existencia, Lote
 
 # --- Serializadores de Tablas Maestras ---
@@ -19,9 +21,33 @@ class ExistenciaSerializer(serializers.ModelSerializer):
     id_producto_nombre = serializers.ReadOnlyField(source='id_producto.nombre')
     id_producto_sku = serializers.ReadOnlyField(source='id_producto.sku')
     
+    # 👇 CAMBIO CRÍTICO: Sobreescribimos 'cantidad' para que sea calculado
+    # En lugar de leer el número fijo de la tabla, sumamos solo lotes VIGENTES.
+    cantidad = serializers.SerializerMethodField()
+
     class Meta:
         model = Existencia
-        fields = '__all__' # Nota: __all__ incluye los campos ReadOnlyField si no se definen explícitamente
+        fields = '__all__' 
+
+    def get_cantidad(self, obj):
+        """
+        Calcula el stock 'vendible'.
+        Suma lotes que:
+        1. Tienen cantidad > 0
+        2. Están marcados como ACTIVO
+        3. NO están vencidos (Fecha vencimiento >= Hoy)
+        """
+        hoy = timezone.now().date()
+        
+        total_vigente = Lote.objects.filter(
+            id_producto=obj.id_producto,
+            cantidad__gt=0,
+            estado='ACTIVO',
+            fecha_vencimiento__gte=hoy  # <--- EL FILTRO DE SANIDAD
+        ).aggregate(total=Sum('cantidad'))['total']
+
+        # Si no hay lotes vigentes, retornamos 0 (aunque físicamente existan vencidos)
+        return total_vigente or 0
 
 # --- Serializador de Producto (incluye la Existencia para la vista principal) ---
 class ProductoSerializer(serializers.ModelSerializer):
@@ -32,10 +58,19 @@ class ProductoSerializer(serializers.ModelSerializer):
     existencia_total = serializers.SerializerMethodField()
 
     def get_existencia_total(self, obj):
-        try:
-            return obj.existencia.cantidad 
-        except Existencia.DoesNotExist:
-            return 0
+        """
+        Misma lógica que en Existencia: Solo mostramos al vendedor lo que PUEDE vender.
+        """
+        hoy = timezone.now().date()
+        
+        total_vigente = Lote.objects.filter(
+            id_producto=obj, # Aquí 'obj' es la instancia de Producto
+            cantidad__gt=0,
+            estado='ACTIVO',
+            fecha_vencimiento__gte=hoy
+        ).aggregate(total=Sum('cantidad'))['total']
+
+        return total_vigente or 0
             
     class Meta:
         model = Producto

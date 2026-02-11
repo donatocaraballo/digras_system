@@ -78,7 +78,8 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
     };
 
     const handleAddDetail = () => {
-        setDetalles([...detalles, { id_producto: "", cantidad: 1, precio_unitario: 0, subtotal: 0 }]);
+        // Agregamos campo 'filtro' inicializado vacío
+        setDetalles([...detalles, { id_producto: "", cantidad: 1, precio_unitario: 0, subtotal: 0, filtro: "" }]);
     };
 
     const handleRemoveDetail = (index) => {
@@ -137,18 +138,16 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
 
         try {
             const finalPrice = detalles.reduce((sum, d) => sum + d.subtotal, 0);
-            
-            // 🚨 AQUÍ ESTÁ LA CORRECCIÓN: REDONDEO DE DECIMALES 🚨
             const purchaseData = {
                 id_proveedor: parseInt(selectedProviderId),
                 fecha_pedido: fechaPedido,
                 id_usuario: userId, 
-                precio_final: parseFloat(finalPrice.toFixed(2)), // Redondear total global
+                precio_final: parseFloat(finalPrice.toFixed(2)), 
                 detalles: detalles.map(d => ({
                     id_producto: d.id_producto,
                     cantidad: d.cantidad,
                     precio_unitario: d.precio_unitario,
-                    subtotal: parseFloat(Number(d.subtotal).toFixed(2)), // Redondear subtotales individuales
+                    subtotal: parseFloat(Number(d.subtotal).toFixed(2)), 
                 })),
             };
 
@@ -174,7 +173,6 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
 
     return (
         <div style={styles.overlay}>
-            {/* 🚨 CLASE RESPONSIVA PARA MODAL GRANDE */}
             <div className="modal-content-responsive" style={{width: '950px', maxWidth: '95vw', padding:0}}>
                 <div style={styles.header}>
                     <div>
@@ -186,7 +184,6 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
 
                 <form onSubmit={handleSubmit} style={styles.formContent}>
                     <div style={styles.sectionCard}>
-                        {/* 🚨 GRILLA RESPONSIVA PARA CABECERA */}
                         <div className="form-grid-responsive">
                             <div>
                                 <label style={styles.label}>Proveedor</label>
@@ -214,24 +211,47 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
 
                         {detalles.length === 0 && <div style={styles.emptyState}>No hay productos agregados. Pulse "Agregar Línea".</div>}
 
-                        {/* 🚨 WRAPPER PARA SCROLL HORIZONTAL DE PRODUCTOS EN MÓVIL */}
                         <div className="table-responsive-wrapper" style={{border:'none', overflowX:'auto'}}>
-                            <div style={{minWidth: '600px'}}> {/* Fuerza ancho mínimo para evitar colapso */}
+                            <div style={{minWidth: '600px'}}> 
                                 {detalles.map((detalle, index) => {
                                     const selectedProductObj = productsList.find(p => p.id_producto === parseInt(detalle.id_producto));
                                     const costo = parseFloat(detalle.precio_unitario || 0);
                                     const precioVenta = selectedProductObj ? parseFloat(selectedProductObj.precio_venta) : 99999999;
                                     const isCostError = costo >= precioVenta;
 
+                                    // Lógica de filtrado
+                                    const filtroTexto = (detalle.filtro || "").toLowerCase();
+                                    const productosFiltrados = productsList.filter(p => {
+                                        if (!filtroTexto) return true;
+                                        return p.nombre.toLowerCase().includes(filtroTexto) || 
+                                               (p.sku && p.sku.toLowerCase().includes(filtroTexto));
+                                    });
+
+                                    // Si ya hay un producto seleccionado, aseguramos que aparezca aunque no coincida con el filtro (para no perderlo visualmente)
+                                    if (detalle.id_producto && !productosFiltrados.some(p => p.id_producto === detalle.id_producto)) {
+                                        const actual = productsList.find(p => p.id_producto === detalle.id_producto);
+                                        if(actual) productosFiltrados.unshift(actual);
+                                    }
+
                                     return (
                                         <div key={index} style={styles.detailRow}>
                                             <div style={styles.lineNumber}>{index + 1}</div>
                                             <div style={{flex: 3}}>
                                                 <label style={styles.miniLabel}>Producto</label>
+                                                
+                                                {/* INPUT BUSCADOR */}
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Buscar por nombre o SKU..." 
+                                                    value={detalle.filtro || ""}
+                                                    onChange={(e) => handleDetailChange(index, 'filtro', e.target.value)}
+                                                    style={{...styles.input, marginBottom: '5px', fontSize: '0.8rem', padding: '6px'}}
+                                                />
+
                                                 <div style={styles.inputGroup}>
                                                     <select value={detalle.id_producto} onChange={(e) => handleDetailChange(index, 'id_producto', e.target.value ? Number(e.target.value) : "")} required style={styles.select}>
                                                         <option value="">-- Seleccionar --</option>
-                                                        {productsList.map(p => {
+                                                        {productosFiltrados.map(p => {
                                                             const isSelectedElsewhere = detalles.some((d, i) => String(d.id_producto) === String(p.id_producto) && i !== index);
                                                             const brandLabel = p.id_marca_nombre ? ` — ${p.id_marca_nombre}` : '';
                                                             return (
@@ -292,7 +312,8 @@ function CreatePurchaseModal({ isOpen, onClose, onUpdate, userId }) {
 }
 
 const styles = {
-    overlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000, animation: 'fadeIn 0.2s ease-out' },
+    // 🚨 Z-INDEX AUMENTADO A 99999 PARA ASEGURAR QUE CUBRA TODO
+    overlay: { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 99999, animation: 'fadeIn 0.2s ease-out' },
     // Modal content handled by class
     header: { padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', backgroundColor: '#f8fafc' },
     title: { margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' },

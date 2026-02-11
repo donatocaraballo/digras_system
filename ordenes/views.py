@@ -11,6 +11,7 @@ from inventario.models import Lote, Existencia, Producto
 from base.serializers import OrdenSerializer, DetalleOrdenSerializer
 from .serializers import OrdenCreateSerializer
 from base.utils import registrar_accion
+from django.utils import timezone
 
 
 """
@@ -71,10 +72,19 @@ class OrdenViewSet(BaseViewSet):
         if cantidad_total <= 0:
             return
 
+        hoy = timezone.now().date()
+
         lotes = (
             Lote.objects.select_for_update()
-            .filter(id_producto_id=producto_id, cantidad__gt=0, estado='ACTIVO')
-            .order_by('fecha_pedido', 'id_lote')
+            .filter(
+                id_producto_id=producto_id, 
+                cantidad__gt=0, 
+                estado='ACTIVO',
+                fecha_vencimiento__gte=hoy 
+            )
+            # 👇 CORRECCIÓN: Usamos 'fecha_pedido' que es el campo real de tu BD
+            # Si tu modelo usa 'fecha_creacion', cambia 'fecha_pedido' por ese nombre.
+            .order_by('fecha_pedido', 'id_lote') 
         )
 
         restante = cantidad_total
@@ -86,10 +96,7 @@ class OrdenViewSet(BaseViewSet):
             disponible_lote = lote.cantidad
 
             if disponible_lote >= restante:
-                # El lote cubre lo que falta
                 nueva_cantidad = disponible_lote - restante
-
-                # Actualizamos cantidad y estado si llega a 0
                 update_kwargs = {'cantidad': nueva_cantidad}
                 if nueva_cantidad == 0:
                     update_kwargs['estado'] = 'AGOTADO'
@@ -97,12 +104,12 @@ class OrdenViewSet(BaseViewSet):
                 Lote.objects.filter(pk=lote.pk).update(**update_kwargs)
                 restante = 0
             else:
-                # Consumimos todo el lote
                 Lote.objects.filter(pk=lote.pk).update(cantidad=0, estado='AGOTADO')
                 restante -= disponible_lote
 
         if restante > 0:
-            raise ValueError(f"Inconsistencia: Faltan {restante} unidades en lotes para el producto {producto_id}.")
+            # Esto es lo que protege tu inventario real
+            raise ValueError(f"Inconsistencia: El stock visible incluye {restante} unidades vencidas que no se pueden vender.")
 
     def _devolver_a_lotes_fifo(self, producto_id: int, cantidad_total: int):
         """

@@ -1,6 +1,7 @@
 from datetime import date
 from rest_framework import serializers
-from base.models import Orden, DetalleOrden, Producto
+from base.models import Orden, DetalleOrden
+from inventario.models import Producto
 
 class DetalleOrdenCreateSerializer(serializers.Serializer):
     id_producto = serializers.PrimaryKeyRelatedField(queryset=Producto.objects.all())

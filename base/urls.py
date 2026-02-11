@@ -12,7 +12,8 @@ from .views import (
     UnidadViewSet, 
     EnvioViewSet,
     ClienteViewSet,
-    CustomLogin
+    CustomLogin,
+    DevolucionViewSet
 )
 # Eliminamos OrdenViewSet de aquí porque ya tiene su propia app
 
@@ -23,6 +24,8 @@ router.register('unidades', UnidadViewSet)
 router.register('envios', EnvioViewSet)
 router.register('clientes', ClienteViewSet)
 router.register('transporte', TransporteViewSet, basename="transporte")
+router.register(r'devoluciones', DevolucionViewSet, basename='devoluciones')
+
 
 urlpatterns = [
     # Rutas del router (usuarios/, etc.)

@@ -31,14 +31,33 @@ function LotDetailView() {
     const [searchTerm, setSearchTerm] = useState('');
     const [filters, setFilters] = useState({ startDate: '', endDate: '', status: '' });
 
+    // 🚨 Función para calcular estado dinámico (El "Cerebro" de la corrección)
+    const getEstadoCalculado = (lote) => {
+        if (lote.cantidad <= 0) return 'AGOTADO';
+        
+        if (lote.fecha_vencimiento) {
+            const hoy = new Date();
+            hoy.setHours(0,0,0,0); // Ignorar hora para ser justos con la fecha
+            const vencimiento = new Date(lote.fecha_vencimiento + 'T00:00:00'); // Asegurar zona horaria local
+            
+            if (vencimiento < hoy) {
+                return 'VENCIDO'; // Si la fecha pasó, es VENCIDO
+            }
+        }
+        return lote.estado; // Si no, respeta lo que diga la BD (ACTIVO)
+    };
+
     useEffect(() => {
         const fetchLotes = async () => {
             try {
                 const response = await axios.get(`${LOTES_URL}?id_producto=${productId}`);
                 // Ordenar: Vencidos primero, luego por fecha vencimiento más próxima
                 const sortedData = response.data.sort((a, b) => {
-                    if (a.estado === 'VENCIDO' && b.estado !== 'VENCIDO') return -1;
-                    if (b.estado === 'VENCIDO' && a.estado !== 'VENCIDO') return 1;
+                    const estadoA = getEstadoCalculado(a);
+                    const estadoB = getEstadoCalculado(b);
+                    
+                    if (estadoA === 'VENCIDO' && estadoB !== 'VENCIDO') return -1;
+                    if (estadoB === 'VENCIDO' && estadoA !== 'VENCIDO') return 1;
                     return new Date(a.fecha_vencimiento) - new Date(b.fecha_vencimiento);
                 });
                 
@@ -65,8 +84,10 @@ function LotDetailView() {
 
     const filteredLotes = useMemo(() => {
         return lotes.filter(lote => {
+            const estadoReal = getEstadoCalculado(lote); // Usamos el estado calculado
+            
             const matchText = lote.numero_lote.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchStatus = filters.status ? lote.estado === filters.status : true;
+            const matchStatus = filters.status ? estadoReal === filters.status : true;
             
             const expDate = lote.fecha_vencimiento ? new Date(lote.fecha_vencimiento) : null;
             const start = filters.startDate ? new Date(filters.startDate) : null;
@@ -106,7 +127,7 @@ function LotDetailView() {
             l.cantidad,
             l.fecha_pedido,
             l.fecha_vencimiento || 'N/A',
-            l.estado
+            getEstadoCalculado(l) // Exporta el estado real
         ]);
 
         autoTable(doc, {
@@ -141,7 +162,12 @@ function LotDetailView() {
         );
     };
 
-    const totalStock = filteredLotes.reduce((acc, curr) => acc + (curr.estado === 'ACTIVO' ? curr.cantidad : 0), 0);
+    // 🚨 CÁLCULO DE STOCK DISPONIBLE
+    // Ahora solo suma si el estado calculado es 'ACTIVO'. Si es 'VENCIDO' o 'AGOTADO', lo ignora.
+    const totalStock = filteredLotes.reduce((acc, curr) => {
+        const estadoReal = getEstadoCalculado(curr);
+        return acc + (estadoReal === 'ACTIVO' ? Number(curr.cantidad) : 0);
+    }, 0);
 
     return (
         <div className="page-container">
@@ -214,30 +240,34 @@ function LotDetailView() {
                                 <tr><td colSpan={6} style={styles.emptyState}>No se encontraron lotes para este producto.</td></tr>
                             )}
                             
-                            {filteredLotes.map((lote, idx) => (
-                                <tr key={lote.id_lote} style={idx % 2 === 0 ? styles.tr : styles.rowAlt}>
-                                    <td style={{...styles.td, fontWeight: '700', fontFamily: 'monospace', color: '#0f172a'}}>
-                                        {lote.numero_lote}
-                                    </td>
-                                    <td style={styles.td}>{lote.cantidad}</td>
-                                    <td style={styles.td}>{lote.fecha_pedido}</td>
-                                    <td style={{...styles.td, color: lote.estado === 'VENCIDO' ? '#dc2626' : '#334155'}}>
-                                        {lote.fecha_vencimiento || <span style={{color:'#94a3b8', fontStyle:'italic'}}>No aplica</span>}
-                                    </td>
-                                    <td style={styles.td}>
-                                        {badgeEstado(lote.estado)}
-                                    </td>
-                                    <td style={{...styles.td, textAlign:'center'}}>
-                                        <button 
-                                            onClick={() => setSelectedLoteForQr(lote)}
-                                            style={styles.btnIcon}
-                                            title="Generar QR"
-                                        >
-                                            <IconQr />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
+                            {filteredLotes.map((lote, idx) => {
+                                const estadoReal = getEstadoCalculado(lote); // Estado dinámico
+
+                                return (
+                                    <tr key={lote.id_lote} style={idx % 2 === 0 ? styles.tr : styles.rowAlt}>
+                                        <td style={{...styles.td, fontWeight: '700', fontFamily: 'monospace', color: '#0f172a'}}>
+                                            {lote.numero_lote}
+                                        </td>
+                                        <td style={styles.td}>{lote.cantidad}</td>
+                                        <td style={styles.td}>{lote.fecha_pedido}</td>
+                                        <td style={{...styles.td, color: estadoReal === 'VENCIDO' ? '#dc2626' : '#334155'}}>
+                                            {lote.fecha_vencimiento || <span style={{color:'#94a3b8', fontStyle:'italic'}}>No aplica</span>}
+                                        </td>
+                                        <td style={styles.td}>
+                                            {badgeEstado(estadoReal)}
+                                        </td>
+                                        <td style={{...styles.td, textAlign:'center'}}>
+                                            <button 
+                                                onClick={() => setSelectedLoteForQr(lote)}
+                                                style={styles.btnIcon}
+                                                title="Generar QR"
+                                            >
+                                                <IconQr />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>

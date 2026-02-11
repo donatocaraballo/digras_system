@@ -1269,3 +1269,40 @@ class CustomLogin(ObtainAuthToken):
         user_data = UsuarioSerializer(user).data
 
         return Response({"token": token.key, "user": user_data})
+    
+    # ============================================================
+#   VISTA DE DEVOLUCIONES (Solo lectura)
+# ============================================================
+
+class DevolucionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Muestra los productos que han reingresado al inventario por devoluciones.
+    No requiere modelos nuevos, lee directamente de DetalleOrden.
+    """
+    serializer_class = DetalleOrdenSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Filtramos solo las líneas donde hubo devolución (cantidad > 0)
+        return DetalleOrden.objects.filter(
+            cantidad_devolvida__gt=0
+        ).select_related('id_orden', 'id_producto', 'id_orden__id_cliente').order_by('-id_orden')
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        
+        data = []
+        for det in queryset:
+            data.append({
+                # Datos clave que pediste
+                "orden_id": det.id_orden.id_orden,
+                "producto_nombre": det.id_producto.nombre,
+                "cantidad": det.cantidad_devolvida,
+                "motivo": getattr(det, 'nota', '') or "Sin nota especificada",
+                
+                # Extras útiles visualmente
+                "cliente": det.id_orden.id_cliente.nombre if det.id_orden.id_cliente else "Consumidor Final",
+                "fecha_orden": det.id_orden.fecha_orden # Referencia de cuándo se vendió
+            })
+            
+        return Response(data, status=status.HTTP_200_OK)

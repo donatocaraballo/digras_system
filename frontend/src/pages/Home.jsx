@@ -15,6 +15,7 @@ const API_EXISTENCIAS = '/api/inventario/existencias/';
 const API_CLIENTES = '/api/base/clientes/';
 const API_ENVIOS = '/api/base/envios/'; 
 const API_COMPRAS = '/api/compras/compras/'; 
+const API_LOTES = '/api/inventario/lotes/'; // 🚨 AGREGADO
 
 // --- ICONOS SVG ---
 const IconExcel = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>;
@@ -25,8 +26,8 @@ function Home() {
     const { user } = useAuth();
     const [loading, setLoading] = useState(true);
     
-    // Datos crudos (Raw Data)
-    const [rawData, setRawData] = useState({ ordenes: [], compras: [], envios: [], clientes: [], productos: [], existencias: [] });
+    // Datos crudos (Raw Data) - 🚨 SE AGREGA 'lotes'
+    const [rawData, setRawData] = useState({ ordenes: [], compras: [], envios: [], clientes: [], productos: [], existencias: [], lotes: [] });
 
     // Estado del Filtro de Tiempo
     const [timeRange, setTimeRange] = useState('7d'); // '7d', '30d', 'month', 'year'
@@ -57,14 +58,17 @@ function Home() {
                 const token = localStorage.getItem('auth_token');
                 const config = { headers: { Authorization: `Token ${token}` } };
                 
-                // ?page_size=1000 para traer TODO y evitar paginación parcial
-                const [resOrdenes, resCompras, resEnvios, resClientes, resProd, resExist] = await Promise.all([
+                // ?page_size=1000 para traer TODO
+                // 🚨 AGREGADO: resLotes en la promesa
+                const [resOrdenes, resCompras, resEnvios, resClientes, resProd, resExist, resLotes] = await Promise.all([
                     axios.get(`http://127.0.0.1:8000${API_ORDENES}?page_size=1000`, config).catch(() => ({ data: [] })),
                     (user.tipo === 'GERENTE' || user.tipo === 'ALMACENISTA' || user.tipo === 'ADMINISTRADOR') ? axios.get(`http://127.0.0.1:8000${API_COMPRAS}?page_size=1000`, config).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
                     (user.tipo === 'TRANSPORTISTA' || user.tipo === 'ALMACENISTA') ? axios.get(`http://127.0.0.1:8000${API_ENVIOS}?page_size=1000`, config).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
                     (user.tipo === 'VENDEDOR') ? axios.get(`http://127.0.0.1:8000${API_CLIENTES}?page_size=1000`, config).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
                     (user.tipo === 'GERENTE' || user.tipo === 'ALMACENISTA' || user.tipo === 'ADMINISTRADOR') ? axios.get(`http://127.0.0.1:8000${API_PRODUCTOS}?page_size=1000`, config).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
                     (user.tipo === 'GERENTE' || user.tipo === 'ALMACENISTA' || user.tipo === 'ADMINISTRADOR') ? axios.get(`http://127.0.0.1:8000${API_EXISTENCIAS}?page_size=1000`, config).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+                    // 🚨 Nueva llamada para lotes
+                    (user.tipo === 'GERENTE' || user.tipo === 'ALMACENISTA' || user.tipo === 'ADMINISTRADOR') ? axios.get(`http://127.0.0.1:8000${API_LOTES}?page_size=1000`, config).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
                 ]);
 
                 setRawData({
@@ -74,6 +78,7 @@ function Home() {
                     clientes: Array.isArray(resClientes.data) ? resClientes.data : resClientes.data.results || [],
                     productos: Array.isArray(resProd.data) ? resProd.data : resProd.data.results || [],
                     existencias: Array.isArray(resExist.data) ? resExist.data : resExist.data.results || [],
+                    lotes: Array.isArray(resLotes.data) ? resLotes.data : resLotes.data.results || [], // 🚨 SE GUARDA
                 });
 
                 setLoading(false);
@@ -106,10 +111,7 @@ function Home() {
             });
         };
 
-        // 🚨 FUNCIÓN AUXILIAR PARA CALCULAR CRÍTICOS CORRECTAMENTE
-        // Itera sobre PRODUCTOS, no solo sobre existencias. Si no hay existencia, es crítico (0).
         const calcularStockCritico = (productos, existencias) => {
-            // Mapa rápido de existencias: ID_PRODUCTO -> OBJETO_EXISTENCIA
             const existenciasMap = {};
             existencias.forEach(e => {
                 const pid = typeof e.id_producto === 'object' ? e.id_producto.id_producto : e.id_producto;
@@ -117,11 +119,8 @@ function Home() {
             });
 
             let contadorCriticos = 0;
-            
             productos.forEach(prod => {
                 const ex = existenciasMap[prod.id_producto];
-                
-                // Si existe el registro, usamos sus datos. Si no, asumimos 0 y AGOTADO.
                 const cantidad = ex ? Number(ex.cantidad || 0) : 0;
                 const estado = ex ? (ex.estado || "").toUpperCase().trim() : 'AGOTADO';
 
@@ -129,8 +128,21 @@ function Home() {
                     contadorCriticos++;
                 }
             });
-
             return contadorCriticos;
+        };
+
+        // 🚨 FUNCIÓN PARA CALCULAR POR VENCER (30 DÍAS)
+        const calcularPorVencer = (lotes) => {
+            if (!lotes || !lotes.length) return 0;
+            const hoy = new Date();
+            const limite = new Date();
+            limite.setDate(hoy.getDate() + 30); 
+
+            return lotes.filter(l => {
+                if (!l.fecha_vencimiento || parseFloat(l.cantidad) <= 0) return false;
+                const d = new Date(l.fecha_vencimiento);
+                return d >= hoy && d <= limite;
+            }).length;
         };
 
 
@@ -167,12 +179,21 @@ function Home() {
             const porRecibir = rawData.compras.filter(c => (c.estado_de_envio || "").toUpperCase() === 'APROBADA').length;
             
             const criticos = calcularStockCritico(rawData.productos, rawData.existencias);
+            const porVencer = calcularPorVencer(rawData.lotes); // 🚨
             const listos = rawData.ordenes.filter(o => o.estado_de_envio === 'PREPARADA').length;
 
             setMetrics({
                 card1: { title: "Por Preparar", value: porPreparar, icon: "📦", color: "#f57c00", isAlert: porPreparar > 0 },
                 card2: { title: "Por Recibir", value: porRecibir, icon: "🚛", color: "#0288d1", isAlert: porRecibir > 0 },
-                card3: { title: "Stock Crítico", value: criticos, icon: "🚨", color: "#c62828", isAlert: criticos > 0 },
+                // 🚨 CARD 3: STOCK CRITICO Y POR VENCER UNIFICADOS VISUALMENTE
+                card3: { 
+                    title: "Alertas Stock", 
+                    value: criticos + porVencer, 
+                    icon: "🚨", 
+                    color: "#c62828", 
+                    isAlert: (criticos + porVencer) > 0,
+                    details: { critico: criticos, venc: porVencer } // Muestra desglose pequeño
+                },
                 card4: { title: "Listos Entrega", value: listos, icon: "✅", color: "#2e7d32" }
             });
 
@@ -207,7 +228,8 @@ function Home() {
                 .reduce((acc, curr) => acc + parseFloat(curr.precio_final || 0), 0);
 
             const criticos = calcularStockCritico(rawData.productos, rawData.existencias);
-            
+            const porVencer = calcularPorVencer(rawData.lotes); // 🚨
+
             let valorInv = 0;
             const stockMap = {};
             rawData.existencias.forEach(e => {
@@ -220,38 +242,31 @@ function Home() {
                 valorInv += parseFloat(p.precio_venta || 0) * qty;
             });
 
-            // 🚨 LOGICA SEPARADA PARA GERENTE Y ADMIN 🚨
-            let card3Config = {};
-            
-            if (user.tipo === 'GERENTE') {
-                const ventasPend = rawData.ordenes.filter(o => o.estado_de_envio === 'PENDIENTE POR APROBACIÓN').length;
-                const comprasPend = rawData.compras.filter(c => c.estado_de_envio === 'PENDIENTE_APROBACION').length;
-                const totalPend = ventasPend + comprasPend;
+            // Lógica roles
+            const ventasPend = rawData.ordenes.filter(o => o.estado_de_envio === 'PENDIENTE POR APROBACIÓN').length;
+            const comprasPend = rawData.compras.filter(c => c.estado_de_envio === 'PENDIENTE_APROBACION').length;
+            const totalPend = ventasPend + comprasPend;
 
-                card3Config = { 
+            setMetrics({
+                card1: { title: `Ventas (${timeRange.toUpperCase()})`, value: `$${ventasPeriodo.toLocaleString()}`, icon: "📈", color: "#2e7d32" },
+                card2: { title: "Valor Inventario", value: `$${valorInv.toLocaleString()}`, icon: "💎", color: "#0277bd" },
+                card3: { 
                     title: "Total Pendientes", 
                     value: totalPend, 
                     icon: "🔔", 
                     color: "#f57c00", 
                     isAlert: totalPend > 0,
                     details: { compras: comprasPend, ventas: ventasPend }
-                };
-            } else {
-                // 🚨 ADMINISTRADOR: AHORA VE TOTAL DE COMPRAS (O VENTAS SI PREFIERES), PERO NO PENDIENTES
-                card3Config = { 
-                    title: "Total Compras", 
-                    value: rawData.compras.length, 
-                    icon: "🛒", 
-                    color: "#6366f1", // Color indigo para diferenciar
-                    isAlert: false
-                };
-            }
-
-            setMetrics({
-                card1: { title: `Ventas (${timeRange.toUpperCase()})`, value: `$${ventasPeriodo.toLocaleString()}`, icon: "📈", color: "#2e7d32" },
-                card2: { title: "Valor Inventario", value: `$${valorInv.toLocaleString()}`, icon: "💎", color: "#0277bd" },
-                card3: card3Config, 
-                card4: { title: "Stock Crítico", value: criticos, icon: "🚨", color: "#c62828", isAlert: criticos > 0 }
+                },
+                // 🚨 CARD 4: MUESTRA SUMA DE RIESGOS CON DESGLOSE VISUAL
+                card4: { 
+                    title: "Riesgos Stock", 
+                    value: criticos + porVencer, 
+                    icon: "🚨", 
+                    color: "#c62828", 
+                    isAlert: (criticos + porVencer) > 0,
+                    details: { critico: criticos, venc: porVencer } // Se usa el estilo de badge existente
+                }
             });
 
             const ventasMap = {};
@@ -385,7 +400,7 @@ function Home() {
                 {/* SECCIÓN 1: KPIs DINÁMICOS */}
                 <div style={styles.kpiGrid} className="responsive-grid">
                     <KpiCard {...metrics.card1} onClick={() => {
-                        if(user.tipo==='ALMACENISTA') navigate('/inventario');
+                        if(user.tipo==='ALMACENISTA') navigate('/preparacion');
                         if(user.tipo==='TRANSPORTISTA') navigate('/transporte');
                     }} />
                     
@@ -397,9 +412,9 @@ function Home() {
                     
                     <KpiCard {...metrics.card3} onClick={() => {
                         if(user.tipo==='GERENTE') navigate('/aprobaciones');
-                        else if (user.tipo==='ADMINISTRADOR') navigate('/compras');
                         else if(user.tipo==='VENDEDOR') navigate('/ordenes');
                         else if(user.tipo==='ALMACENISTA') navigate('/inventario');
+                        else if(user.tipo==='ADMINISTRADOR') navigate('/compras'); // Corrección admin
                     }} />
                     
                     <KpiCard {...metrics.card4} onClick={() => {
@@ -473,7 +488,9 @@ function Home() {
                                 <>
                                     <ActionButton icon="📊" label="Ventas" onClick={() => navigate('/ordenes')} color="#3b82f6" />
                                     <ActionButton icon="🛒" label="Compras" onClick={() => navigate('/compras')} color="#f59e0b" />
-                                    <ActionButton icon="👥" label="Usuarios" onClick={() => navigate('/usuarios')} color="#64748b" />
+                                    {(user.tipo === 'GERENTE' || user.is_superuser) && (
+                                        <ActionButton icon="👥" label="Usuarios" onClick={() => navigate('/usuarios')} color="#64748b" />
+                                    )}
                                 </>
                             )}
                             
@@ -502,8 +519,11 @@ const KpiCard = ({ title, value, icon, color, isAlert, onClick, details }) => (
 
         {details && (
             <div style={styles.kpiDetails}>
-                <span style={styles.detailBadge}>🛒 <b>{details.compras}</b> Comp.</span>
-                <span style={styles.detailBadge}>🧾 <b>{details.ventas}</b> Vent.</span>
+                {details.compras !== undefined && <span style={styles.detailBadge}>🛒 <b>{details.compras}</b> Comp.</span>}
+                {details.ventas !== undefined && <span style={styles.detailBadge}>🧾 <b>{details.ventas}</b> Vent.</span>}
+                {/* 🚨 MODIFICADO PARA SOPORTAR NUEVOS DETALLES SIN ROMPER ESTILO */}
+                {details.critico !== undefined && <span style={styles.detailBadge}>🔴 <b>{details.critico}</b> Crít.</span>}
+                {details.venc !== undefined && <span style={styles.detailBadge}>⚠️ <b>{details.venc}</b> Venc.</span>}
             </div>
         )}
 
@@ -636,7 +656,7 @@ styleSheet.innerText = `
             top: 0; 
             width: 100%; 
             margin: 0; 
-            padding: 0;
+            padding: 0; 
             background: white;
         }
         
@@ -651,4 +671,4 @@ styleSheet.innerText = `
 `;
 document.head.appendChild(styleSheet);
 
-export default Home;    
+export default Home;

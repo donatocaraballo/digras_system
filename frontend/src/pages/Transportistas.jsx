@@ -1,19 +1,18 @@
 // frontend/src/pages/Transportistas.jsx
 
 import React, { useEffect, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import api from "../api/api";
+import { toast } from "react-hot-toast";
+import { useAuth } from "../AuthContext";
 
+const ESTADO_CREACION_ENVIO = "PENDIENTE POR ASIGNACION";
+
+// -----------------------------
+// ICONOS
+// -----------------------------
 const IconTruck = () => (
-  <svg
-    width="28"
-    height="28"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="1" y="3" width="15" height="13" rx="2" ry="2" />
     <path d="M16 8h4l3 3v5h-7z" />
     <circle cx="5.5" cy="18.5" r="2.5" />
@@ -22,32 +21,14 @@ const IconTruck = () => (
 );
 
 const IconSearch = () => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="11" cy="11" r="8"></circle>
     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
   </svg>
 );
 
 const IconRefresh = () => (
-  <svg
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="23 4 23 10 17 10"></polyline>
     <polyline points="1 20 1 14 7 14"></polyline>
     <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
@@ -55,24 +36,13 @@ const IconRefresh = () => (
 );
 
 const IconMap = () => (
-  <svg
-    width="14"
-    height="14"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    style={{ marginRight: 4 }}
-  >
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}>
     <path d="M1 6l7-3 7 3 8-3v15l-8 3-7-3-7 3z"></path>
     <path d="M8 3v15"></path>
     <path d="M15 6v15"></path>
   </svg>
 );
 
-// Helper para mostrar solo fecha (dd/mm/aaaa)
 const formatDateOnly = (value) => {
   if (!value) return "-";
   const d = new Date(value);
@@ -91,37 +61,30 @@ export default function TransporteEnvio() {
   const [error, setError] = useState("");
   const [mensaje, setMensaje] = useState("");
 
-  // filtros
   const [filtroTexto, setFiltroTexto] = useState("");
-  // ordenSort: "", "PESADAS", "LIVIANAS", "PRECIO_MAYOR", "PRECIO_MENOR"
   const [ordenSort, setOrdenSort] = useState("");
-
-  // orden seleccionada (para expandir info)
   const [ordenSeleccionada, setOrdenSeleccionada] = useState(null);
 
-  // MODAL DEVOLUCIÓN
   const [modalDevolucionVisible, setModalDevolucionVisible] = useState(false);
   const [ordenDevolucion, setOrdenDevolucion] = useState(null);
   const [lineasDevolucion, setLineasDevolucion] = useState([]);
   const [notaDevolucion, setNotaDevolucion] = useState("");
   const [errorDevolucion, setErrorDevolucion] = useState("");
 
-  // MODAL CONFIRMACIÓN (INICIAR / FINALIZAR VIAJE)
   const [confirmConfig, setConfirmConfig] = useState(null);
-  // confirmConfig: { tipo: 'INICIAR' | 'FINALIZAR', titulo, mensaje }
 
-  const cargarOrdenes = async () => {
+  const cargarOrdenes = async (ignorarErrores = false) => {
     try {
       const params = {};
       if (filtroTexto) params.q = filtroTexto;
 
-      const res = await api.get("base/transporte/mi-envio/ordenes/", {
-        params,
-      });
+      const res = await api.get("base/transporte/mi-envio/ordenes/", { params });
       setOrdenes(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      console.error(err);
-      setError("No se pudieron cargar las órdenes del envío.");
+      console.error("Error cargando órdenes:", err);
+      if (!ignorarErrores) {
+        setError("No se pudieron cargar las órdenes del envío.");
+      }
     }
   };
 
@@ -134,12 +97,13 @@ export default function TransporteEnvio() {
       const res = await api.get("base/transporte/mi-envio/");
       if (res.data && res.data.id_envio) {
         setEnvio(res.data);
-
-        // 👇 Solo cargamos órdenes si el envío ya está EN CURSO
-        if ((res.data.estado || "").toUpperCase() === "EN CURSO") {
-          await cargarOrdenes();
+        
+        // Cargar órdenes (priorizando las que vienen en el envío si existen, sino recargando)
+        if (Array.isArray(res.data.ordenes) && res.data.ordenes.length > 0) {
+           setOrdenes(res.data.ordenes);
         } else {
-          setOrdenes([]);
+           // Si no vienen o están vacías, forzamos la carga (tolerante a fallos)
+           await cargarOrdenes(true);
         }
       } else {
         setEnvio(null);
@@ -166,7 +130,6 @@ export default function TransporteEnvio() {
       await cargarOrdenes();
       setMensaje("Filtros aplicados.");
     } catch (err) {
-      // ya se maneja en cargarOrdenes
     } finally {
       setLoading(false);
     }
@@ -180,14 +143,11 @@ export default function TransporteEnvio() {
     cargarOrdenes();
   };
 
-  // --- CONFIRMACIONES BONITAS PARA INICIAR / FINALIZAR VIAJE ---
+  // --- CONFIRMACIONES ---
 
   const abrirConfirmacionIniciarViaje = () => {
     if (!envio) return;
-
     const estadoActual = (envio.estado || "").toUpperCase();
-
-    // Bloqueo igual que antes, pero con mensaje en la UI principal
     if (estadoActual !== "LISTO_PARA_SALIR") {
       setError(
         "El almacenista aún no ha preparado el envío. Solo puedes iniciar el viaje cuando el envío esté marcado como LISTO_PARA_SALIR."
@@ -195,7 +155,6 @@ export default function TransporteEnvio() {
       setMensaje("");
       return;
     }
-
     setConfirmConfig({
       tipo: "INICIAR",
       titulo: "Iniciar viaje",
@@ -295,7 +254,6 @@ export default function TransporteEnvio() {
     }
   };
 
-  // NO ENTREGADA: ya no requiere nota, la orden vuelve a estado pendiente
   const marcarNoEntregada = async (orden) => {
     if (!orden) return;
     const confirmar = window.confirm(
@@ -329,10 +287,11 @@ export default function TransporteEnvio() {
     }
   };
 
-  // ---------- MODAL DEVOLUCIÓN ----------
+  // ---------- MODAL DEVOLUCIÓN (CORREGIDO) ----------
   const abrirModalDevolucion = (orden) => {
     if (!orden) return;
 
+    // 🚨 Aseguramos que 'detalles' exista y sea un array
     const detalles = Array.isArray(orden.detalles) ? orden.detalles : [];
 
     const lineas = detalles.map((d) => {
@@ -471,13 +430,10 @@ export default function TransporteEnvio() {
   const puedeIniciarViaje = estadoEnvio === "LISTO_PARA_SALIR";
   const envioAsignadoNoListo = estadoEnvio === "ASIGNADO";
 
-  // Cantidad de órdenes asignadas al envío
-  const totalOrdenesAsignadas = envio
-    ? envio.cantidad_ordenes ??
-      envio.total_ordenes ??
-      envio.cantidad_ordenes_total ??
-      ordenes.length
-    : 0;
+  // 🚨 CORRECCIÓN: Usamos ordenes.length si existen, sino los datos del objeto envio
+  const totalOrdenesAsignadas = ordenes.length > 0 
+    ? ordenes.length 
+    : (envio ? (envio.cantidad_ordenes ?? envio.total_ordenes ?? envio.cantidad_ordenes_total ?? 0) : 0);
 
   // Capacidad máxima, peso total y porcentaje de capacidad utilizada
   const capacidadMaxima =

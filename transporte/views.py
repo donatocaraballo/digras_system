@@ -93,28 +93,41 @@ class TransporteViewSet(viewsets.GenericViewSet):
     # ------------------------------------------------------------------
     @action(detail=False, methods=["get"], url_path="mi-envio")
     def mi_envio(self, request):
-        """
-        Devuelve el envío asignado al transportista autenticado (si existe),
-        junto con un resumen de las órdenes.
-        """
         usuario = self._require_transportista(request)
-
         envio = self._get_envio_asignado(usuario)
+        
         if not envio:
             return Response(
                 {"mensaje": "No tienes ningún envío asignado actualmente."},
                 status=status.HTTP_200_OK,
             )
 
+        # Optimizamos la consulta
         ordenes = (
             Orden.objects
             .filter(id_envio=envio)
             .select_related("id_cliente")
+            .prefetch_related("detalleorden_set__id_producto") # ⚡ Pre-carga detalles
         )
 
-        # 👇 Ahora incluimos teléfono del cliente y peso_total de la orden
-        ordenes_data = [
-            {
+        ordenes_data = []
+        for o in ordenes:
+            # Construimos los detalles (igual que en el otro endpoint)
+            detalles_list = [
+                {
+                    "id_detalleo": d.id_detalleo,
+                    "producto": d.id_producto.nombre,
+                    "cantidad": d.cantidad,
+                    "peso": str(d.peso_subtotal),
+                    "subtotal": str(d.subtotal),
+                    "devolucion": getattr(d, "devolucion", False),
+                    "cantidad_devolvida": getattr(d, "cantidad_devolvida", 0),
+                    "nota": getattr(d, "nota", ""),
+                }
+                for d in o.detalleorden_set.all()
+            ]
+
+            ordenes_data.append({
                 "id_orden": o.id_orden,
                 "cliente": o.id_cliente.nombre,
                 "direccion": getattr(o.id_cliente, "direccion", ""),
@@ -123,19 +136,15 @@ class TransporteViewSet(viewsets.GenericViewSet):
                 "estado_de_pago": o.estado_de_pago,
                 "precio_final": o.precio_final,
                 "peso_total": o.peso_total,
-            }
-            for o in ordenes
-        ]
+                "detalles": detalles_list, # 🚨 ¡ESTO ES LO QUE FALTABA!
+            })
 
         unidad = envio.id_unidad
 
-        # 👇 Exponemos placa, código de unidad, capacidad, fecha del envío y peso total del envío
         data = {
             "id_envio": envio.id_envio,
             "codigo": getattr(envio, "codigo_envio", f"ENV-{envio.id_envio}"),
             "estado": envio.estado,
-            # La placa sigue yendo en `unidad` para no romper el front,
-            # pero también enviamos el código y la capacidad.
             "unidad": getattr(unidad, "placa", None),
             "unidad_codigo": getattr(unidad, "codigo_unidad", None),
             "unidad_capacidad": getattr(unidad, "capacidad_carga", None),
@@ -220,19 +229,17 @@ class TransporteViewSet(viewsets.GenericViewSet):
     def ordenes_envio(self, request):
         """
         Lista las órdenes del envío del transportista.
-
-        Solo se permite si el envío está EN CURSO.
-
-        Filtros:
-        - ?q=texto (cliente, dirección)
-        - ?estado=PREPARADA/ENTREGADA/DEVUELTA/NO ENTREGADA
+        Permite ver las órdenes asignadas aunque el viaje no haya iniciado.
         """
         usuario = self._require_transportista(request)
         envio = self._get_envio_asignado(usuario)
+        
+        # Si no hay envío asignado, retornamos lista vacía
         if not envio:
             return Response([], status=status.HTTP_200_OK)
 
-        self._check_envio_en_curso(envio)
+        # 🚨 CORRECCIÓN: Eliminamos la validación estricta _check_envio_en_curso(envio)
+        # Queremos ver las órdenes si el envío existe, sin importar si inició o no.
 
         q = request.GET.get("q", "").strip()
         estado = request.GET.get("estado", "").strip().upper()

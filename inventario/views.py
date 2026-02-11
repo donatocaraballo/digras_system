@@ -4,6 +4,7 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.db.models import Sum
+from django.utils import timezone  # <--- Importante para la fecha actual
 from base.utils import registrar_accion 
 
 from .models import Categoria, Marca, Producto, Existencia, Lote
@@ -35,44 +36,51 @@ class MarcaViewSet(viewsets.ModelViewSet):
         except: pass
 
 class ProductoViewSet(viewsets.ModelViewSet):
-    # 🚨 CORRECCIÓN: Agregamos esto para que el router sepa el modelo base y no de error al iniciar
     queryset = Producto.objects.all() 
-    
     serializer_class = ProductoSerializer
     permission_classes = [AllowAny]
 
     # FILTRO DINÁMICO: ?activo=true
     def get_queryset(self):
-        # Empezamos con todos
         queryset = Producto.objects.all().order_by('nombre')
-        
-        # Filtramos si viene el parámetro
         activo_param = self.request.query_params.get('activo')
         if activo_param is not None:
-            # Convertimos 'true'/'false' string a booleano real
             es_activo = activo_param.lower() == 'true'
             queryset = queryset.filter(activo=es_activo)
-            
         return queryset
 
-    # VALIDACIÓN AL ACTUALIZAR (Lógica de Desactivación)
+    # VALIDACIÓN AL ACTUALIZAR (Lógica de Desactivación Inteligente)
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
 
         # Verificamos si están intentando cambiar el estado 'activo'
         if 'activo' in request.data:
-            # Convertimos a booleano seguro
             nuevo_estado = str(request.data['activo']).lower() == 'true'
             
             # Si se intenta desactivar (False) y actualmente está activo (True)
             if not nuevo_estado and instance.activo:
-                # Verificar stock total en Existencia
-                total_stock = Existencia.objects.filter(id_producto=instance).aggregate(total=Sum('cantidad'))['total'] or 0
                 
-                if total_stock > 0:
+                # 1. Calculamos la fecha de hoy
+                hoy = timezone.now().date()
+
+                # 2. Calculamos el stock VIGENTE (ignorando lotes vencidos)
+                stock_vigente = Lote.objects.filter(
+                    id_producto=instance,
+                    cantidad__gt=0,
+                    estado='ACTIVO',
+                    fecha_vencimiento__gte=hoy  # <--- CLAVE: Ignora lo vencido
+                ).aggregate(total=Sum('cantidad'))['total'] or 0
+                
+                # 3. Solo bloqueamos si hay stock SANO
+                if stock_vigente > 0:
                     return Response(
-                        {"error": f"No se puede desactivar '{instance.nombre}' porque tiene {total_stock} unidades en existencia. Debe vaciar el stock primero."},
+                        {
+                            "error": (
+                                f"No se puede desactivar '{instance.nombre}' porque tiene {stock_vigente} "
+                                "unidades VIGENTES en inventario. (El stock vencido no impide la desactivación)."
+                            )
+                        },
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
